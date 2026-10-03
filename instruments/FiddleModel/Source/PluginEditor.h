@@ -76,6 +76,8 @@ private:
     juce::ComboBox bowMaterial_;
     juce::Label contactMaterialLabel_;
     juce::ComboBox contactMaterial_;
+    juce::Label stringMaterialLabel_;
+    juce::ComboBox stringMaterial_;
     juce::TooltipWindow tooltips_ { this, 500 };
 
     HumanKnob pressure_ {
@@ -123,6 +125,7 @@ private:
     std::unique_ptr<ComboAttachment> bodyMaterialAttachment_;
     std::unique_ptr<ComboAttachment> bowMaterialAttachment_;
     std::unique_ptr<ComboAttachment> contactMaterialAttachment_;
+    std::unique_ptr<ComboAttachment> stringMaterialAttachment_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessorEditor)
 };
