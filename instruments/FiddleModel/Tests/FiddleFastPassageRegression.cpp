@@ -13,7 +13,7 @@
 namespace
 {
 constexpr double sampleRate = 48000.0;
-constexpr double noteSeconds = 0.090;
+constexpr double noteSeconds = 0.075;
 
 double rms(const std::vector<float>& x, std::size_t begin, std::size_t end)
 {
@@ -140,8 +140,8 @@ int main(int argc, char** argv)
 
         expectedDirection = -expectedDirection;
 
-        // Ignore the first 25 ms containing the physical direction reversal.
-        const auto segmentBegin = offset + static_cast<std::size_t>(0.025 * sampleRate);
+        // Ignore the first 24 ms containing the physical direction reversal.
+        const auto segmentBegin = offset + static_cast<std::size_t>(0.024 * sampleRate);
         const auto segmentEnd = offset + samplesPerNote;
         const auto segmentRms = rms(left, segmentBegin, segmentEnd);
 
