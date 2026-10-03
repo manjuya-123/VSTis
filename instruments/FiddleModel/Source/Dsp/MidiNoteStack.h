@@ -67,6 +67,13 @@ public:
         return current(true);
     }
 
+    [[nodiscard]] bool isHeld(int note) const noexcept
+    {
+        return note >= 0 && note < 128
+            ? held_[static_cast<std::size_t>(note)]
+            : false;
+    }
+
     [[nodiscard]] NoteSelection current(bool changed = false) const noexcept
     {
         NoteSelection result;
