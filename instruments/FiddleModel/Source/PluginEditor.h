@@ -47,10 +47,17 @@ class BowActionStrip final : public juce::Component
 public:
     void setState(int playMode, int bowAction);
     void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+
+    std::function<void(int, bool)> onActionKey;
 
 private:
+    int actionKeyAt(juce::Point<float>) const noexcept;
+
     int playMode_ = 0;
     int bowAction_ = 0;
+    int mouseActionKey_ = -1;
 };
 
 class FiddleModelAudioProcessorEditor final
