@@ -44,7 +44,14 @@ struct FiddleEngine::Impl
     std::array<Smoother, stringCount> speakingFrequency{};
 
     Controls controlTargets{};
+    MaterialSettings materialSettings{};
     DebugState debug{};
+
+    bool materialConfigured = false;
+    double bowResponseScale = 1.0;
+    double staticGripScale = 1.0;
+    double slidingGripScale = 1.0;
+    double contactStateRateScale = 1.0;
 
     double velocityScale = 1.0;
     double bowSpeed = 0.0;
@@ -60,6 +67,8 @@ struct FiddleEngine::Impl
         body.prepare(sampleRate);
         radiation.prepare(sampleRate);
         bowGeometry.prepare();
+        materialConfigured = false;
+        setMaterials(materialSettings);
 
         pressure.prepare(sampleRate, 0.012);
         speed.prepare(sampleRate, 0.012);
@@ -134,6 +143,77 @@ struct FiddleEngine::Impl
         vibratoPace.setTarget(controlTargets.vibratoPace);
     }
 
+    void setMaterials(const MaterialSettings& materials) noexcept
+    {
+        const bool unchanged =
+            materialConfigured
+            && materialSettings.body == materials.body
+            && materialSettings.bowStick == materials.bowStick
+            && materialSettings.contact == materials.contact;
+
+        if (unchanged)
+            return;
+
+        materialSettings = materials;
+        materialConfigured = true;
+
+        switch (materials.body)
+        {
+            case BodyMaterialPreset::Traditional:
+                body.setMaterialScales(1.00, 1.00, 1.00);
+                break;
+            case BodyMaterialPreset::LightStiffComposite:
+                body.setMaterialScales(1.04, 0.82, 1.05);
+                break;
+            case BodyMaterialPreset::DenseExperimental:
+                body.setMaterialScales(0.97, 1.28, 0.90);
+                break;
+            case BodyMaterialPreset::RigidComposite:
+                body.setMaterialScales(1.08, 0.68, 0.96);
+                break;
+        }
+
+        switch (materials.bowStick)
+        {
+            case BowStickPreset::PernambucoLike:
+                bowResponseScale = 1.00;
+                break;
+            case BowStickPreset::CarbonLike:
+                bowResponseScale = 1.10;
+                break;
+            case BowStickPreset::LightRigidExperimental:
+                bowResponseScale = 1.38;
+                break;
+            case BowStickPreset::FlexibleExperimental:
+                bowResponseScale = 0.76;
+                break;
+        }
+
+        switch (materials.contact)
+        {
+            case ContactMaterialPreset::HorsehairMediumRosin:
+                staticGripScale = 1.00;
+                slidingGripScale = 1.00;
+                contactStateRateScale = 1.00;
+                break;
+            case ContactMaterialPreset::DryLightGrip:
+                staticGripScale = 0.86;
+                slidingGripScale = 0.90;
+                contactStateRateScale = 1.16;
+                break;
+            case ContactMaterialPreset::HighGripRosin:
+                staticGripScale = 1.18;
+                slidingGripScale = 1.08;
+                contactStateRateScale = 0.84;
+                break;
+            case ContactMaterialPreset::SyntheticHair:
+                staticGripScale = 0.93;
+                slidingGripScale = 0.95;
+                contactStateRateScale = 1.05;
+                break;
+        }
+    }
+
     void beginBowStroke(bool alternateDirection) noexcept
     {
         if (!bowStrokeStarted)
@@ -199,7 +279,8 @@ struct FiddleEngine::Impl
         // Bow Response is the player's ability to accelerate/reverse the bow,
         // not an amplitude-envelope attack. The earlier 0.25..3 m/s^2 range
         // made alternating fiddle strokes unrealistically sluggish.
-        const auto bowAcceleration = 2.5 * std::pow(24.0, a);
+        const auto bowAcceleration =
+            bowResponseScale * 2.5 * std::pow(24.0, a);
         const auto totalForce = (0.06 * std::pow(8.0, p)) * velocityScale * gateValue;
         const auto beta = 0.22 + (0.06 - 0.22) * pos;
 
@@ -285,7 +366,8 @@ struct FiddleEngine::Impl
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
             {
                 const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate);
+                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
+                    staticGripScale, slidingGripScale, contactStateRateScale);
                 injection = stringVelocity - incomingVelocity;
             }
             else
@@ -333,6 +415,7 @@ void FiddleEngine::noteOn(float frequencyHz, float velocity) { impl_->noteOn(fre
 void FiddleEngine::retune(float frequencyHz) { impl_->retune(frequencyHz); }
 void FiddleEngine::noteOff() { impl_->noteOff(); }
 void FiddleEngine::setControls(const Controls& controls) noexcept { impl_->setControls(controls); }
+void FiddleEngine::setMaterials(const MaterialSettings& materials) noexcept { impl_->setMaterials(materials); }
 
 void FiddleEngine::process(float* left, float* right, std::size_t numSamples) noexcept
 {
