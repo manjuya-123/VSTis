@@ -132,3 +132,8 @@ Fiddle Play is a two-hand performance workflow:
 The dedicated Fiddle Play action strip is interactive. Mouse gestures use the same
 Down / Up / Short / Tremolo / Drone / Accent / Chop / Release paths as the MIDI action
 row, so the GUI is not a separate audition-only sound path.
+
+
+- Shuffle — a repeating long-short-short physical bow gesture on the current fingering.
+  Velocity changes the subdivision rate/energy. Do not describe it as a sampled
+  articulation or expose its internal scheduler counters in the normal UI.
