@@ -455,8 +455,10 @@ struct FiddleEngine::Impl
         {
             --shortStrokeSamplesRemaining;
             if (shortStrokeSamplesRemaining == 0)
+            {
                 forceGate.setTarget(0.0);
-        motionGate.setTarget(0.0);
+                motionGate.setTarget(0.0);
+            }
         }
 
         const bool chopDampingActive = chopDampingSamplesRemaining > 0;
