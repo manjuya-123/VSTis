@@ -190,8 +190,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
       processor_(processor)
 {
     setResizable(true, true);
-    setResizeLimits(820, 620, 1280, 900);
-    setSize(980, 720);
+    setResizeLimits(840, 720, 1280, 980);
+    setSize(980, 820);
 
     title_.setText("Fiddle Model", juce::dontSendNotification);
     title_.setFont(juce::FontOptions(28.0f).withStyle("Bold"));
@@ -208,6 +208,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(instrumentView_);
     addAndMakeVisible(bowGroup_);
     addAndMakeVisible(stringsGroup_);
+    addAndMakeVisible(materialsGroup_);
 
     strokeLabel_.setText("Bow Strokes", juce::dontSendNotification);
     strokeLabel_.setJustificationType(juce::Justification::centredRight);
@@ -217,6 +218,39 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     strokeMode_.setTooltip(
         "Connected keeps the same bow direction. Alternate reverses the bow on each new note.");
     addAndMakeVisible(strokeMode_);
+
+    bodyMaterialLabel_.setText("Body", juce::dontSendNotification);
+    bodyMaterialLabel_.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(bodyMaterialLabel_);
+    bodyMaterial_.addItem("Traditional spruce/maple", 1);
+    bodyMaterial_.addItem("Light stiff composite", 2);
+    bodyMaterial_.addItem("Dense experimental", 3);
+    bodyMaterial_.addItem("Rigid composite", 4);
+    bodyMaterial_.setTooltip(
+        "Changes the body's modal stiffness, damping and mechanical admittance. Experimental profiles are model profiles, not measured instrument brands.");
+    addAndMakeVisible(bodyMaterial_);
+
+    bowMaterialLabel_.setText("Bow Stick", juce::dontSendNotification);
+    bowMaterialLabel_.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(bowMaterialLabel_);
+    bowMaterial_.addItem("Pernambuco-like", 1);
+    bowMaterial_.addItem("Carbon-like", 2);
+    bowMaterial_.addItem("Light rigid experimental", 3);
+    bowMaterial_.addItem("Flexible experimental", 4);
+    bowMaterial_.setTooltip(
+        "Changes the effective bow-stick response seen by the player's acceleration and reversals.");
+    addAndMakeVisible(bowMaterial_);
+
+    contactMaterialLabel_.setText("Hair / Rosin", juce::dontSendNotification);
+    contactMaterialLabel_.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(contactMaterialLabel_);
+    contactMaterial_.addItem("Horsehair + medium rosin", 1);
+    contactMaterial_.addItem("Dry / light grip", 2);
+    contactMaterial_.addItem("High-grip rosin", 3);
+    contactMaterial_.addItem("Synthetic hair", 4);
+    contactMaterial_.setTooltip(
+        "Changes static grip, sliding friction and the contact-state relaxation. These are physical-model profiles rather than EQ presets.");
+    addAndMakeVisible(contactMaterial_);
 
     contact_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
     focus_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
@@ -246,6 +280,12 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         state, "bendRange", bendRange_.slider());
     strokeModeAttachment_ = std::make_unique<ComboAttachment>(
         state, "strokeMode", strokeMode_);
+    bodyMaterialAttachment_ = std::make_unique<ComboAttachment>(
+        state, "bodyMaterial", bodyMaterial_);
+    bowMaterialAttachment_ = std::make_unique<ComboAttachment>(
+        state, "bowMaterial", bowMaterial_);
+    contactMaterialAttachment_ = std::make_unique<ComboAttachment>(
+        state, "contactMaterial", contactMaterial_);
 
     pressure_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
     speed_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
@@ -306,14 +346,32 @@ void FiddleModelAudioProcessorEditor::resized()
     contact_.setBounds(bowContent);
 
     area.removeFromTop(10);
-    stringsGroup_.setBounds(area);
+    auto stringsArea = area.removeFromTop(170);
+    stringsGroup_.setBounds(stringsArea);
 
-    auto stringsContent = area.reduced(14, 30);
+    auto stringsContent = stringsArea.reduced(14, 30);
     const auto column = stringsContent.getWidth() / 4;
     focus_.setBounds(stringsContent.removeFromLeft(column));
     vibratoWidth_.setBounds(stringsContent.removeFromLeft(column));
     vibratoPace_.setBounds(stringsContent.removeFromLeft(column));
     bendRange_.setBounds(stringsContent);
+
+    area.removeFromTop(10);
+    materialsGroup_.setBounds(area);
+
+    auto materials = area.reduced(14, 28);
+    const auto materialColumn = materials.getWidth() / 3;
+
+    auto bodyArea = materials.removeFromLeft(materialColumn);
+    bodyMaterialLabel_.setBounds(bodyArea.removeFromTop(24));
+    bodyMaterial_.setBounds(bodyArea.removeFromTop(32).reduced(6, 2));
+
+    auto bowArea2 = materials.removeFromLeft(materialColumn);
+    bowMaterialLabel_.setBounds(bowArea2.removeFromTop(24));
+    bowMaterial_.setBounds(bowArea2.removeFromTop(32).reduced(6, 2));
+
+    contactMaterialLabel_.setBounds(materials.removeFromTop(24));
+    contactMaterial_.setBounds(materials.removeFromTop(32).reduced(6, 2));
 }
 
 void FiddleModelAudioProcessorEditor::timerCallback()
