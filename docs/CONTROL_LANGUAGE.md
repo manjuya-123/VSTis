@@ -34,3 +34,14 @@ Additional player controls:
 
 These are player descriptions; the internal cents and modulation frequency remain
 implementation details rather than normal performance parameters.
+
+
+## MIDI gesture language
+
+- Mod Wheel -> more Vibrato
+- Aftertouch -> more Bow Pressure
+- Pitch Wheel -> fingered pitch movement
+
+Normal UI copy should describe the musical gesture first. Controller numbers and DSP
+scaling are implementation details unless the user explicitly opens a diagnostics or
+MIDI-mapping view.
