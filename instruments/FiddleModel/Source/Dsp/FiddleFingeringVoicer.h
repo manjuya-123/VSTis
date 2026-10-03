@@ -18,7 +18,8 @@ inline constexpr std::array<int, 4> openStringMidi { 55, 62, 69, 76 }; // G3 D4 
 
 inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
                                       std::size_t noteCount,
-                                      int newestNote) noexcept
+                                      int newestNote,
+                                      int preferredPrimaryString = -1) noexcept
 {
     FingeringLayout result;
 
@@ -29,9 +30,31 @@ inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
 
     std::array<bool, 4> used { false, false, false, false };
 
+    // For a monophonic phrase, prefer to stay on the current physical string
+    // while the note remains within a practical low-position span. This keeps
+    // e.g. A4 as a fourth-finger note on D instead of forcing an open-A switch.
+    if (noteCount == 1
+        && preferredPrimaryString >= 0
+        && preferredPrimaryString < 4
+        && newestNote >= openStringMidi[static_cast<std::size_t>(preferredPrimaryString)]
+        && newestNote - openStringMidi[static_cast<std::size_t>(preferredPrimaryString)] <= 7)
+    {
+        const auto index = static_cast<std::size_t>(preferredPrimaryString);
+        result.midiNoteByString[index] = newestNote;
+        used[index] = true;
+    }
+
     for (std::size_t noteIndex = 0; noteIndex < noteCount; ++noteIndex)
     {
         const auto note = notes[noteIndex];
+
+        bool alreadyAssigned = false;
+        for (int stringIndex = 0; stringIndex < 4; ++stringIndex)
+            if (result.midiNoteByString[static_cast<std::size_t>(stringIndex)] == note)
+                alreadyAssigned = true;
+
+        if (alreadyAssigned)
+            continue;
 
         for (int stringIndex = 3; stringIndex >= 0; --stringIndex)
         {
