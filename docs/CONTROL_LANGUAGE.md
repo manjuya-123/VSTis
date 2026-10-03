@@ -26,3 +26,11 @@ The plug-in UI is written for a player, not for the DSP implementation.
 
 The active String Focus pair is shown by string names (for example D ↔ A), not merely
 "lower" and "upper".
+
+
+Additional player controls:
+- Vibrato Width — narrow/natural/wide left-hand pitch movement.
+- Vibrato Pace — slow/natural/quick left-hand rocking speed.
+
+These are player descriptions; the internal cents and modulation frequency remain
+implementation details rather than normal performance parameters.
