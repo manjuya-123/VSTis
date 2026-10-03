@@ -34,6 +34,16 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     baseControls_.vibratoPace = parameters_.getRawParameterValue("vibratoPace")->load();
     pitchBendRangeSemitones_ =
         parameters_.getRawParameterValue("bendRange")->load();
+
+    fiddle::MaterialSettings materials;
+    materials.body = static_cast<fiddle::BodyMaterialPreset>(
+        static_cast<int>(parameters_.getRawParameterValue("bodyMaterial")->load()));
+    materials.bowStick = static_cast<fiddle::BowStickPreset>(
+        static_cast<int>(parameters_.getRawParameterValue("bowMaterial")->load()));
+    materials.contact = static_cast<fiddle::ContactMaterialPreset>(
+        static_cast<int>(parameters_.getRawParameterValue("contactMaterial")->load()));
+    engine_.setMaterials(materials);
+
     applyPerformanceControls();
 
     auto* left = buffer.getWritePointer(0);
@@ -178,6 +188,30 @@ FiddleModelAudioProcessor::createParameterLayout()
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "strokeMode", "Bow Strokes",
         juce::StringArray { "Connected", "Alternate" }, 1));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        "bodyMaterial", "Body Material",
+        juce::StringArray {
+            "Traditional spruce/maple",
+            "Light stiff composite",
+            "Dense experimental",
+            "Rigid composite"
+        }, 0));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        "bowMaterial", "Bow Stick Material",
+        juce::StringArray {
+            "Pernambuco-like",
+            "Carbon-like",
+            "Light rigid experimental",
+            "Flexible experimental"
+        }, 0));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        "contactMaterial", "Hair / Rosin",
+        juce::StringArray {
+            "Horsehair + medium rosin",
+            "Dry / light grip",
+            "High-grip rosin",
+            "Synthetic hair"
+        }, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "bendRange", "Pitch Bend Range",
         juce::NormalisableRange<float>(1.0f, 24.0f, 1.0f), 2.0f));
