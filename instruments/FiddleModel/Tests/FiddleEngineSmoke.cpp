@@ -73,6 +73,9 @@ int main()
     if (!(debug.contactNormalForceN[1] > 0.0f && debug.contactNormalForceN[2] > 0.0f))
         return fail("balanced D+A bow should apply force to both strings");
 
+    if (!(debug.bowAngleDeg > 0.3f && debug.bowAngleDeg < 0.7f))
+        return fail("Balance center should calibrate to the expected physical bow angle");
+
     const auto forceSum = debug.contactNormalForceN[1] + debug.contactNormalForceN[2];
     if (!(forceSum > 0.05f && forceSum < 0.60f))
         return fail("normal-force mapping is outside the expected physical range");
@@ -124,7 +127,8 @@ int main()
               << "tail_rms=" << tailRms << '\n'
               << "balanced_D_force_N=" << debug.contactNormalForceN[1] << '\n'
               << "balanced_A_force_N=" << debug.contactNormalForceN[2] << '\n'
-              << "bow_speed_mps=" << debug.bowSpeedMps << '\n';
+              << "bow_speed_mps=" << debug.bowSpeedMps << '\n'
+              << "bow_angle_deg=" << debug.bowAngleDeg << '\n';
 
     return EXIT_SUCCESS;
 }

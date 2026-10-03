@@ -13,7 +13,9 @@ contains:
 - per-string passive loss filters and mild allpass dispersion
 - nonlinear stateful bow/string friction contacts
 - up to two simultaneously bowed adjacent strings
-- total bow-force conservation with impedance-aware Balance
+- Performance Balance calibrated to physical bow angle
+- bridge curvature + compliant bow-hair contact geometry
+- total bow-force conservation through geometric contact solving
 - a shared passive 12-mode bridge/body admittance
 - sympathetic excitation through the shared bridge
 - continuous speaking-length changes when MIDI pitch changes strings/fingering
@@ -42,7 +44,7 @@ This mapping is an intermediate performance model and will become configurable l
 - **Speed**: maps to bow velocity.
 - **Attack**: maps to bow acceleration.
 - **Position**: fingerboard-side to bridge-side bow position.
-- **Balance**: redistributes one conserved total bow force across the active adjacent pair.
+- **Balance**: maps to a calibrated physical bow angle. Bridge curvature and bow-hair compliance then determine which strings are touched and how the conserved total force is distributed.
 
 ## Automated core test
 
@@ -59,8 +61,7 @@ environment.
 
 ## Next milestones
 
-1. Add the validated v0.4c Performance Balance -> physical Bow Angle LUT/geometry state.
-2. Add regression rendering against reference WAV metrics.
-3. Improve fractional-delay phase compensation for fingered-note pitch accuracy.
-4. Add note-stack/legato policy and MPE mappings.
-5. Replace the generic JUCE editor with the performance UI.
+1. Add regression rendering against reference WAV metrics.
+2. Improve phase/pitch compensation at the bridge load where needed.
+3. Add note-stack/legato policy and MPE mappings.
+4. Replace the generic JUCE editor with the performance UI.

@@ -22,6 +22,7 @@ struct DebugState
     std::array<bool, 4> sticking{};
     float bowSpeedMps = 0.0f;
     float bridgeVelocity = 0.0f;
+    float bowAngleDeg = 0.0f;
     int bowPairLowerString = 1;
     int primaryString = 1;
 };

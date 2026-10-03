@@ -58,4 +58,20 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
 }};
 
 inline constexpr double bodyDirectConductance = 0.0007;
+
+// Representative bridge cross-section used by the v0.4b/v0.4c geometry model.
+inline constexpr double bridgeRadiusMm = 41.0;
+inline constexpr double geSpacingMm = 34.925;
+inline constexpr double adjacentSpacingMm = geSpacingMm / 3.0;
+inline constexpr std::array<double, stringCount> bridgeXmm {
+    -17.4625, -5.820833333333333, 5.820833333333333, 17.4625
+};
+inline constexpr std::array<double, stringCount> bridgeYmm {
+    0.0, 3.4894028492500837, 3.4894028492500837, 0.0
+};
+inline constexpr std::array<double, 3> pairChordAngleDeg {
+    16.685258826933733, 0.0, -16.685258826933733
+};
+inline constexpr double contactStiffness = 0.30;
+inline constexpr double contactExponent = 1.5;
 } // namespace fiddle::detail

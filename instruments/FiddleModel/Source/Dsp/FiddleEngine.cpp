@@ -136,20 +136,80 @@ struct FiddleEngine::Impl
         gate.setTarget(0.0);
     }
 
-    std::array<double, stringCount> makeBowForces(double totalForce, double balanceValue) const noexcept
+    static double balanceToLocalBowAngle(double balanceValue) noexcept
+    {
+        // 7th-order fit to the validated v0.4c Balance->Bow Angle calibration.
+        // Maximum fit error over [-1,1] is about 0.013 degree.
+        const auto x = std::clamp(balanceValue, -1.0, 1.0);
+        constexpr std::array<double, 8> c {
+            1.15679654, -0.45509499, -3.56088352, 1.08519450,
+            5.32921783, -1.02536461, -7.45033364, 0.48225702
+        };
+        double y = c[0];
+        for (std::size_t i = 1; i < c.size(); ++i)
+            y = y * x + c[i];
+        return y;
+    }
+
+    std::array<double, stringCount> makeBowForces(double totalForce, double balanceValue) noexcept
     {
         std::array<double, stringCount> result{};
         if (totalForce <= 0.0)
+        {
+            debug.bowAngleDeg = static_cast<float>(
+                pairChordAngleDeg[static_cast<std::size_t>(pairLower)]
+                + balanceToLocalBowAngle(balanceValue));
             return result;
+        }
 
-        const auto lower = static_cast<std::size_t>(pairLower);
-        const auto upper = lower + 1;
-        const auto lowerWeight = stringImpedance[lower] * std::exp(-balanceSharpness * balanceValue);
-        const auto upperWeight = stringImpedance[upper] * std::exp(+balanceSharpness * balanceValue);
-        const auto weightSum = lowerWeight + upperWeight;
+        const auto baseAngle = pairChordAngleDeg[static_cast<std::size_t>(pairLower)];
+        const auto angleDeg = baseAngle + balanceToLocalBowAngle(balanceValue);
+        debug.bowAngleDeg = static_cast<float>(angleDeg);
 
-        result[lower] = totalForce * lowerWeight / weightSum;
-        result[upper] = totalForce * upperWeight / weightSum;
+        const auto slope = std::tan(angleDeg * pi / 180.0);
+        std::array<double, stringCount> gaps{};
+        double highest = -1.0e30;
+        for (std::size_t i = 0; i < stringCount; ++i)
+        {
+            gaps[i] = bridgeYmm[i] - slope * bridgeXmm[i];
+            highest = std::max(highest, gaps[i]);
+        }
+        for (auto& gap : gaps)
+            gap = highest - gap;
+
+        const auto forceAtDepth = [&](double depth) noexcept
+        {
+            double sum = 0.0;
+            for (const auto gap : gaps)
+            {
+                const auto indentation = std::max(0.0, depth - gap);
+                sum += contactStiffness * std::pow(indentation, contactExponent);
+            }
+            return sum;
+        };
+
+        double lo = 0.0;
+        double hi = 2.0;
+        while (forceAtDepth(hi) < totalForce && hi < 16.0)
+            hi *= 2.0;
+
+        for (int iteration = 0; iteration < 22; ++iteration)
+        {
+            const auto mid = 0.5 * (lo + hi);
+            if (forceAtDepth(mid) < totalForce)
+                lo = mid;
+            else
+                hi = mid;
+        }
+
+        const auto depth = 0.5 * (lo + hi);
+        for (std::size_t i = 0; i < stringCount; ++i)
+        {
+            const auto indentation = std::max(0.0, depth - gaps[i]);
+            result[i] = contactStiffness * std::pow(indentation, contactExponent);
+            if (result[i] < 1.0e-9)
+                result[i] = 0.0;
+        }
         return result;
     }
 
