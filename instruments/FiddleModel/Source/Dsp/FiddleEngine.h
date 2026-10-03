@@ -93,6 +93,7 @@ public:
 
     void startBow(int direction) noexcept;
     void startShortStroke(int direction, float durationSeconds = 0.075f) noexcept;
+    void startChop(int direction, float durationSeconds = 0.032f) noexcept;
     void startTremolo(float reversalsPerSecond = 14.0f) noexcept;
     void stopBow() noexcept;
     void noteOff();
