@@ -63,6 +63,7 @@ struct FiddleEngine::Impl
     int bowDirection = 1;
     bool bowStrokeStarted = false;
     std::int64_t shortStrokeSamplesRemaining = 0;
+    std::int64_t chopDampingSamplesRemaining = 0;
     std::int64_t tremoloSamplesUntilFlip = 0;
     double tremoloReversalsPerSecond = 0.0;
     int primaryString = 1;
@@ -128,6 +129,7 @@ struct FiddleEngine::Impl
         bowDirection = 1;
         bowStrokeStarted = false;
         shortStrokeSamplesRemaining = 0;
+        chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
         primaryString = 1;
