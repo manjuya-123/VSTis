@@ -77,4 +77,13 @@ if (BUILD_TESTING)
         NAME FiddleModelAudioRegression
         COMMAND FiddleModelAudioRegression ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
     )
+
+    add_executable(FiddleModelFastPassageRegression
+        Tests/FiddleFastPassageRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelFastPassageRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelFastPassageRegression PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelFastPassageRegression COMMAND FiddleModelFastPassageRegression)
 endif()
