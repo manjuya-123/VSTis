@@ -50,6 +50,7 @@ public:
     juce::AudioProcessorValueTreeState& parameterState() noexcept { return parameters_; }
     int activePairLowerString() const noexcept { return activePairLowerString_.load(std::memory_order_relaxed); }
     FiddleVisualState visualState() const noexcept;
+    void requestPlayActionFromUi(int midiNote, bool pressed) noexcept;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -89,6 +90,8 @@ private:
     std::atomic<int> visualPlayMode_ { 0 };
     std::atomic<int> visualBowAction_ { 0 };
     std::atomic<bool> visualFingeringHold_ { false };
+    std::atomic<int> pendingUiActionPress_ { -1 };
+    std::atomic<int> pendingUiActionRelease_ { -1 };
     std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
