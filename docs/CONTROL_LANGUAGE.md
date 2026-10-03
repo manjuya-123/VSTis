@@ -114,3 +114,16 @@ requires them; do not fill the map merely for completeness.
 Fiddle Play should always be described as an instrument-performance mode, not as a
 "keyswitch bank". The action keys do not swap samples; they expand into physical changes
 to bow direction, speed, pressure, duration, string focus, and persistent string state.
+
+
+## Fiddle Play mode
+
+Fiddle Play is a two-hand performance workflow:
+
+- Fingering region (G3+) describes where fingers sit on the four strings.
+- Action region (C2-B2) describes what the bow hand does.
+- CC64 is labelled Fingering Hold, not Sustain, because it latches the left-hand shape.
+- Slur is not a hidden articulation switch: keep the bow moving and change the fingers.
+- Drone Bow means physically bow the selected adjacent pair with balanced focus.
+- Short / Accent / Chop are gestures built from bow force, speed and contact duration,
+  not alternate rendered samples.
