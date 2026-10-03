@@ -74,8 +74,9 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(bowGroup_);
     addAndMakeVisible(stringsGroup_);
 
-    for (auto* component : std::array<juce::Component*, 6> {
-             &pressure_, &speed_, &response_, &contact_, &focus_, &bendRange_ })
+    for (auto* component : std::array<juce::Component*, 8> {
+             &pressure_, &speed_, &response_, &contact_,
+             &focus_, &vibratoWidth_, &vibratoPace_, &bendRange_ })
         addAndMakeVisible(*component);
 
     auto& state = processor_.parameterState();
@@ -89,6 +90,10 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         state, "position", contact_.slider());
     focusAttachment_ = std::make_unique<Attachment>(
         state, "balance", focus_.slider());
+    vibratoWidthAttachment_ = std::make_unique<Attachment>(
+        state, "vibratoWidth", vibratoWidth_.slider());
+    vibratoPaceAttachment_ = std::make_unique<Attachment>(
+        state, "vibratoPace", vibratoPace_.slider());
     bendRangeAttachment_ = std::make_unique<Attachment>(
         state, "bendRange", bendRange_.slider());
 
@@ -97,6 +102,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     response_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
     contact_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
     focus_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
+    vibratoWidth_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
+    vibratoPace_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
     bendRange_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
 
     refreshHumanReadableValues();
@@ -145,8 +152,10 @@ void FiddleModelAudioProcessorEditor::resized()
     stringsGroup_.setBounds(area);
 
     auto stringsContent = area.reduced(14, 30);
-    const auto half = stringsContent.getWidth() / 2;
-    focus_.setBounds(stringsContent.removeFromLeft(half));
+    const auto column = stringsContent.getWidth() / 4;
+    focus_.setBounds(stringsContent.removeFromLeft(column));
+    vibratoWidth_.setBounds(stringsContent.removeFromLeft(column));
+    vibratoPace_.setBounds(stringsContent.removeFromLeft(column));
     bendRange_.setBounds(stringsContent);
 }
 
@@ -177,6 +186,12 @@ void FiddleModelAudioProcessorEditor::refreshHumanReadableValues()
     focus_.setValueText(
         fiddle::presentation::stringFocus(
             static_cast<float>(focus_.slider().getValue())));
+    vibratoWidth_.setValueText(
+        fiddle::presentation::vibratoWidth(
+            static_cast<float>(vibratoWidth_.slider().getValue())));
+    vibratoPace_.setValueText(
+        fiddle::presentation::vibratoPace(
+            static_cast<float>(vibratoPace_.slider().getValue())));
     bendRange_.setValueText(
         fiddle::presentation::bendRange(
             static_cast<float>(bendRange_.slider().getValue())));
