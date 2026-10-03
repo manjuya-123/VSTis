@@ -25,7 +25,8 @@ private:
     juce::Label explanation_;
 };
 
-class InstrumentView final : public juce::Component
+class InstrumentView final : public juce::Component,
+                             public juce::SettableTooltipClient
 {
 public:
     void setState(FiddleVisualState state);
