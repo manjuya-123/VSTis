@@ -74,6 +74,10 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(bowGroup_);
     addAndMakeVisible(stringsGroup_);
 
+    contact_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
+    focus_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
+    bendRange_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
+
     for (auto* component : std::array<juce::Component*, 8> {
              &pressure_, &speed_, &response_, &contact_,
              &focus_, &vibratoWidth_, &vibratoPace_, &bendRange_ })
