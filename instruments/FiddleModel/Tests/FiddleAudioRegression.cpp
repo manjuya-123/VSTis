@@ -26,6 +26,7 @@ struct Scenario
     fiddle::Controls controls;
     float noteHz = 329.6276f;
     float velocity = 0.85f;
+    fiddle::MaterialSettings materials{};
 };
 
 struct Render
@@ -270,6 +271,7 @@ Render renderScenario(const Scenario& scenario)
 {
     fiddle::FiddleEngine engine;
     engine.prepare(sampleRate);
+    engine.setMaterials(scenario.materials);
     engine.setControls(scenario.controls);
     engine.noteOn(scenario.noteHz, scenario.velocity);
 
@@ -388,6 +390,30 @@ std::vector<Scenario> makeScenarios()
         c.vibratoWidth = 0.72f;
         c.vibratoPace = 0.55f;
         scenarios.push_back({ "07_stopped_vibrato_B4_on_A", c, 493.8833f, 0.85f });
+    }
+    {
+        auto c = baseControls();
+        fiddle::MaterialSettings m;
+        m.body = fiddle::BodyMaterialPreset::LightStiffComposite;
+        scenarios.push_back({ "09_body_light_stiff_composite", c, 329.6276f, 0.85f, m });
+    }
+    {
+        auto c = baseControls();
+        fiddle::MaterialSettings m;
+        m.body = fiddle::BodyMaterialPreset::RigidComposite;
+        scenarios.push_back({ "10_body_rigid_composite", c, 329.6276f, 0.85f, m });
+    }
+    {
+        auto c = baseControls();
+        fiddle::MaterialSettings m;
+        m.contact = fiddle::ContactMaterialPreset::DryLightGrip;
+        scenarios.push_back({ "11_hair_rosin_dry_light_grip", c, 329.6276f, 0.85f, m });
+    }
+    {
+        auto c = baseControls();
+        fiddle::MaterialSettings m;
+        m.contact = fiddle::ContactMaterialPreset::HighGripRosin;
+        scenarios.push_back({ "12_hair_rosin_high_grip", c, 329.6276f, 0.85f, m });
     }
 
     return scenarios;
