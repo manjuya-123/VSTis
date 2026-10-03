@@ -39,6 +39,22 @@ int main()
     }
 
     {
+        // Keep A4 on D as a fourth-finger note when continuing a D-string phrase.
+        std::array<int, 4> notes { 69, -1, -1, -1 }; // A4
+        const auto layout = fiddle::voiceFingering(notes, 1, 69, 1);
+        if (layout.midiNoteByString[1] != 69 || layout.primaryString != 1)
+            return fail("A4 should stay on D when D is the preferred phrase string");
+    }
+
+    {
+        // B4 is outside the low-position span on D, so move naturally to A.
+        std::array<int, 4> notes { 71, -1, -1, -1 }; // B4
+        const auto layout = fiddle::voiceFingering(notes, 1, 71, 1);
+        if (layout.midiNoteByString[2] != 71 || layout.primaryString != 2)
+            return fail("B4 should move to A after the practical D-string span");
+    }
+
+    {
         std::array<int, 4> notes { 64, 71, -1, -1 }; // E4 + B4
         const auto layout = fiddle::voiceFingering(notes, 2, 71);
         if (layout.midiNoteByString[1] != 64
