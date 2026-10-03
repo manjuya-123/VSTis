@@ -76,6 +76,12 @@ struct BowContact
             temperatureC, ambientTemperatureC, ambientTemperatureC + 65.0);
     }
 
+    void relax(double sampleRate, double stateRateScale = 1.0) noexcept
+    {
+        sticking = false;
+        updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
+    }
+
     double solve(double incomingVelocity,
                  double bowVelocity,
                  double normalForce,
