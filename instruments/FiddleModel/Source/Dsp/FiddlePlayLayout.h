@@ -18,7 +18,8 @@ enum class BowAction
     DroneBow,
     AccentStroke,
     Chop,
-    Release
+    Release,
+    Shuffle
 };
 
 inline constexpr int fiddleLowestNote = 55; // G3
@@ -29,6 +30,7 @@ inline BowAction bowActionForMidiNote(int midiNote) noexcept
     switch (midiNote)
     {
         case 36: return BowAction::DownBow;       // C2
+        case 37: return BowAction::Shuffle;       // C#2
         case 38: return BowAction::UpBow;         // D2
         case 40: return BowAction::ShortStroke;   // E2
         case 41: return BowAction::Tremolo;       // F2
