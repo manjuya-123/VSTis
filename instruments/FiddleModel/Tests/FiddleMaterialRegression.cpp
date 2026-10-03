@@ -123,6 +123,19 @@ int main()
     if (!std::isfinite(contactDifference) || contactDifference < 1.0e-5)
         return fail("Hair/Rosin material profile did not change bow-string interaction");
 
+    auto steel = traditional;
+    steel.strings = fiddle::StringCorePreset::SteelCore;
+    auto gut = traditional;
+    gut.strings = fiddle::StringCorePreset::GutLike;
+
+    const auto steelStrings = render(steel);
+    const auto gutStrings = render(gut);
+    const auto stringDifference = differenceRms(
+        steelStrings.audio, gutStrings.audio);
+
+    if (!std::isfinite(stringDifference) || stringDifference < 1.0e-5)
+        return fail("String-core material profile did not change string-loop behavior");
+
     const auto rigidBowSpeed =
         reversalSpeed(fiddle::BowStickPreset::LightRigidExperimental);
     const auto flexibleBowSpeed =
@@ -140,6 +153,7 @@ int main()
     std::cout << "PASS\n"
               << "body_difference_rms=" << bodyDifference << '\n'
               << "contact_difference_rms=" << contactDifference << '\n'
+              << "string_difference_rms=" << stringDifference << '\n'
               << "rigid_bow_speed=" << rigidBowSpeed << '\n'
               << "flexible_bow_speed=" << flexibleBowSpeed << '\n';
 
