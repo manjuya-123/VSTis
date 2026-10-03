@@ -14,6 +14,8 @@ void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
 {
     noteStack_.reset();
     pitchWheelNormalized_ = 0.0f;
+    modWheelNormalized_ = 0.0f;
+    channelPressureNormalized_ = 0.0f;
     engine_.prepare(sampleRate);
 }
 
@@ -23,17 +25,16 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
-    fiddle::Controls controls;
-    controls.pressure = parameters_.getRawParameterValue("pressure")->load();
-    controls.speed = parameters_.getRawParameterValue("speed")->load();
-    controls.attack = parameters_.getRawParameterValue("attack")->load();
-    controls.position = parameters_.getRawParameterValue("position")->load();
-    controls.balance = parameters_.getRawParameterValue("balance")->load();
-    controls.vibratoWidth = parameters_.getRawParameterValue("vibratoWidth")->load();
-    controls.vibratoPace = parameters_.getRawParameterValue("vibratoPace")->load();
+    baseControls_.pressure = parameters_.getRawParameterValue("pressure")->load();
+    baseControls_.speed = parameters_.getRawParameterValue("speed")->load();
+    baseControls_.attack = parameters_.getRawParameterValue("attack")->load();
+    baseControls_.position = parameters_.getRawParameterValue("position")->load();
+    baseControls_.balance = parameters_.getRawParameterValue("balance")->load();
+    baseControls_.vibratoWidth = parameters_.getRawParameterValue("vibratoWidth")->load();
+    baseControls_.vibratoPace = parameters_.getRawParameterValue("vibratoPace")->load();
     pitchBendRangeSemitones_ =
         parameters_.getRawParameterValue("bendRange")->load();
-    engine_.setControls(controls);
+    applyPerformanceControls();
 
     auto* left = buffer.getWritePointer(0);
     auto* right = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : left;
@@ -86,6 +87,18 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     engine_.noteOff();
                 }
             }
+        }
+        else if (message.isController() && message.getControllerNumber() == 1)
+        {
+            modWheelNormalized_ =
+                static_cast<float>(message.getControllerValue()) / 127.0f;
+            applyPerformanceControls();
+        }
+        else if (message.isChannelPressure())
+        {
+            channelPressureNormalized_ =
+                static_cast<float>(message.getChannelPressureValue()) / 127.0f;
+            applyPerformanceControls();
         }
         else if (message.isPitchWheel())
         {
@@ -172,6 +185,16 @@ float FiddleModelAudioProcessor::bentFrequencyForNote(int midiNote) const
         pitchWheelNormalized_ * pitchBendRangeSemitones_;
     return midiNoteToHz(midiNote)
         * std::pow(2.0f, semitones / 12.0f);
+}
+
+void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
+{
+    auto controls = baseControls_;
+    controls.pressure = std::clamp(
+        controls.pressure + 0.30f * channelPressureNormalized_, 0.0f, 1.0f);
+    controls.vibratoWidth = std::max(
+        controls.vibratoWidth, modWheelNormalized_);
+    engine_.setControls(controls);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
