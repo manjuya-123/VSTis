@@ -65,4 +65,16 @@ if (BUILD_TESTING)
     target_include_directories(FiddleModelNoteStackSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
     target_compile_features(FiddleModelNoteStackSmoke PRIVATE cxx_std_17)
     add_test(NAME FiddleModelNoteStackSmoke COMMAND FiddleModelNoteStackSmoke)
+
+    add_executable(FiddleModelAudioRegression
+        Tests/FiddleAudioRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelAudioRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelAudioRegression PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleModelAudioRegression
+        COMMAND FiddleModelAudioRegression ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
+    )
 endif()
