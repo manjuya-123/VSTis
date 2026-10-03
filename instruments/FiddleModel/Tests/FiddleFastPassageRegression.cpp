@@ -76,11 +76,11 @@ bool writeStereoWav(const std::filesystem::path& path,
     writeU16(out, 4u); writeU16(out, bits);
     out.write("data", 4); writeU32(out, bytes);
 
-    constexpr float listeningGain = 0.16f;
     for (std::size_t i = 0; i < left.size(); ++i)
     {
         const auto encode = [](float x)
         {
+            constexpr float listeningGain = 0.16f;
             x = std::clamp(x * listeningGain, -1.0f, 1.0f);
             return static_cast<std::uint16_t>(
                 static_cast<std::int16_t>(std::lrint(x * 32767.0f)));
