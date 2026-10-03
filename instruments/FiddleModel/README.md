@@ -180,3 +180,45 @@ Fingered notes now include additional energy loss at the stopped-string terminat
 A very short extra loss is applied when the finger first lands, then relaxes to a smaller
 steady fingertip loss. This improves separation in quick left-hand passages without
 using an output amplitude envelope or resetting the string state.
+
+
+## Fiddle Play Mode
+
+Fiddle Play Mode separates the modeled player's two hands.
+
+### Fingering Keys
+
+MIDI G3 and above describe the left hand. They select stopped/open notes on the four
+physical G/D/A/E strings but do not start the bow by themselves.
+
+Up to four held fingering notes are voiced onto distinct physical strings. For example:
+
+- E4 alone -> E4 stopped on the D string
+- E4 + B4 -> stopped D+A double-stop fingering
+- G3 + D4 + A4 + E5 -> all four open strings prepared
+
+Fingering-key velocity is intentionally not used as bow loudness. It describes a left-hand
+selection, not a right-hand gesture.
+
+### Bow Action Keys
+
+The white keys from C2 to B2 are the right-hand action row:
+
+- C2 — Down Bow
+- D2 — Up Bow
+- E2 — Short Stroke
+- F2 — Tremolo
+- G2 — Drone Bow / balanced adjacent-string bow
+- A2 — Accent Stroke
+- B2 — Release
+
+Bow Action velocity changes bow energy/pressure around the panel setting. The black keys
+in this octave are intentionally reserved for future fiddle-specific techniques so the
+initial white-key map can remain stable.
+
+Unlike sample-library keyswitches, these keys do not choose prerecorded articulations.
+They change the state and motion of the physical bow/string model while the left-hand
+fingering remains persistent.
+
+The CI listening artifact `09_fiddle_play_demo.wav` demonstrates one held E4+B4
+fingering through Down Bow, Up Bow, Short Stroke, Tremolo, and balanced D/A bowing.
