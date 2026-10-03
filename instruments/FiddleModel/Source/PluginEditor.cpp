@@ -57,7 +57,8 @@ void BowActionStrip::setState(int playMode, int bowAction)
 void BowActionStrip::paint(juce::Graphics& g)
 {
     static constexpr std::array<const char*, 7> keys {
-        "C2", "D2", "E2", "F2", "G2", "A2", "B2"
+        "C2 / 36", "D2 / 38", "E2 / 40", "F2 / 41",
+        "G2 / 43", "A2 / 45", "B2 / 47"
     };
     static constexpr std::array<const char*, 7> names {
         "Down", "Up", "Short", "Tremolo", "Drone", "Accent", "Release"
@@ -350,7 +351,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playMode_);
 
     playModeGuide_.setText(
-        "Fiddle Play: G3+ Fingering   |   C2 Down   D2 Up   E2 Short   F2 Tremolo   G2 Drone   A2 Accent   B2 Release",
+        "Fiddle Play: G3+ Fingering (MIDI 55+)   |   36 Down   38 Up   40 Short   41 Tremolo   43 Drone   45 Accent   47 Release",
         juce::dontSendNotification);
     playModeGuide_.setFont(juce::FontOptions(12.5f));
     playModeGuide_.setColour(juce::Label::textColourId,
@@ -570,6 +571,13 @@ void FiddleModelAudioProcessorEditor::timerCallback()
     const auto state = processor_.visualState();
     instrumentView_.setState(state);
     bowActionStrip_.setState(state.playMode, state.bowAction);
+
+    const bool fiddlePlay =
+        state.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay);
+    strokeMode_.setEnabled(!fiddlePlay);
+    strokeLabel_.setAlpha(fiddlePlay ? 0.38f : 1.0f);
+    playModeGuide_.setAlpha(fiddlePlay ? 1.0f : 0.42f);
+
     refreshHumanReadableValues();
 }
 
