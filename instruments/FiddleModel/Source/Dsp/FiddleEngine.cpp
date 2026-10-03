@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 
 namespace fiddle
 {
@@ -61,6 +62,9 @@ struct FiddleEngine::Impl
     double vibratoPhase = 0.0;
     int bowDirection = 1;
     bool bowStrokeStarted = false;
+    std::int64_t shortStrokeSamplesRemaining = 0;
+    std::int64_t tremoloSamplesUntilFlip = 0;
+    double tremoloReversalsPerSecond = 0.0;
     int primaryString = 1;
     int pairLower = 1;
 
@@ -123,6 +127,9 @@ struct FiddleEngine::Impl
         vibratoPhase = 0.0;
         bowDirection = 1;
         bowStrokeStarted = false;
+        shortStrokeSamplesRemaining = 0;
+        tremoloSamplesUntilFlip = 0;
+        tremoloReversalsPerSecond = 0.0;
         primaryString = 1;
         pairLower = 1;
         debug = {};
@@ -267,24 +274,50 @@ struct FiddleEngine::Impl
             bowDirection = -bowDirection;
     }
 
+    void setFingeringLayout(const std::array<float, stringCount>& frequencies,
+                            int newPrimaryString,
+                            int newPairLower,
+                            double velocity)
+    {
+        primaryString = std::clamp(newPrimaryString, 0, stringCount - 1);
+        pairLower = std::clamp(newPairLower, 0, stringCount - 2);
+
+        for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
+        {
+            const auto requested = frequencies[i] > 0.0f
+                ? static_cast<double>(frequencies[i])
+                : openFrequency[i];
+            const auto target = std::max(requested, openFrequency[i]);
+
+            const bool newlyStopped =
+                target > openFrequency[i] * 1.0005
+                && std::abs(target - speakingFrequency[i].target) > 0.25;
+
+            speakingFrequency[i].setTarget(target);
+            if (newlyStopped)
+                fingerTouch[i] = 1.0;
+            else if (target <= openFrequency[i] * 1.0005)
+                fingerTouch[i] = 0.0;
+        }
+
+        velocityScale = 0.35 + 0.65 * clamp01(velocity);
+    }
+
     void noteOn(double frequencyHz, double velocity)
     {
         const auto requested = std::clamp(frequencyHz, openFrequency.front(), 2500.0);
-        primaryString = choosePrimaryString(requested);
-        pairLower = std::clamp(primaryString, 0, 2);
+        const auto selectedString = choosePrimaryString(requested);
 
-        for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
-            speakingFrequency[i].setTarget(openFrequency[i]);
+        std::array<float, stringCount> frequencies{};
+        frequencies[static_cast<std::size_t>(selectedString)] =
+            static_cast<float>(requested);
 
-        const auto primary = static_cast<std::size_t>(primaryString);
-        const auto stoppedFrequency = std::max(requested, openFrequency[primary]);
-        speakingFrequency[primary].setTarget(stoppedFrequency);
+        setFingeringLayout(
+            frequencies,
+            selectedString,
+            std::clamp(selectedString, 0, stringCount - 2),
+            velocity);
 
-        fingerTouch.fill(0.0);
-        if (stoppedFrequency > openFrequency[primary] * 1.0005)
-            fingerTouch[primary] = 1.0;
-
-        velocityScale = 0.35 + 0.65 * clamp01(velocity);
         gate.setTarget(1.0);
     }
 
@@ -296,9 +329,48 @@ struct FiddleEngine::Impl
         speakingFrequency[primary].setTarget(requested);
     }
 
+    void startBow(int direction) noexcept
+    {
+        bowStrokeStarted = true;
+        bowDirection = direction < 0 ? -1 : 1;
+        shortStrokeSamplesRemaining = 0;
+        tremoloSamplesUntilFlip = 0;
+        tremoloReversalsPerSecond = 0.0;
+        gate.setTarget(1.0);
+    }
+
+    void startShortStroke(int direction, double durationSeconds) noexcept
+    {
+        startBow(direction);
+        shortStrokeSamplesRemaining = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(durationSeconds * sampleRate));
+    }
+
+    void startTremolo(double reversalsPerSecond) noexcept
+    {
+        bowStrokeStarted = true;
+        if (bowDirection == 0)
+            bowDirection = 1;
+
+        shortStrokeSamplesRemaining = 0;
+        tremoloReversalsPerSecond = std::clamp(reversalsPerSecond, 4.0, 28.0);
+        tremoloSamplesUntilFlip = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                sampleRate / tremoloReversalsPerSecond));
+        gate.setTarget(1.0);
+    }
+
+    void stopBow() noexcept
+    {
+        shortStrokeSamplesRemaining = 0;
+        tremoloSamplesUntilFlip = 0;
+        tremoloReversalsPerSecond = 0.0;
+        gate.setTarget(0.0);
+    }
+
     void noteOff() noexcept
     {
-        gate.setTarget(0.0);
+        stopBow();
     }
 
     std::array<double, stringCount> makeBowForces(double totalForce,
@@ -311,6 +383,25 @@ struct FiddleEngine::Impl
 
     double processSample() noexcept
     {
+        if (shortStrokeSamplesRemaining > 0)
+        {
+            --shortStrokeSamplesRemaining;
+            if (shortStrokeSamplesRemaining == 0)
+                gate.setTarget(0.0);
+        }
+
+        if (tremoloSamplesUntilFlip > 0 && tremoloReversalsPerSecond > 0.0)
+        {
+            --tremoloSamplesUntilFlip;
+            if (tremoloSamplesUntilFlip == 0)
+            {
+                bowDirection = -bowDirection;
+                tremoloSamplesUntilFlip = std::max<std::int64_t>(
+                    1, static_cast<std::int64_t>(
+                        sampleRate / tremoloReversalsPerSecond));
+            }
+        }
+
         const auto p = pressure.next();
         const auto s = speed.next();
         const auto a = attack.next();
@@ -406,8 +497,7 @@ struct FiddleEngine::Impl
             allpassY1[i] = filtered;
 
             const auto fingered =
-                static_cast<int>(i) == primaryString
-                && speakingFrequency[i].target > openFrequency[i] * 1.0005;
+                speakingFrequency[i].target > openFrequency[i] * 1.0005;
 
             // A stopped string loses additional transverse energy into the
             // fingertip. The short extra loss after Note On represents the
@@ -480,7 +570,24 @@ void FiddleEngine::prepare(double sampleRate) { impl_->prepare(sampleRate); }
 void FiddleEngine::reset() { impl_->reset(); }
 void FiddleEngine::beginBowStroke(bool alternateDirection) noexcept { impl_->beginBowStroke(alternateDirection); }
 void FiddleEngine::noteOn(float frequencyHz, float velocity) { impl_->noteOn(frequencyHz, velocity); }
+void FiddleEngine::setFingeringLayout(const std::array<float, 4>& frequencyHz,
+                                      int primaryString,
+                                      int bowPairLowerString,
+                                      float velocity)
+{
+    impl_->setFingeringLayout(frequencyHz, primaryString, bowPairLowerString, velocity);
+}
 void FiddleEngine::retune(float frequencyHz) { impl_->retune(frequencyHz); }
+void FiddleEngine::startBow(int direction) noexcept { impl_->startBow(direction); }
+void FiddleEngine::startShortStroke(int direction, float durationSeconds) noexcept
+{
+    impl_->startShortStroke(direction, durationSeconds);
+}
+void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
+{
+    impl_->startTremolo(reversalsPerSecond);
+}
+void FiddleEngine::stopBow() noexcept { impl_->stopBow(); }
 void FiddleEngine::noteOff() { impl_->noteOff(); }
 void FiddleEngine::setControls(const Controls& controls) noexcept { impl_->setControls(controls); }
 void FiddleEngine::setMaterials(const MaterialSettings& materials) noexcept { impl_->setMaterials(materials); }
