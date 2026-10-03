@@ -20,6 +20,9 @@ struct FiddleVisualState
     std::array<float, 4> speakingFrequencyHz {
         195.9977f, 293.6648f, 440.0f, 659.2551f
     };
+    std::array<float, 4> contactTemperatureC {
+        20.0f, 20.0f, 20.0f, 20.0f
+    };
     float bowContact = 0.5f;
     float stringFocus = 0.0f;
 };
@@ -93,5 +96,6 @@ private:
     std::atomic<int> pendingUiActionPress_ { -1 };
     std::atomic<int> pendingUiActionRelease_ { -1 };
     std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
+    std::array<std::atomic<float>, 4> visualContactTemperatureC_{};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
