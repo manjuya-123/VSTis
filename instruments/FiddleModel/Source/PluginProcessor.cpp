@@ -109,6 +109,7 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 }
                 else if (fiddle::isFingeringKey(note))
                 {
+                    fingeringKeyDown_[static_cast<std::size_t>(note)] = true;
                     noteStack_.noteOn(note, velocity);
                     updateFiddlePlayFingering();
                 }
@@ -143,8 +144,12 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 }
                 else if (fiddle::isFingeringKey(note))
                 {
-                    noteStack_.noteOff(note);
-                    updateFiddlePlayFingering();
+                    fingeringKeyDown_[static_cast<std::size_t>(note)] = false;
+                    if (!fingeringHold_)
+                    {
+                        noteStack_.noteOff(note);
+                        updateFiddlePlayFingering();
+                    }
                 }
             }
             else
@@ -165,6 +170,31 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                         activeMidiNote_.store(-1, std::memory_order_relaxed);
                         engine_.noteOff();
                     }
+                }
+            }
+        }
+        else if (message.isController() && message.getControllerNumber() == 64
+                 && playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
+        {
+            const bool newHold = message.getControllerValue() >= 64;
+
+            if (newHold != fingeringHold_)
+            {
+                fingeringHold_ = newHold;
+                visualFingeringHold_.store(
+                    fingeringHold_, std::memory_order_relaxed);
+
+                if (!fingeringHold_)
+                {
+                    for (int note = fiddle::fiddleLowestNote; note <= 108; ++note)
+                    {
+                        if (!fingeringKeyDown_[static_cast<std::size_t>(note)]
+                            && noteStack_.isHeld(note))
+                        {
+                            noteStack_.noteOff(note);
+                        }
+                    }
+                    updateFiddlePlayFingering();
                 }
             }
         }
@@ -525,6 +555,7 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
     visualBowAction_.store(
         static_cast<int>(fiddle::BowAction::None),
         std::memory_order_relaxed);
+    visualFingeringHold_.store(false, std::memory_order_relaxed);
 }
 
 void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
@@ -534,6 +565,8 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     activeBowActionNote_ = -1;
     playBowDirection_ = 1;
     playModeFocusOverride_ = false;
+    fingeringHold_ = false;
+    fingeringKeyDown_.fill(false);
     playModeFocusValue_ = 0.0f;
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
@@ -561,6 +594,8 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
     state.bowDirection = visualBowDirection_.load(std::memory_order_relaxed);
     state.playMode = visualPlayMode_.load(std::memory_order_relaxed);
     state.bowAction = visualBowAction_.load(std::memory_order_relaxed);
+    state.fingeringHold =
+        visualFingeringHold_.load(std::memory_order_relaxed);
 
     for (std::size_t i = 0; i < state.speakingFrequencyHz.size(); ++i)
         state.speakingFrequencyHz[i] =
