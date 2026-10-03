@@ -213,8 +213,8 @@ int main(int argc, char** argv)
     if (!(accent.onsetMs + 1.0 < down.onsetMs))
         return fail("Accent did not catch the string earlier than ordinary Down Bow");
 
-    if (shortStroke.onsetMs > down.onsetMs + 4.0)
-        return fail("Short Stroke onset became too sluggish for fast fiddle articulation");
+    if (!(shortStroke.onsetMs + 4.0 < down.onsetMs))
+        return fail("Short Stroke did not catch the string clearly earlier than ordinary Down Bow");
 
     if (!(chop.peakRms > 1.0e-5 && chop.onsetMs <= down.onsetMs + 2.0))
         return fail("Chop did not produce a prompt physical contact transient");
