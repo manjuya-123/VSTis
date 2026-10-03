@@ -102,3 +102,15 @@ G3 and above are Fingering Keys.
 
 Keep the black action-row keys unassigned until a genuinely useful fiddle technique
 requires them; do not fill the map merely for completeness.
+
+
+## Play modes
+
+- **Fiddle Play (performance)** is the default. MIDI notes above G3 describe left-hand
+  fingering/chord shape. Low action keys describe right-hand bow gestures.
+- **Chromatic (keyboard)** is a compatibility mode where ordinary MIDI Note On directly
+  requests a pitch.
+
+Fiddle Play should always be described as an instrument-performance mode, not as a
+"keyswitch bank". The action keys do not swap samples; they expand into physical changes
+to bow direction, speed, pressure, duration, string focus, and persistent string state.
