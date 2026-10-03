@@ -29,8 +29,14 @@ class InstrumentView final : public juce::Component
 public:
     void setState(FiddleVisualState state);
     void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+
+    std::function<void(float)> onBowContactChanged;
+    std::function<void(float)> onStringFocusChanged;
 
 private:
+    void applyGesture(juce::Point<float> position);
     FiddleVisualState state_{};
 };
 
