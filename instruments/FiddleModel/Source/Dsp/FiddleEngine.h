@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
+#include <memory>
 
 namespace fiddle
 {
@@ -13,23 +15,41 @@ struct Controls
     float balance = 0.0f;
 };
 
+struct DebugState
+{
+    std::array<float, 4> contactNormalForceN{};
+    std::array<float, 4> speakingFrequencyHz{};
+    std::array<bool, 4> sticking{};
+    float bowSpeedMps = 0.0f;
+    float bridgeVelocity = 0.0f;
+    int bowPairLowerString = 1;
+    int primaryString = 1;
+};
+
 class FiddleEngine
 {
 public:
+    FiddleEngine();
+    ~FiddleEngine();
+
+    FiddleEngine(const FiddleEngine&) = delete;
+    FiddleEngine& operator=(const FiddleEngine&) = delete;
+
     void prepare(double sampleRate);
     void reset();
+
     void noteOn(float frequencyHz, float velocity);
     void noteOff();
+
     void setControls(const Controls& controls) noexcept;
+
+    // Adds output into left/right. No allocation, locking or I/O occurs here.
     void process(float* left, float* right, std::size_t numSamples) noexcept;
 
+    [[nodiscard]] DebugState debugSnapshot() const noexcept;
+
 private:
-    double sampleRate_ = 48000.0;
-    double phase_ = 0.0;
-    float frequencyHz_ = 440.0f;
-    float velocity_ = 0.0f;
-    float envelope_ = 0.0f;
-    bool gate_ = false;
-    Controls controls_{};
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
-}
+} // namespace fiddle

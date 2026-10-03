@@ -33,3 +33,14 @@ target_link_libraries(FiddleModel
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+if (BUILD_TESTING)
+    add_executable(FiddleModelCoreSmoke
+        Tests/FiddleEngineSmoke.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelCoreSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelCoreSmoke PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelCoreSmoke COMMAND FiddleModelCoreSmoke)
+endif()
