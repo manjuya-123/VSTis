@@ -20,6 +20,7 @@ juce::String bowActionName(int actionValue)
         case fiddle::BowAction::AccentStroke: return "Accent Stroke";
         case fiddle::BowAction::Chop: return "Chop";
         case fiddle::BowAction::Release: return "Release";
+        case fiddle::BowAction::Shuffle: return "Shuffle";
         case fiddle::BowAction::None: break;
     }
     return {};
@@ -57,23 +58,35 @@ void BowActionStrip::setState(int playMode, int bowAction)
 
 void BowActionStrip::paint(juce::Graphics& g)
 {
-    static constexpr std::array<const char*, 8> keys {
-        "C2 / 36", "D2 / 38", "E2 / 40", "F2 / 41",
+    static constexpr std::array<const char*, 9> keys {
+        "C2 / 36", "C#2 / 37", "D2 / 38", "E2 / 40", "F2 / 41",
         "G2 / 43", "A2 / 45", "A#2 / 46", "B2 / 47"
     };
-    static constexpr std::array<const char*, 8> names {
-        "Down", "Up", "Short", "Tremolo", "Drone", "Accent", "Chop", "Release"
+    static constexpr std::array<const char*, 9> names {
+        "Down", "Shuffle", "Up", "Short", "Tremolo",
+        "Drone", "Accent", "Chop", "Release"
+    };
+    static constexpr std::array<fiddle::BowAction, 9> actions {
+        fiddle::BowAction::DownBow,
+        fiddle::BowAction::Shuffle,
+        fiddle::BowAction::UpBow,
+        fiddle::BowAction::ShortStroke,
+        fiddle::BowAction::Tremolo,
+        fiddle::BowAction::DroneBow,
+        fiddle::BowAction::AccentStroke,
+        fiddle::BowAction::Chop,
+        fiddle::BowAction::Release
     };
 
     auto area = getLocalBounds().toFloat().reduced(2.0f);
     const auto gap = 5.0f;
     const auto width =
-        (area.getWidth() - gap * 7.0f) / 8.0f;
+        (area.getWidth() - gap * 8.0f) / 9.0f;
 
     const bool fiddlePlay =
         playMode_ == static_cast<int>(fiddle::PlayMode::FiddlePlay);
 
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 9; ++i)
     {
         auto pad = juce::Rectangle<float>(
             area.getX() + (width + gap) * static_cast<float>(i),
@@ -82,7 +95,9 @@ void BowActionStrip::paint(juce::Graphics& g)
             area.getHeight());
 
         const bool active =
-            fiddlePlay && bowAction_ == i + 1;
+            fiddlePlay
+            && bowAction_
+                == static_cast<int>(actions[static_cast<std::size_t>(i)]);
 
         g.setColour(active
             ? juce::Colour::fromRGB(82, 151, 170)
@@ -108,13 +123,13 @@ void BowActionStrip::paint(juce::Graphics& g)
 
 int BowActionStrip::actionKeyAt(juce::Point<float> position) const noexcept
 {
-    static constexpr std::array<int, 8> notes { 36, 38, 40, 41, 43, 45, 46, 47 };
+    static constexpr std::array<int, 9> notes { 36, 37, 38, 40, 41, 43, 45, 46, 47 };
 
     auto area = getLocalBounds().toFloat().reduced(2.0f);
     const auto gap = 5.0f;
-    const auto width = (area.getWidth() - gap * 7.0f) / 8.0f;
+    const auto width = (area.getWidth() - gap * 8.0f) / 9.0f;
 
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 9; ++i)
     {
         const auto pad = juce::Rectangle<float>(
             area.getX() + (width + gap) * static_cast<float>(i),
@@ -394,7 +409,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playMode_);
 
     playModeGuide_.setText(
-        "Fiddle Play: G3+ = fingering   |   CC64 = Fingering Hold   |   36 Down  38 Up  40 Short  41 Tremolo  43 Drone  45 Accent  46 Chop  47 Release",
+        "Fiddle Play: G3+ = fingering  |  CC64 = Hold  |  36 Down  37 Shuffle  38 Up  40 Short  41 Tremolo  43 Drone  45 Accent  46 Chop  47 Release",
         juce::dontSendNotification);
     playModeGuide_.setFont(juce::FontOptions(12.5f));
     playModeGuide_.setColour(juce::Label::textColourId,
