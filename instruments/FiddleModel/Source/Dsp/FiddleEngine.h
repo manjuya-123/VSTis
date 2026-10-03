@@ -84,7 +84,16 @@ public:
 
     void beginBowStroke(bool alternateDirection) noexcept;
     void noteOn(float frequencyHz, float velocity);
+    void setFingeringLayout(const std::array<float, 4>& frequencyHz,
+                            int primaryString,
+                            int bowPairLowerString,
+                            float velocity);
     void retune(float frequencyHz);
+
+    void startBow(int direction) noexcept;
+    void startShortStroke(int direction, float durationSeconds = 0.075f) noexcept;
+    void startTremolo(float reversalsPerSecond = 14.0f) noexcept;
+    void stopBow() noexcept;
     void noteOff();
 
     void setControls(const Controls& controls) noexcept;
