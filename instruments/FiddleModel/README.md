@@ -172,3 +172,11 @@ The Materials section also includes String Core:
 These profiles alter the physical string loop, including its loss and phase behaviour.
 They are not post-EQ presets and are intentionally labelled as broad material profiles,
 not calibrated copies of commercial string brands.
+
+
+## Stopped-string termination
+
+Fingered notes now include additional energy loss at the stopped-string termination.
+A very short extra loss is applied when the finger first lands, then relaxes to a smaller
+steady fingertip loss. This improves separation in quick left-hand passages without
+using an output amplitude envelope or resetting the string state.
