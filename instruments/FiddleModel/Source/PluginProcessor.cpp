@@ -74,12 +74,12 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     auto* left = buffer.getWritePointer(0);
     auto* right = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : left;
-    const auto blockSize = buffer.getNumSamples();
+    const auto numBlockSamples = buffer.getNumSamples();
     int renderedUntil = 0;
 
     const auto renderUntil = [&](int endSample)
     {
-        endSample = std::clamp(endSample, renderedUntil, blockSize);
+        endSample = std::clamp(endSample, renderedUntil, numBlockSamples);
         const auto count = endSample - renderedUntil;
         if (count > 0)
         {
@@ -205,7 +205,7 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    renderUntil(blockSize);
+    renderUntil(numBlockSamples);
 
     const auto debug = engine_.debugSnapshot();
     visualPrimaryString_.store(debug.primaryString, std::memory_order_relaxed);
