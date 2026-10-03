@@ -29,6 +29,8 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     controls.attack = parameters_.getRawParameterValue("attack")->load();
     controls.position = parameters_.getRawParameterValue("position")->load();
     controls.balance = parameters_.getRawParameterValue("balance")->load();
+    controls.vibratoWidth = parameters_.getRawParameterValue("vibratoWidth")->load();
+    controls.vibratoPace = parameters_.getRawParameterValue("vibratoPace")->load();
     pitchBendRangeSemitones_ =
         parameters_.getRawParameterValue("bendRange")->load();
     engine_.setControls(controls);
@@ -139,6 +141,12 @@ FiddleModelAudioProcessor::createParameterLayout()
         "position", "Bow Contact", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "balance", "String Focus", juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "vibratoWidth", "Vibrato Width",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "vibratoPace", "Vibrato Pace",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "bendRange", "Pitch Bend Range",
         juce::NormalisableRange<float>(1.0f, 24.0f, 1.0f), 2.0f));
