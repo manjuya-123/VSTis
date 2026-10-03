@@ -300,6 +300,16 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         "Changes static grip, sliding friction and the contact-state relaxation. These are physical-model profiles rather than EQ presets.");
     addAndMakeVisible(contactMaterial_);
 
+    stringMaterialLabel_.setText("String Core", juce::dontSendNotification);
+    stringMaterialLabel_.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(stringMaterialLabel_);
+    stringMaterial_.addItem("Synthetic core", 1);
+    stringMaterial_.addItem("Steel core", 2);
+    stringMaterial_.addItem("Gut-like", 3);
+    stringMaterial_.setTooltip(
+        "Changes distributed string loss and phase dispersion. Steel is the quickest profile; Gut-like is softer and slower. Profiles are directional, not brand calibrations.");
+    addAndMakeVisible(stringMaterial_);
+
     contact_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
     focus_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
     bendRange_.slider().setSliderStyle(juce::Slider::LinearHorizontal);
@@ -334,6 +344,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         state, "bowMaterial", bowMaterial_);
     contactMaterialAttachment_ = std::make_unique<ComboAttachment>(
         state, "contactMaterial", contactMaterial_);
+    stringMaterialAttachment_ = std::make_unique<ComboAttachment>(
+        state, "stringMaterial", stringMaterial_);
 
     pressure_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
     speed_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
@@ -408,7 +420,7 @@ void FiddleModelAudioProcessorEditor::resized()
     materialsGroup_.setBounds(area);
 
     auto materials = area.reduced(14, 28);
-    const auto materialColumn = materials.getWidth() / 3;
+    const auto materialColumn = materials.getWidth() / 4;
 
     auto bodyArea = materials.removeFromLeft(materialColumn);
     bodyMaterialLabel_.setBounds(bodyArea.removeFromTop(24));
@@ -418,8 +430,12 @@ void FiddleModelAudioProcessorEditor::resized()
     bowMaterialLabel_.setBounds(bowArea2.removeFromTop(24));
     bowMaterial_.setBounds(bowArea2.removeFromTop(32).reduced(6, 2));
 
-    contactMaterialLabel_.setBounds(materials.removeFromTop(24));
-    contactMaterial_.setBounds(materials.removeFromTop(32).reduced(6, 2));
+    auto contactArea = materials.removeFromLeft(materialColumn);
+    contactMaterialLabel_.setBounds(contactArea.removeFromTop(24));
+    contactMaterial_.setBounds(contactArea.removeFromTop(32).reduced(6, 2));
+
+    stringMaterialLabel_.setBounds(materials.removeFromTop(24));
+    stringMaterial_.setBounds(materials.removeFromTop(32).reduced(6, 2));
 }
 
 void FiddleModelAudioProcessorEditor::timerCallback()
