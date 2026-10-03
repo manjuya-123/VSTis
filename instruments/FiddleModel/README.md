@@ -222,3 +222,37 @@ fingering remains persistent.
 
 The CI listening artifact `09_fiddle_play_demo.wav` demonstrates one held E4+B4
 fingering through Down Bow, Up Bow, Short Stroke, Tremolo, and balanced D/A bowing.
+
+
+## Fiddle Play mode
+
+Fiddle Play is a dedicated performance mode rather than a conventional keyswitch bank.
+
+The keyboard is split by musical role:
+
+- **G3 and above (MIDI 55+) = left hand.** Held notes are voiced onto real G/D/A/E
+  strings. One note chooses a stopped string; two or more held notes form a physical
+  double-stop/chord fingering where possible.
+- **C2-B2 area = right hand.** These keys do not choose pitch. They perform bow actions:
+  Down Bow, Up Bow, Short Stroke, Tremolo, Drone Bow, Accent, Chop, and Release.
+- Releasing a bow-action key can stop a sustained bow gesture without erasing the held
+  left-hand fingering.
+- Changing the fingering while a bow gesture is held moves the stopped positions on the
+  persistent strings rather than launching unrelated synth voices.
+
+Current action map:
+
+| MIDI note | Action |
+| --- | --- |
+| C2 / 36 | Down Bow |
+| D2 / 38 | Up Bow |
+| E2 / 40 | Short Stroke |
+| F2 / 41 | Tremolo |
+| G2 / 43 | Drone Bow |
+| A2 / 45 | Accent Stroke |
+| A#2 / 46 | Chop (reduced-order experimental gesture) |
+| B2 / 47 | Release |
+
+This is intentionally closer to a playable instrument controller than to detailed DAW
+automation. The action keys expand into physical bow direction, speed, force, duration,
+and string-focus behaviour inside the model.
