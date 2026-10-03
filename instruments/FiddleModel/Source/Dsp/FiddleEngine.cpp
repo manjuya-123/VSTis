@@ -49,6 +49,8 @@ struct FiddleEngine::Impl
     double velocityScale = 1.0;
     double bowSpeed = 0.0;
     double vibratoPhase = 0.0;
+    int bowDirection = 1;
+    bool bowStrokeStarted = false;
     int primaryString = 1;
     int pairLower = 1;
 
@@ -106,6 +108,8 @@ struct FiddleEngine::Impl
         velocityScale = 1.0;
         bowSpeed = 0.0;
         vibratoPhase = 0.0;
+        bowDirection = 1;
+        bowStrokeStarted = false;
         primaryString = 1;
         pairLower = 1;
         debug = {};
@@ -128,6 +132,19 @@ struct FiddleEngine::Impl
         balance.setTarget(controlTargets.balance);
         vibratoWidth.setTarget(controlTargets.vibratoWidth);
         vibratoPace.setTarget(controlTargets.vibratoPace);
+    }
+
+    void beginBowStroke(bool alternateDirection) noexcept
+    {
+        if (!bowStrokeStarted)
+        {
+            bowStrokeStarted = true;
+            bowDirection = 1;
+            return;
+        }
+
+        if (alternateDirection)
+            bowDirection = -bowDirection;
     }
 
     void noteOn(double frequencyHz, double velocity)
@@ -183,7 +200,8 @@ struct FiddleEngine::Impl
         const auto totalForce = (0.06 * std::pow(8.0, p)) * velocityScale * gateValue;
         const auto beta = 0.22 + (0.06 - 0.22) * pos;
 
-        const auto desiredSpeed = bowTargetSpeed * gateValue;
+        const auto desiredSpeed =
+            static_cast<double>(bowDirection) * bowTargetSpeed * gateValue;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
@@ -261,7 +279,7 @@ struct FiddleEngine::Impl
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
-            if (bowForce[i] > 1.0e-8 && bowSpeed > 1.0e-8)
+            if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
             {
                 const auto stringVelocity = contacts[i].solve(
                     incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate);
@@ -293,6 +311,7 @@ struct FiddleEngine::Impl
         debug.bowSpeedMps = static_cast<float>(bowSpeed);
         debug.bridgeVelocity = static_cast<float>(bridgeVelocity);
         debug.vibratoOffsetCents = static_cast<float>(appliedVibratoCents);
+        debug.bowDirection = bowDirection;
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;
 
@@ -306,6 +325,7 @@ FiddleEngine::~FiddleEngine() = default;
 
 void FiddleEngine::prepare(double sampleRate) { impl_->prepare(sampleRate); }
 void FiddleEngine::reset() { impl_->reset(); }
+void FiddleEngine::beginBowStroke(bool alternateDirection) noexcept { impl_->beginBowStroke(alternateDirection); }
 void FiddleEngine::noteOn(float frequencyHz, float velocity) { impl_->noteOn(frequencyHz, velocity); }
 void FiddleEngine::retune(float frequencyHz) { impl_->retune(frequencyHz); }
 void FiddleEngine::noteOff() { impl_->noteOff(); }
