@@ -256,7 +256,7 @@ void InstrumentView::paint(juce::Graphics& g)
     juce::String status = noteText + " on " + stringText + " string";
     if (state_.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
     {
-        status = "Fiddle Play  |  " + status;
+        status = juce::String("Fiddle Play  |  ") + status;
         if (actionText.isNotEmpty())
             status += "  |  " + actionText;
     }
@@ -596,7 +596,7 @@ void FiddleModelAudioProcessorEditor::refreshHumanReadableValues()
         fiddle::presentation::bowContact(
             static_cast<float>(contact_.slider().getValue())));
     static constexpr std::array<const char*, 3> pairNames {
-        "G \u2194 D", "D \u2194 A", "A \u2194 E"
+        "G <-> D", "D <-> A", "A <-> E"
     };
     const auto pair = juce::jlimit(0, 2, processor_.activePairLowerString());
     focus_.setTitle("String Focus  " + juce::String::fromUTF8(pairNames[static_cast<std::size_t>(pair)]));
