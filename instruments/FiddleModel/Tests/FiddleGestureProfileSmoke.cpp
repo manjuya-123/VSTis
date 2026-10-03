@@ -48,7 +48,8 @@ int main()
 
     const auto accent = makeBowGestureProfile(BowAction::AccentStroke, 0.8f);
     if (!(accent.responseBoost > hardDown.responseBoost
-          && accent.pressureBoost > hardDown.pressureBoost))
+          && accent.pressureBoost > hardDown.pressureBoost
+          && accent.biteBoost > hardDown.biteBoost))
         return fail("Accent should catch the string faster and harder than ordinary Down Bow");
 
     const auto drone = makeBowGestureProfile(BowAction::DroneBow, 0.7f);
@@ -58,8 +59,9 @@ int main()
     const auto chop = makeBowGestureProfile(BowAction::Chop, 0.9f);
     if (!(chop.oneShot && chop.durationSeconds < 0.04f
           && chop.pressureBoost > hardDown.pressureBoost
-          && chop.speedScale < softDown.speedScale))
-        return fail("Chop should be short, high-force and low-travel");
+          && chop.speedScale < softDown.speedScale
+          && chop.biteBoost > accent.biteBoost))
+        return fail("Chop should be short, high-force, high-bite and low-travel");
 
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
