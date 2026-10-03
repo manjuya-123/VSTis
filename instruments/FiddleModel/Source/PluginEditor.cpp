@@ -64,7 +64,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(title_);
 
     subtitle_.setText(
-        "Control it like a bow, not like a physics solver.",
+        "Play the gesture, not the solver.  Mod Wheel: Vibrato  |  Aftertouch: Bow Pressure",
         juce::dontSendNotification);
     subtitle_.setFont(juce::FontOptions(14.0f));
     subtitle_.setColour(juce::Label::textColourId,
