@@ -4,6 +4,7 @@
 #include "Dsp/FiddleEngine.h"
 #include "Dsp/MidiNoteStack.h"
 
+#include <array>
 #include <atomic>
 
 struct FiddleVisualState
@@ -13,7 +14,11 @@ struct FiddleVisualState
     int primaryString = 1;
     int pairLowerString = 1;
     int bowDirection = 1;
-    float speakingFrequencyHz = 293.6648f;
+    int playMode = 0;
+    int bowAction = 0;
+    std::array<float, 4> speakingFrequencyHz {
+        195.9977f, 293.6648f, 440.0f, 659.2551f
+    };
     float bowContact = 0.5f;
     float stringFocus = 0.0f;
 };
@@ -51,6 +56,10 @@ private:
     static int pairForMidiNote(int midiNote) noexcept;
     float bentFrequencyForNote(int midiNote) const;
     void applyPerformanceControls() noexcept;
+    void updateFiddlePlayFingering();
+    void triggerFiddlePlayAction(int midiNote, float velocity);
+    void releaseFiddlePlayAction(int midiNote);
+    void resetPerformanceModeState() noexcept;
     fiddle::FiddleEngine engine_;
     fiddle::MidiNoteStack noteStack_;
     juce::AudioProcessorValueTreeState parameters_;
@@ -59,10 +68,18 @@ private:
     float modWheelNormalized_ = 0.0f;
     float channelPressureNormalized_ = 0.0f;
     fiddle::Controls baseControls_{};
+    int lastPlayMode_ = -1;
+    int activeBowActionNote_ = -1;
+    int playBowDirection_ = 1;
+    bool playModeFocusOverride_ = false;
+    float playModeFocusValue_ = 0.0f;
+    float playModePressureBoost_ = 0.0f;
     std::atomic<int> activePairLowerString_ { 1 };
     std::atomic<int> activeMidiNote_ { -1 };
     std::atomic<int> visualPrimaryString_ { 1 };
     std::atomic<int> visualBowDirection_ { 1 };
-    std::atomic<float> visualSpeakingFrequencyHz_ { 293.6648f };
+    std::atomic<int> visualPlayMode_ { 0 };
+    std::atomic<int> visualBowAction_ { 0 };
+    std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
