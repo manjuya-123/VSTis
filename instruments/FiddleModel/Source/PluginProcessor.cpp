@@ -394,7 +394,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
     switch (action)
     {
         case fiddle::BowAction::DownBow:
-            playModeSpeedScale_ = gestureSpeedScale;
+            playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
@@ -404,9 +404,9 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::UpBow:
-            playModeSpeedScale_ = gestureSpeedScale;
+            playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = false;
-            playModePressureBoost_ = gesturePressure;
+            playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             playBowDirection_ = -1;
             engine_.startBow(-1);
@@ -414,9 +414,9 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::ShortStroke:
-            playModeSpeedScale_ = gestureSpeedScale;
+            playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = false;
-            playModePressureBoost_ = gesturePressure;
+            playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(
@@ -425,9 +425,9 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::Tremolo:
-            playModeSpeedScale_ = gestureSpeedScale;
+            playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = false;
-            playModePressureBoost_ = gesturePressure;
+            playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             engine_.startTremolo(gesture.tremoloReversalsPerSecond);
             activeBowActionNote_ = midiNote;
@@ -437,7 +437,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = true;
             playModeFocusValue_ = 0.0f;
-            playModePressureBoost_ = gesturePressure;
+            playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             engine_.startBow(playBowDirection_);
             activeBowActionNote_ = midiNote;
