@@ -258,6 +258,8 @@ void InstrumentView::paint(juce::Graphics& g)
     if (state_.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
     {
         status = juce::String("Fiddle Play  |  ") + status;
+        if (state_.fingeringHold)
+            status += "  |  Fingering Hold";
         if (actionText.isNotEmpty())
             status += juce::String("  |  ") + actionText;
     }
@@ -352,7 +354,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playMode_);
 
     playModeGuide_.setText(
-        "Fiddle Play: G3+ Fingering (MIDI 55+)   |   36 Down   38 Up   40 Short   41 Tremolo   43 Drone   45 Accent   46 Chop   47 Release",
+        "Fiddle Play: G3+ = fingering   |   CC64 = Fingering Hold   |   36 Down  38 Up  40 Short  41 Tremolo  43 Drone  45 Accent  46 Chop  47 Release",
         juce::dontSendNotification);
     playModeGuide_.setFont(juce::FontOptions(12.5f));
     playModeGuide_.setColour(juce::Label::textColourId,
