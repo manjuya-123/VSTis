@@ -68,6 +68,9 @@ private:
     juce::GroupComponent bowGroup_ { "bow", "Bow" };
     juce::GroupComponent stringsGroup_ { "strings", "Strings & Pitch" };
     juce::GroupComponent materialsGroup_ { "materials", "Materials" };
+    juce::Label playModeLabel_;
+    juce::ComboBox playMode_;
+    juce::Label playModeGuide_;
     juce::Label strokeLabel_;
     juce::ComboBox strokeMode_;
     juce::Label bodyMaterialLabel_;
@@ -121,6 +124,7 @@ private:
     std::unique_ptr<Attachment> vibratoWidthAttachment_;
     std::unique_ptr<Attachment> vibratoPaceAttachment_;
     std::unique_ptr<Attachment> bendRangeAttachment_;
+    std::unique_ptr<ComboAttachment> playModeAttachment_;
     std::unique_ptr<ComboAttachment> strokeModeAttachment_;
     std::unique_ptr<ComboAttachment> bodyMaterialAttachment_;
     std::unique_ptr<ComboAttachment> bowMaterialAttachment_;
