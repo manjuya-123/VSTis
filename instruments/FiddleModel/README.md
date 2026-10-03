@@ -283,3 +283,16 @@ Right hand action row:
 The action row drives bow physics; it does not switch to prerecorded or alternate
 synthesis voices. Slurs are made by keeping a bow action active while changing the
 left-hand fingering.
+
+
+### Direct performance UI
+
+Fiddle Play can now be driven without a second MIDI controller:
+
+- **Fingering Hold** is available as an automatable GUI toggle as well as CC64.
+- The eight bow-action pads in the editor are clickable.
+- Clicking a sustained gesture (Down / Up / Tremolo / Drone) holds it until mouse-up.
+- Short / Accent / Chop still use the physical one-shot timing in the engine.
+
+GUI commands are queued to the audio thread through atomics; the editor never calls the
+physical DSP directly from the message thread.
