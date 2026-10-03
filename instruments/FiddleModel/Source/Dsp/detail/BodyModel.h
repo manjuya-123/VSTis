@@ -2,6 +2,7 @@
 
 #include "ModelConstants.h"
 
+#include <algorithm>
 #include <array>
 
 namespace fiddle::detail
