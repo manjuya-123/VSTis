@@ -256,3 +256,30 @@ Current action map:
 This is intentionally closer to a playable instrument controller than to detailed DAW
 automation. The action keys expand into physical bow direction, speed, force, duration,
 and string-focus behaviour inside the model.
+
+
+## Fiddle Play performance mode
+
+Fiddle Play separates the two hands instead of treating every MIDI note as a finished
+sampled articulation.
+
+Left hand:
+- MIDI G3 and above describes pitches to be stopped on the four physical strings.
+- One to four held notes are voiced across G/D/A/E with continuity preference.
+- Sustain pedal (CC64) is Fingering Hold: the current left-hand shape stays on the
+  strings after the fingering keys are released, so bow actions can be sequenced
+  independently. Releasing the pedal removes only fingers whose keys are no longer held.
+
+Right hand action row:
+- C2 / 36 — Down Bow
+- D2 / 38 — Up Bow
+- E2 / 40 — Short Stroke
+- F2 / 41 — Tremolo
+- G2 / 43 — Drone Bow / balanced adjacent pair
+- A2 / 45 — Accent Stroke
+- A#2 / 46 — Chop
+- B2 / 47 — Release
+
+The action row drives bow physics; it does not switch to prerecorded or alternate
+synthesis voices. Slurs are made by keeping a bow action active while changing the
+left-hand fingering.
