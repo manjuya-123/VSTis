@@ -166,29 +166,46 @@ double periodicityAtFrequency(const std::vector<float>& x,
     return dot / (std::sqrt(aa * bb) + 1.0e-30);
 }
 
-double goertzelPower(const std::vector<float>& x,
-                     std::size_t begin,
-                     std::size_t end,
-                     double frequency)
+std::vector<double> makeHannSegment(const std::vector<float>& x,
+                                    std::size_t begin,
+                                    std::size_t length)
 {
-    begin = std::min(begin, x.size());
-    end = std::min(end, x.size());
-    if (end <= begin + 8)
+    if (begin >= x.size())
+        return {};
+
+    length = std::min(length, x.size() - begin);
+    if (length < 16)
+        return {};
+
+    double mean = 0.0;
+    for (std::size_t i = 0; i < length; ++i)
+        mean += x[begin + i];
+    mean /= static_cast<double>(length);
+
+    std::vector<double> result(length);
+    for (std::size_t i = 0; i < length; ++i)
+    {
+        const auto window = 0.5 - 0.5 * std::cos(
+            2.0 * 3.14159265358979323846 * static_cast<double>(i)
+            / static_cast<double>(length - 1));
+        result[i] = (static_cast<double>(x[begin + i]) - mean) * window;
+    }
+    return result;
+}
+
+double goertzelPower(const std::vector<double>& x, double frequency)
+{
+    if (x.empty())
         return 0.0;
 
-    const auto n = end - begin;
     const auto omega = 2.0 * 3.14159265358979323846 * frequency / sampleRate;
     const auto coeff = 2.0 * std::cos(omega);
     double s0 = 0.0;
     double s1 = 0.0;
     double s2 = 0.0;
 
-    for (std::size_t j = 0; j < n; ++j)
+    for (const auto sample : x)
     {
-        const auto window = 0.5 - 0.5 * std::cos(
-            2.0 * 3.14159265358979323846 * static_cast<double>(j)
-            / static_cast<double>(n - 1));
-        const auto sample = static_cast<double>(x[begin + j]) * window;
         s0 = sample + coeff * s1 - s2;
         s2 = s1;
         s1 = s0;
@@ -217,19 +234,27 @@ Metrics measure(const Render& render, double fundamentalHz)
         m.peak = std::max(m.peak, std::abs(static_cast<double>(value)));
     }
 
-    // Use a short Hann window so a modest analysis grid captures the narrow
-    // harmonic peaks of a bowed string. A long window combined with sparse
-    // 100-Hz probes badly under-samples those lines and exaggerates HF ratios.
+    // Analyse exact DFT-bin frequencies of a 4096-sample Hann window. This
+    // catches the string's narrow harmonic lines without requiring an FFT
+    // dependency and keeps the metric comparable with an ordinary spectrum.
+    constexpr std::size_t spectralLength = 4096;
     const auto spectralBegin = static_cast<std::size_t>(1.00 * sampleRate);
-    const auto spectralEnd = static_cast<std::size_t>(1.05 * sampleRate);
+    const auto spectralSegment = makeHannSegment(x, spectralBegin, spectralLength);
 
     double totalEnergy = 0.0;
     double highEnergy = 0.0;
     double weightedFrequency = 0.0;
 
-    for (double frequency = 100.0; frequency <= 8000.0; frequency += 20.0)
+    const auto firstBin = static_cast<int>(std::ceil(
+        100.0 * static_cast<double>(spectralLength) / sampleRate));
+    const auto lastBin = static_cast<int>(std::floor(
+        8000.0 * static_cast<double>(spectralLength) / sampleRate));
+
+    for (int bin = firstBin; bin <= lastBin; ++bin)
     {
-        const auto power = goertzelPower(x, spectralBegin, spectralEnd, frequency);
+        const auto frequency =
+            static_cast<double>(bin) * sampleRate / static_cast<double>(spectralLength);
+        const auto power = goertzelPower(spectralSegment, frequency);
         totalEnergy += power;
         weightedFrequency += frequency * power;
         if (frequency >= 2500.0)
@@ -371,6 +396,8 @@ int main(int argc, char** argv)
     std::vector<float> comparisonRight;
     const auto silenceSamples = static_cast<std::size_t>(0.25 * sampleRate);
     bool ok = true;
+    std::vector<Metrics> measured;
+    measured.reserve(scenarios.size());
 
     for (const auto& scenario : scenarios)
     {
@@ -394,6 +421,7 @@ int main(int argc, char** argv)
                   << " hf_ratio=" << metrics.highBandRatio << '\n';
 
         ok = passesSanity(scenario, metrics) && ok;
+        measured.push_back(metrics);
 
         if (!writeStereoWav16(outputDirectory / (scenario.name + ".wav"),
                               render.left, render.right))
@@ -413,6 +441,28 @@ int main(int argc, char** argv)
     {
         std::cerr << "FAIL: cannot write comparison WAV\n";
         ok = false;
+    }
+
+    // The normal UI explicitly promises that moving Bow Contact toward the
+    // bridge makes the tone brighter. Keep that player-facing cause/effect
+    // true even while the internal body/bow model evolves.
+    if (measured.size() >= 3)
+    {
+        const auto& fingerboard = measured[1];
+        const auto& bridge = measured[2];
+        const bool brighterAtBridge =
+            bridge.spectralCentroidHz > fingerboard.spectralCentroidHz * 1.08
+            && bridge.highBandRatio > fingerboard.highBandRatio * 1.08;
+
+        if (!brighterAtBridge)
+        {
+            std::cerr << "FAIL: Bow Contact no longer gets audibly brighter toward bridge"
+                      << " fingerboard_centroid=" << fingerboard.spectralCentroidHz
+                      << " bridge_centroid=" << bridge.spectralCentroidHz
+                      << " fingerboard_hf=" << fingerboard.highBandRatio
+                      << " bridge_hf=" << bridge.highBandRatio << '\n';
+            ok = false;
+        }
     }
 
     if (!ok)
