@@ -361,6 +361,10 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
                              juce::Colours::white.withAlpha(0.70f));
     addAndMakeVisible(playModeGuide_);
 
+    fingeringHoldButton_.setTooltip(
+        "Latch the current left-hand fingering. Sustain pedal (CC64) controls the same effective hold state.");
+    addAndMakeVisible(fingeringHoldButton_);
+
     addAndMakeVisible(instrumentView_);
     addAndMakeVisible(bowActionStrip_);
     instrumentView_.setTooltip(
@@ -443,6 +447,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     auto& state = processor_.parameterState();
     playModeAttachment_ = std::make_unique<ComboAttachment>(
         state, "playMode", playMode_);
+    fingeringHoldAttachment_ = std::make_unique<ButtonAttachment>(
+        state, "fingeringHold", fingeringHoldButton_);
     pressureAttachment_ = std::make_unique<Attachment>(
         state, "pressure", pressure_.slider());
     speedAttachment_ = std::make_unique<Attachment>(
@@ -516,7 +522,9 @@ void FiddleModelAudioProcessorEditor::resized()
     auto playModeRow = area.removeFromTop(48);
     playModeLabel_.setBounds(playModeRow.removeFromLeft(110));
     playMode_.setBounds(playModeRow.removeFromLeft(180).reduced(4, 7));
-    playModeGuide_.setBounds(playModeRow.reduced(10, 3));
+    fingeringHoldButton_.setBounds(
+        playModeRow.removeFromLeft(150).reduced(8, 9));
+    playModeGuide_.setBounds(playModeRow.reduced(8, 3));
 
     bowActionStrip_.setBounds(area.removeFromTop(54).reduced(6, 3));
     area.removeFromTop(6);
@@ -579,6 +587,8 @@ void FiddleModelAudioProcessorEditor::timerCallback()
         state.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay);
     strokeMode_.setEnabled(!fiddlePlay);
     strokeLabel_.setAlpha(fiddlePlay ? 0.38f : 1.0f);
+    fingeringHoldButton_.setEnabled(fiddlePlay);
+    fingeringHoldButton_.setAlpha(fiddlePlay ? 1.0f : 0.38f);
     playModeGuide_.setAlpha(fiddlePlay ? 1.0f : 0.42f);
 
     refreshHumanReadableValues();
