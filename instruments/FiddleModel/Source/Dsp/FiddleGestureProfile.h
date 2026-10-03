@@ -40,10 +40,13 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             break;
 
         case BowAction::ShortStroke:
-            result.pressureBoost = gesturePressure + 0.03f;
-            result.speedScale = 0.82f + 0.62f * strength;
-            result.responseBoost = 0.22f + 0.08f * strength;
-            result.biteBoost = 0.12f + 0.14f * strength;
+            // A short fiddle stroke needs a prompt stick/catch, not simply
+            // more bow speed. Too much speed for the available normal force
+            // pushes the contact into slip and actually delays the audible onset.
+            result.pressureBoost = 0.10f + 0.08f * strength;
+            result.speedScale = 0.90f + 0.40f * strength;
+            result.responseBoost = 0.20f + 0.08f * strength;
+            result.biteBoost = 0.14f + 0.12f * strength;
             result.biteDurationSeconds = 0.007f;
             result.durationSeconds = 0.095f - 0.040f * strength;
             result.oneShot = true;
