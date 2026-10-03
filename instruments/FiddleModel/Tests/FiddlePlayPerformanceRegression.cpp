@@ -220,6 +220,17 @@ int main(int argc, char** argv)
     engine.stopBow();
     render(engine, left, right, 0.08);
 
+    // Fiddle shuffle: long-short-short bow cells must produce multiple
+    // physical direction changes without resetting the held strings.
+    engine.startShuffle(13.0f);
+    const auto shuffleStartDirection = engine.debugSnapshot().bowDirection;
+    render(engine, left, right, 0.58);
+    const auto shuffleEndDirection = engine.debugSnapshot().bowDirection;
+    if (shuffleEndDirection == shuffleStartDirection)
+        return fail("Shuffle did not advance through physical bow-direction changes");
+    engine.stopBow();
+    render(engine, left, right, 0.08);
+
     // Drone/double-stop gesture: same fingering, even focus across D/A.
     controls.balance = 0.0f;
     engine.setControls(controls);
