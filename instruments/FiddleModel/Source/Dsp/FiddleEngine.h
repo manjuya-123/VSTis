@@ -41,11 +41,19 @@ enum class ContactMaterialPreset
     SyntheticHair
 };
 
+enum class StringCorePreset
+{
+    SyntheticCore = 0,
+    SteelCore,
+    GutLike
+};
+
 struct MaterialSettings
 {
     BodyMaterialPreset body = BodyMaterialPreset::Traditional;
     BowStickPreset bowStick = BowStickPreset::PernambucoLike;
     ContactMaterialPreset contact = ContactMaterialPreset::HorsehairMediumRosin;
+    StringCorePreset strings = StringCorePreset::SyntheticCore;
 };
 
 struct DebugState
