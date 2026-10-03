@@ -129,23 +129,36 @@ int main(int argc, char** argv)
     // Down bow.
     engine.startBow(+1);
     render(engine, left, right, 0.28);
+    if (engine.debugSnapshot().bowDirection != 1)
+        return fail("Down Bow did not keep positive bow direction");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
     // Up bow, same left hand.
     engine.startBow(-1);
     render(engine, left, right, 0.28);
+    if (engine.debugSnapshot().bowDirection != -1)
+        return fail("Up Bow did not keep negative bow direction");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
     // Short stroke.
     engine.startShortStroke(+1, 0.075f);
     render(engine, left, right, 0.18);
+    const auto afterShort = engine.debugSnapshot();
+    const auto shortForce =
+        afterShort.contactNormalForceN[1] + afterShort.contactNormalForceN[2];
+    if (shortForce > 0.01f)
+        return fail("Short Stroke did not release the bow automatically");
     render(engine, left, right, 0.06);
 
     // Tremolo on the same stopped notes.
     engine.startTremolo(14.0f);
+    const auto tremoloStartDirection = engine.debugSnapshot().bowDirection;
     render(engine, left, right, 0.52);
+    const auto tremoloEndDirection = engine.debugSnapshot().bowDirection;
+    if (tremoloEndDirection == tremoloStartDirection)
+        return fail("Tremolo did not reverse bow direction");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
@@ -154,6 +167,10 @@ int main(int argc, char** argv)
     engine.setControls(controls);
     engine.startBow(+1);
     render(engine, left, right, 0.38);
+    const auto droneDebug = engine.debugSnapshot();
+    if (!(droneDebug.contactNormalForceN[1] > 0.001f
+          && droneDebug.contactNormalForceN[2] > 0.001f))
+        return fail("Balanced Drone Bow did not excite both D and A strings");
     engine.stopBow();
     render(engine, left, right, 0.18);
 
