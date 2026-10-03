@@ -37,11 +37,15 @@ private:
     static float midiNoteToHz(int midiNote);
     static int pairForMidiNote(int midiNote) noexcept;
     float bentFrequencyForNote(int midiNote) const;
+    void applyPerformanceControls() noexcept;
     fiddle::FiddleEngine engine_;
     fiddle::MidiNoteStack noteStack_;
     juce::AudioProcessorValueTreeState parameters_;
     float pitchWheelNormalized_ = 0.0f;
     float pitchBendRangeSemitones_ = 2.0f;
+    float modWheelNormalized_ = 0.0f;
+    float channelPressureNormalized_ = 0.0f;
+    fiddle::Controls baseControls_{};
     std::atomic<int> activePairLowerString_ { 1 };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
