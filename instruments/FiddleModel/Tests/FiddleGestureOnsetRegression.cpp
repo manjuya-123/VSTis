@@ -4,7 +4,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <vector>
 
@@ -111,6 +115,68 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
     return result;
 }
 
+void writeU16(std::ofstream& out, std::uint16_t value)
+{
+    const char bytes[2] {
+        static_cast<char>(value & 0xffu),
+        static_cast<char>((value >> 8u) & 0xffu)
+    };
+    out.write(bytes, 2);
+}
+
+void writeU32(std::ofstream& out, std::uint32_t value)
+{
+    const char bytes[4] {
+        static_cast<char>(value & 0xffu),
+        static_cast<char>((value >> 8u) & 0xffu),
+        static_cast<char>((value >> 16u) & 0xffu),
+        static_cast<char>((value >> 24u) & 0xffu)
+    };
+    out.write(bytes, 4);
+}
+
+bool writeComparisonWav(const std::filesystem::path& path,
+                        const std::vector<GestureRender>& renders)
+{
+    std::vector<float> combined;
+    const auto gap = static_cast<std::size_t>(0.12 * sampleRate);
+    for (const auto& render : renders)
+    {
+        combined.insert(combined.end(), render.audio.begin(), render.audio.end());
+        combined.insert(combined.end(), gap, 0.0f);
+    }
+
+    std::ofstream out(path, std::ios::binary);
+    if (!out)
+        return false;
+
+    constexpr std::uint16_t channels = 2;
+    constexpr std::uint16_t bits = 16;
+    const auto frames = static_cast<std::uint32_t>(combined.size());
+    const auto dataBytes = frames * channels * (bits / 8u);
+
+    out.write("RIFF", 4); writeU32(out, 36u + dataBytes);
+    out.write("WAVE", 4);
+    out.write("fmt ", 4); writeU32(out, 16u);
+    writeU16(out, 1u); writeU16(out, channels);
+    writeU32(out, static_cast<std::uint32_t>(sampleRate));
+    writeU32(out, static_cast<std::uint32_t>(sampleRate) * 4u);
+    writeU16(out, 4u); writeU16(out, bits);
+    out.write("data", 4); writeU32(out, dataBytes);
+
+    constexpr float gain = 0.18f;
+    for (const auto sample : combined)
+    {
+        const auto x = std::clamp(sample * gain, -1.0f, 1.0f);
+        const auto encoded = static_cast<std::int16_t>(
+            std::lrint(x * 32767.0f));
+        writeU16(out, static_cast<std::uint16_t>(encoded));
+        writeU16(out, static_cast<std::uint16_t>(encoded));
+    }
+
+    return static_cast<bool>(out);
+}
+
 int fail(const char* message)
 {
     std::cerr << "FAIL: " << message << '\n';
@@ -118,7 +184,7 @@ int fail(const char* message)
 }
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     const auto down =
         renderGesture(fiddle::BowAction::DownBow, 0.82f);
@@ -152,6 +218,30 @@ int main()
 
     if (!(chop.peakRms > 1.0e-5 && chop.onsetMs <= down.onsetMs + 2.0))
         return fail("Chop did not produce a prompt physical contact transient");
+
+    if (argc >= 2)
+    {
+        const std::filesystem::path outputDirectory(argv[1]);
+        std::error_code ec;
+        std::filesystem::create_directories(outputDirectory, ec);
+        if (ec)
+            return fail("Could not create gesture onset artifact directory");
+
+        std::ofstream csv(outputDirectory / "gesture_onset_metrics.csv");
+        if (!csv)
+            return fail("Could not write gesture onset metrics CSV");
+
+        csv << "gesture,onset_ms,peak_rms\n" << std::setprecision(9)
+            << "Down," << down.onsetMs << ',' << down.peakRms << '\n'
+            << "Short," << shortStroke.onsetMs << ',' << shortStroke.peakRms << '\n'
+            << "Accent," << accent.onsetMs << ',' << accent.peakRms << '\n'
+            << "Chop," << chop.onsetMs << ',' << chop.peakRms << '\n';
+
+        if (!writeComparisonWav(
+                outputDirectory / "10_gesture_onset_comparison.wav",
+                { down, shortStroke, accent, chop }))
+            return fail("Could not write gesture onset comparison WAV");
+    }
 
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
