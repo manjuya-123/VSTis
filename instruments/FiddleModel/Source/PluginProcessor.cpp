@@ -43,6 +43,8 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         static_cast<int>(parameters_.getRawParameterValue("bowMaterial")->load()));
     materials.contact = static_cast<fiddle::ContactMaterialPreset>(
         static_cast<int>(parameters_.getRawParameterValue("contactMaterial")->load()));
+    materials.strings = static_cast<fiddle::StringCorePreset>(
+        static_cast<int>(parameters_.getRawParameterValue("stringMaterial")->load()));
     engine_.setMaterials(materials);
 
     applyPerformanceControls();
@@ -218,6 +220,13 @@ FiddleModelAudioProcessor::createParameterLayout()
             "Dry / light grip",
             "High-grip rosin",
             "Synthetic hair"
+        }, 0));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        "stringMaterial", "String Core",
+        juce::StringArray {
+            "Synthetic core",
+            "Steel core",
+            "Gut-like"
         }, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "bendRange", "Pitch Bend Range",
