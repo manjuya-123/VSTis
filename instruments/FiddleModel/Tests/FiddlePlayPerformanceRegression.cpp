@@ -215,18 +215,22 @@ int main(int argc, char** argv)
     engine.startTremolo(14.0f);
     auto tremoloDirection = engine.debugSnapshot().bowDirection;
     int tremoloReversals = 0;
-    for (int i = 0; i < 52; ++i)
+    float tremoloMaxReCatch = 1.0f;
+    for (int i = 0; i < 104; ++i)
     {
-        render(engine, left, right, 0.010);
-        const auto direction = engine.debugSnapshot().bowDirection;
-        if (direction != tremoloDirection)
+        render(engine, left, right, 0.005);
+        const auto state = engine.debugSnapshot();
+        tremoloMaxReCatch = std::max(tremoloMaxReCatch, state.strokeBiteGain);
+        if (state.bowDirection != tremoloDirection)
         {
             ++tremoloReversals;
-            tremoloDirection = direction;
+            tremoloDirection = state.bowDirection;
         }
     }
     if (tremoloReversals < 5)
         return fail("Tremolo did not produce repeated physical bow reversals");
+    if (tremoloMaxReCatch < 1.02f)
+        return fail("Tremolo reversals did not re-catch the string");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
@@ -235,18 +239,22 @@ int main(int argc, char** argv)
     engine.startShuffle(13.0f);
     auto shuffleDirection = engine.debugSnapshot().bowDirection;
     int shuffleReversals = 0;
-    for (int i = 0; i < 58; ++i)
+    float shuffleMaxReCatch = 1.0f;
+    for (int i = 0; i < 116; ++i)
     {
-        render(engine, left, right, 0.010);
-        const auto direction = engine.debugSnapshot().bowDirection;
-        if (direction != shuffleDirection)
+        render(engine, left, right, 0.005);
+        const auto state = engine.debugSnapshot();
+        shuffleMaxReCatch = std::max(shuffleMaxReCatch, state.strokeBiteGain);
+        if (state.bowDirection != shuffleDirection)
         {
             ++shuffleReversals;
-            shuffleDirection = direction;
+            shuffleDirection = state.bowDirection;
         }
     }
     if (shuffleReversals < 4)
         return fail("Shuffle did not advance through repeated long-short-short bow reversals");
+    if (shuffleMaxReCatch < 1.02f)
+        return fail("Shuffle reversals did not re-catch the string");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
