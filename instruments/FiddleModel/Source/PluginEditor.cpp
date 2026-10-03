@@ -28,6 +28,42 @@ void InstrumentView::setState(FiddleVisualState state)
     repaint();
 }
 
+
+void InstrumentView::mouseDown(const juce::MouseEvent& event)
+{
+    applyGesture(event.position);
+}
+
+void InstrumentView::mouseDrag(const juce::MouseEvent& event)
+{
+    applyGesture(event.position);
+}
+
+void InstrumentView::applyGesture(juce::Point<float> position)
+{
+    const auto bounds = getLocalBounds().toFloat().reduced(6.0f);
+    const auto nutX = bounds.getX() + 76.0f;
+    const auto bridgeX = bounds.getRight() - 44.0f;
+    const auto topY = bounds.getY() + 44.0f;
+    const auto bottomY = bounds.getBottom() - 28.0f;
+    const auto spacing = (bottomY - topY) / 3.0f;
+
+    const auto x = juce::jlimit(nutX, bridgeX, position.x);
+    const auto beta = (bridgeX - x) / (bridgeX - nutX);
+    const auto contact = juce::jlimit(
+        0.0f, 1.0f, (0.22f - beta) / (0.22f - 0.06f));
+
+    const auto pair = juce::jlimit(0, 2, state_.pairLowerString);
+    const auto pairCenterY = topY + spacing * (static_cast<float>(pair) + 0.5f);
+    const auto focus = juce::jlimit(
+        -1.0f, 1.0f, (position.y - pairCenterY) / (0.5f * spacing));
+
+    if (onBowContactChanged)
+        onBowContactChanged(contact);
+    if (onStringFocusChanged)
+        onStringFocusChanged(focus);
+}
+
 void InstrumentView::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat().reduced(6.0f);
@@ -206,6 +242,17 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(subtitle_);
 
     addAndMakeVisible(instrumentView_);
+    instrumentView_.setTooltip(
+        "Drag left/right to move the bow between fingerboard and bridge. Drag toward either string to focus that string.");
+    instrumentView_.onBowContactChanged = [this](float value)
+    {
+        contact_.slider().setValue(value, juce::sendNotificationSync);
+    };
+    instrumentView_.onStringFocusChanged = [this](float value)
+    {
+        focus_.slider().setValue(value, juce::sendNotificationSync);
+    };
+
     addAndMakeVisible(bowGroup_);
     addAndMakeVisible(stringsGroup_);
     addAndMakeVisible(materialsGroup_);
