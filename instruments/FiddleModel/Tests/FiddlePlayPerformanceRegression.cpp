@@ -159,7 +159,28 @@ int main(int argc, char** argv)
     engine.stopBow();
     render(engine, left, right, 0.08);
 
+    // Open-string drone: one stopped E4 on D while A remains open.
+    std::array<float, 4> singleFingering {};
+    singleFingering[1] = 329.6276f;
+    engine.setFingeringLayout(singleFingering, 1, 1, 0.88f);
+    controls.balance = 0.0f;
+    engine.setControls(controls);
+    engine.startBow(+1);
+    render(engine, left, right, 0.30);
+
+    const auto openDrone = engine.debugSnapshot();
+    if (!(openDrone.contactNormalForceN[1] > 0.001f
+          && openDrone.contactNormalForceN[2] > 0.001f))
+        return fail("Open-string Drone Bow did not contact both D and A strings");
+    if (std::abs(openDrone.speakingFrequencyHz[1] - 329.6276f) > 1.5f
+        || std::abs(openDrone.speakingFrequencyHz[2] - 440.0f) > 1.0f)
+        return fail("Open-string Drone Bow did not preserve stopped D + open A tuning");
+    engine.stopBow();
+    render(engine, left, right, 0.08);
+
     // Restore the original D/A fingering for the remaining gestures.
+    controls.balance = -0.45f;
+    engine.setControls(controls);
     engine.setFingeringLayout(fingering, 1, 1, 0.88f);
 
     // Short stroke.
