@@ -286,7 +286,19 @@ void InstrumentView::paint(juce::Graphics& g)
     const auto pairBottomY = topY + spacing * static_cast<float>(pair + 1) + 22.0f;
     const auto tilt = juce::jlimit(-1.0f, 1.0f, state_.stringFocus) * 14.0f;
 
-    g.setColour(juce::Colour::fromRGB(107, 195, 214));
+    const auto lowerTemperature =
+        state_.contactTemperatureC[static_cast<std::size_t>(pair)];
+    const auto upperTemperature =
+        state_.contactTemperatureC[static_cast<std::size_t>(pair + 1)];
+    const auto contactTemperature =
+        std::max(lowerTemperature, upperTemperature);
+    const auto heat = juce::jlimit(
+        0.0f, 1.0f, (contactTemperature - 28.0f) / 42.0f);
+    const auto coolBow = juce::Colour::fromRGB(107, 195, 214);
+    const auto hotBow = juce::Colour::fromRGB(238, 132, 88);
+    const auto bowColour = coolBow.interpolatedWith(hotBow, heat);
+
+    g.setColour(bowColour);
     g.drawLine(bowX - tilt, pairTopY, bowX + tilt, pairBottomY, 4.0f);
 
     juce::Path arrow;
@@ -308,8 +320,13 @@ void InstrumentView::paint(juce::Graphics& g)
     const auto stringText = juce::String(stringNames[static_cast<std::size_t>(primary)]);
     const auto directionText = state_.bowDirection >= 0 ? "Down bow" : "Up bow";
     const auto actionText = bowActionName(state_.bowAction);
+    const auto rosinState =
+        contactTemperature < 34.0f ? juce::String("Rosin Cool")
+      : contactTemperature < 56.0f ? juce::String("Rosin Working")
+                                    : juce::String("Rosin Hot");
 
-    juce::String status = noteText + " on " + stringText + " string";
+    juce::String status =
+        noteText + " on " + stringText + " string  |  " + rosinState;
     if (state_.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
     {
         status = juce::String("Fiddle Play  |  ") + status;
