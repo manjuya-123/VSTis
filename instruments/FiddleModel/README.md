@@ -13,7 +13,7 @@ contains:
 - per-string passive loss filters and mild allpass dispersion
 - nonlinear stateful bow/string friction contacts
 - up to two simultaneously bowed adjacent strings
-- Performance Balance calibrated to physical bow angle
+- Pressure-aware Performance Balance calibrated to physical bow angle
 - bridge curvature + compliant bow-hair contact geometry
 - total bow-force conservation through geometric contact solving
 - a shared passive 12-mode bridge/body admittance
@@ -46,7 +46,7 @@ This mapping is an intermediate performance model and will become configurable l
 - **Speed**: maps to bow velocity.
 - **Attack**: maps to bow acceleration.
 - **Position**: fingerboard-side to bridge-side bow position.
-- **Balance**: maps to a calibrated physical bow angle. Bridge curvature and bow-hair compliance then determine which strings are touched and how the conserved total force is distributed.
+- **Balance**: maps through a precomputed Pressure x Balance calibration LUT to a physical bow angle. Bridge curvature and bow-hair compliance then determine contact forces. The center therefore stays close to equal normalized pressure across the active pair as Pressure changes.
 
 ## Automated core test
 
@@ -71,3 +71,5 @@ checks overlapping-note/legato priority without any JUCE dependency.
 2. Improve phase/pitch compensation at the bridge load where needed.
 3. Add note-stack/legato policy and MPE mappings.
 4. Replace the generic JUCE editor with the performance UI.
+
+The Bow Angle calibration LUT is generated in `prepare()` rather than on the audio thread. The audio path only bilinearly interpolates the LUT and performs the final contact-depth solve.

@@ -17,6 +17,7 @@ target_sources(FiddleModel PRIVATE
     Source/Dsp/FiddleEngine.cpp
     Source/Dsp/FiddleEngine.h
     Source/Dsp/MidiNoteStack.h
+    Source/Dsp/detail/BowGeometryMapper.h
 )
 
 target_include_directories(FiddleModel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)

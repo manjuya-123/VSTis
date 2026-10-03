@@ -73,8 +73,17 @@ int main()
     if (!(debug.contactNormalForceN[1] > 0.0f && debug.contactNormalForceN[2] > 0.0f))
         return fail("balanced D+A bow should apply force to both strings");
 
-    if (!(debug.bowAngleDeg > 0.3f && debug.bowAngleDeg < 0.7f))
-        return fail("Balance center should calibrate to the expected physical bow angle");
+    if (!(debug.bowAngleDeg > 0.20f && debug.bowAngleDeg < 0.45f))
+        return fail("Balance center should pressure-compensate the physical bow angle");
+
+    const auto normalizedD =
+        debug.contactNormalForceN[1] / 0.23878228245098557f;
+    const auto normalizedA =
+        debug.contactNormalForceN[2] / 0.19054878048780488f;
+    const auto normalizedMismatch =
+        std::abs(normalizedD - normalizedA) / std::max(normalizedD, normalizedA);
+    if (normalizedMismatch > 0.025f)
+        return fail("Balance center should keep normalized D/A pressure nearly equal");
 
     const auto forceSum = debug.contactNormalForceN[1] + debug.contactNormalForceN[2];
     if (!(forceSum > 0.05f && forceSum < 0.60f))
