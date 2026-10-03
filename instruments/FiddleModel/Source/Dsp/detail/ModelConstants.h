@@ -10,6 +10,11 @@ inline constexpr int delaySize = 4096;
 inline constexpr double pi = 3.1415926535897932384626433832795;
 inline constexpr double balanceSharpness = 1.75;
 
+// Normalized bow position beta = distance from bridge / speaking length.
+// These are player-facing endpoints, not a claim about one specific violin.
+inline constexpr double bowBetaFingerboard = 0.25;
+inline constexpr double bowBetaBridge = 0.04;
+
 inline constexpr std::array<double, stringCount> openFrequency {
     195.9977, 293.6648, 440.0, 659.2551
 };
