@@ -695,10 +695,10 @@ void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
 {
     impl_->startTremolo(reversalsPerSecond);
 }
-void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
-{ impl_->startTremolo(reversalsPerSecond); }
 void FiddleEngine::startShuffle(float subdivisionsPerSecond) noexcept
-{ impl_->startShuffle(subdivisionsPerSecond); }
+{
+    impl_->startShuffle(subdivisionsPerSecond);
+}
 void FiddleEngine::stopBow() noexcept { impl_->stopBow(); }
 void FiddleEngine::noteOff() { impl_->noteOff(); }
 void FiddleEngine::setControls(const Controls& controls) noexcept { impl_->setControls(controls); }
