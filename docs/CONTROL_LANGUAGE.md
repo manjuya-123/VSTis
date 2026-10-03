@@ -70,3 +70,18 @@ Normal UI exposes bowing intent, not a direction-state machine:
 - Alternate — reverse on every new Note On.
 
 Fiddle Auto is the normal default for keyboard performance.
+
+
+## Materials vs performance controls
+
+Materials describe what the instrument/bow is made from; performance controls describe
+what the player is doing.
+
+Current material-facing controls:
+- Body
+- Bow Stick
+- Hair / Rosin
+- String Core
+
+String Core offers Synthetic core, Steel core, and Gut-like profiles. The UI should
+describe their playing consequence rather than expose loop-loss or allpass coefficients.
