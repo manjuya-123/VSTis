@@ -464,7 +464,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModeSpeedScale_ = gesture.speedScale;
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
-            engine_.startShortStroke(
+            engine_.startChop(
                 playBowDirection_, gesture.durationSeconds);
             activeBowActionNote_ = midiNote;
             break;
