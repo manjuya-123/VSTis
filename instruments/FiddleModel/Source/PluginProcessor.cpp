@@ -330,6 +330,7 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         std::array<float, 4> openStrings{};
         engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
         engine_.stopBow();
+        playModePreferredPrimaryString_ = -1;
         activeMidiNote_.store(-1, std::memory_order_relaxed);
         activePairLowerString_.store(1, std::memory_order_relaxed);
         return;
@@ -347,7 +348,7 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
     }
 
     const auto layout = fiddle::voiceFingering(
-        heldNotes, count, current.note);
+        heldNotes, count, current.note, playModePreferredPrimaryString_);
 
     std::array<float, 4> frequencies{};
     for (std::size_t stringIndex = 0; stringIndex < frequencies.size(); ++stringIndex)
@@ -363,6 +364,7 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         layout.bowPairLowerString,
         0.85f);
 
+    playModePreferredPrimaryString_ = layout.primaryString;
     activeMidiNote_.store(current.note, std::memory_order_relaxed);
     activePairLowerString_.store(
         layout.bowPairLowerString, std::memory_order_relaxed);
@@ -536,6 +538,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
     playModeGestureStrength_ = 0.5f;
+    playModePreferredPrimaryString_ = -1;
 
     activeMidiNote_.store(-1, std::memory_order_relaxed);
     activePairLowerString_.store(1, std::memory_order_relaxed);
