@@ -354,6 +354,14 @@ struct FiddleEngine::Impl
         strokeBiteSamplesRemaining = strokeBiteTotalSamples;
     }
 
+    void retriggerBowCatch(double amount, double durationSeconds) noexcept
+    {
+        // Used by internally scheduled bow reversals (tremolo/shuffle). This is
+        // a brief extra normal-force preload at the physical contact, not an
+        // output-envelope transient.
+        setStrokeBite(amount, durationSeconds);
+    }
+
     void startBow(int direction) noexcept
     {
         bowStrokeStarted = true;
@@ -471,6 +479,7 @@ struct FiddleEngine::Impl
             if (tremoloSamplesUntilFlip == 0)
             {
                 bowDirection = -bowDirection;
+                retriggerBowCatch(0.10, 0.0045);
                 tremoloSamplesUntilFlip = std::max<std::int64_t>(
                     1, static_cast<std::int64_t>(
                         sampleRate / tremoloReversalsPerSecond));
@@ -496,6 +505,8 @@ struct FiddleEngine::Impl
 
                 shuffleEnergyScale =
                     energyScale[static_cast<std::size_t>(shufflePhase)];
+                retriggerBowCatch(
+                    0.08 + 0.06 * shuffleEnergyScale, 0.0050);
                 shuffleSamplesUntilFlip = std::max<std::int64_t>(
                     1, static_cast<std::int64_t>(
                         durationUnits[static_cast<std::size_t>(shufflePhase)]
