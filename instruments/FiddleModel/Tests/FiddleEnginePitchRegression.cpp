@@ -111,6 +111,33 @@ bool testPitch(double target)
 }
 } // namespace
 
+bool testStringAssignmentSurvivesBend()
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.55f;
+    controls.speed = 0.60f;
+    controls.attack = 0.55f;
+    controls.position = 0.45f;
+    controls.balance = 0.0f;
+    engine.setControls(controls);
+
+    // A4 selects the A string. A large downward retune must not migrate it to D.
+    engine.noteOn(440.0f, 0.85f);
+    engine.retune(391.9954f);
+
+    std::vector<float> left(static_cast<std::size_t>(0.35 * sampleRate), 0.0f);
+    std::vector<float> right(left.size(), 0.0f);
+    engine.process(left.data(), right.data(), left.size());
+
+    const auto debug = engine.debugSnapshot();
+    return debug.primaryString == 2
+        && debug.bowPairLowerString == 2
+        && std::abs(debug.speakingFrequencyHz[2] - 440.0f) < 0.5f;
+}
+
 bool testContinuousRetune()
 {
     fiddle::FiddleEngine engine;

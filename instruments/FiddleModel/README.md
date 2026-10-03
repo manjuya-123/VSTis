@@ -95,3 +95,9 @@ The first dedicated editor presents actions and audible consequences in player l
 The UI hides normalized 0..1 values and displays player words such as Light, Natural,
 Firm, Near bridge, and Upper-biased. Numerical values remain only where the unit itself
 is meaningful to a musician, for example ±2 semitones.
+
+
+Pitch-wheel state no longer participates in physical-string selection at Note On.
+The MIDI note first selects the string/fingering, then Pitch Bend retunes that same
+speaking length. This prevents a downward bend from accidentally moving an A-string
+note onto the D string.
