@@ -66,6 +66,7 @@ struct DebugState
     float bridgeVelocity = 0.0f;
     float bowAngleDeg = 0.0f;
     float vibratoOffsetCents = 0.0f;
+    float strokeBiteGain = 1.0f;
     int bowDirection = 1;
     int bowPairLowerString = 1;
     int primaryString = 1;
@@ -91,6 +92,7 @@ public:
                             float velocity);
     void retune(float frequencyHz);
 
+    void setStrokeBite(float amount, float durationSeconds = 0.008f) noexcept;
     void startBow(int direction) noexcept;
     void startShortStroke(int direction, float durationSeconds = 0.075f) noexcept;
     void startChop(int direction, float durationSeconds = 0.032f) noexcept;
