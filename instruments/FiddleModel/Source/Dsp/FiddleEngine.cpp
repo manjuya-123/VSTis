@@ -38,6 +38,8 @@ struct FiddleEngine::Impl
     Smoother attack{};
     Smoother position{};
     Smoother balance{};
+    Smoother vibratoWidth{};
+    Smoother vibratoPace{};
     Smoother gate{};
     std::array<Smoother, stringCount> speakingFrequency{};
 
@@ -46,6 +48,7 @@ struct FiddleEngine::Impl
 
     double velocityScale = 1.0;
     double bowSpeed = 0.0;
+    double vibratoPhase = 0.0;
     int primaryString = 1;
     int pairLower = 1;
 
@@ -61,6 +64,8 @@ struct FiddleEngine::Impl
         attack.prepare(sampleRate, 0.020);
         position.prepare(sampleRate, 0.015);
         balance.prepare(sampleRate, 0.015);
+        vibratoWidth.prepare(sampleRate, 0.030);
+        vibratoPace.prepare(sampleRate, 0.050);
         gate.prepare(sampleRate, 0.018);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
@@ -91,6 +96,8 @@ struct FiddleEngine::Impl
         attack.reset(controlTargets.attack);
         position.reset(controlTargets.position);
         balance.reset(controlTargets.balance);
+        vibratoWidth.reset(controlTargets.vibratoWidth);
+        vibratoPace.reset(controlTargets.vibratoPace);
         gate.reset(0.0);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
@@ -98,6 +105,7 @@ struct FiddleEngine::Impl
 
         velocityScale = 1.0;
         bowSpeed = 0.0;
+        vibratoPhase = 0.0;
         primaryString = 1;
         pairLower = 1;
         debug = {};
@@ -110,12 +118,16 @@ struct FiddleEngine::Impl
         controlTargets.attack = static_cast<float>(clamp01(controls.attack));
         controlTargets.position = static_cast<float>(clamp01(controls.position));
         controlTargets.balance = std::clamp(controls.balance, -1.0f, 1.0f);
+        controlTargets.vibratoWidth = static_cast<float>(clamp01(controls.vibratoWidth));
+        controlTargets.vibratoPace = static_cast<float>(clamp01(controls.vibratoPace));
 
         pressure.setTarget(controlTargets.pressure);
         speed.setTarget(controlTargets.speed);
         attack.setTarget(controlTargets.attack);
         position.setTarget(controlTargets.position);
         balance.setTarget(controlTargets.balance);
+        vibratoWidth.setTarget(controlTargets.vibratoWidth);
+        vibratoPace.setTarget(controlTargets.vibratoPace);
     }
 
     void noteOn(double frequencyHz, double velocity)
@@ -162,6 +174,8 @@ struct FiddleEngine::Impl
         const auto a = attack.next();
         const auto pos = position.next();
         const auto bal = balance.next();
+        const auto vibWidth = vibratoWidth.next();
+        const auto vibPace = vibratoPace.next();
         const auto gateValue = gate.next();
 
         const auto bowTargetSpeed = 0.04 + 0.61 * std::pow(s, 1.25);
@@ -173,6 +187,15 @@ struct FiddleEngine::Impl
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
+        const auto vibratoRateHz = 4.0 + 3.0 * vibPace;
+        vibratoPhase += 2.0 * pi * vibratoRateHz / sampleRate;
+        if (vibratoPhase >= 2.0 * pi)
+            vibratoPhase -= 2.0 * pi;
+
+        const auto vibratoDepthCents = 35.0 * vibWidth;
+        const auto vibratoWave = std::sin(vibratoPhase);
+        double appliedVibratoCents = 0.0;
+
         std::array<double, stringCount> currentFrequency{};
         std::array<double, stringCount> bridgeDelay{};
         std::array<double, stringCount> nutDelay{};
@@ -180,6 +203,16 @@ struct FiddleEngine::Impl
         for (std::size_t i = 0; i < currentFrequency.size(); ++i)
         {
             currentFrequency[i] = std::max(20.0, speakingFrequency[i].next());
+
+            const auto isFingeredPrimary =
+                static_cast<int>(i) == primaryString
+                && speakingFrequency[i].target > openFrequency[i] * 1.0005;
+            if (isFingeredPrimary && vibratoDepthCents > 1.0e-6)
+            {
+                appliedVibratoCents = vibratoDepthCents * vibratoWave;
+                currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
+            }
+
             auto oneWay = sampleRate / (2.0 * currentFrequency[i]) - 0.5 * filterPhaseDelay[i];
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
@@ -259,6 +292,7 @@ struct FiddleEngine::Impl
 
         debug.bowSpeedMps = static_cast<float>(bowSpeed);
         debug.bridgeVelocity = static_cast<float>(bridgeVelocity);
+        debug.vibratoOffsetCents = static_cast<float>(appliedVibratoCents);
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;
 
