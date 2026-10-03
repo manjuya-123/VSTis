@@ -106,3 +106,13 @@ note onto the D string.
 Left-hand vibrato is modeled as continuous speaking-length motion on the fingered
 primary string. The normal GUI exposes Vibrato Width and Vibrato Pace rather than
 LFO depth/rate. Open strings intentionally ignore this finger vibrato.
+
+
+## MIDI performance gestures
+
+- Mod Wheel increases Vibrato Width from the current panel setting.
+- Channel Aftertouch adds Bow Pressure, up to 30% of the full control range.
+- Pitch Bend changes the speaking length of the already selected physical string.
+
+These mappings are intentionally described as player gestures rather than DSP modulation
+sources.
