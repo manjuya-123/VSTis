@@ -336,6 +336,7 @@ struct FiddleEngine::Impl
         bowStrokeStarted = true;
         bowDirection = direction < 0 ? -1 : 1;
         shortStrokeSamplesRemaining = 0;
+        chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
         gate.setTarget(1.0);
@@ -346,6 +347,14 @@ struct FiddleEngine::Impl
         startBow(direction);
         shortStrokeSamplesRemaining = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(durationSeconds * sampleRate));
+    }
+
+    void startChop(int direction, double durationSeconds) noexcept
+    {
+        startShortStroke(direction, durationSeconds);
+        chopDampingSamplesRemaining = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                std::max(0.020, durationSeconds + 0.012) * sampleRate));
     }
 
     void startTremolo(double reversalsPerSecond) noexcept
