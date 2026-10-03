@@ -1,24 +1,34 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Dsp/BowStrokePolicy.h"
+#include "Dsp/FiddleFingeringVoicer.h"
+#include "Dsp/FiddlePlayLayout.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 FiddleModelAudioProcessor::FiddleModelAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       parameters_(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
+    static constexpr std::array<float, 4> openHz {
+        195.9977f, 293.6648f, 440.0f, 659.2551f
+    };
+    for (std::size_t i = 0; i < openHz.size(); ++i)
+        visualSpeakingFrequencyHz_[i].store(openHz[i], std::memory_order_relaxed);
 }
 
 void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
 {
-    noteStack_.reset();
-    activeMidiNote_.store(-1, std::memory_order_relaxed);
     pitchWheelNormalized_ = 0.0f;
     modWheelNormalized_ = 0.0f;
     channelPressureNormalized_ = 0.0f;
+
     engine_.prepare(sampleRate);
+    noteStack_.reset();
+    lastPlayMode_ = -1;
+    resetPerformanceModeState();
 }
 
 void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -48,6 +58,17 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         static_cast<int>(parameters_.getRawParameterValue("stringMaterial")->load()));
     engine_.setMaterials(materials);
 
+    const auto playMode = static_cast<int>(
+        parameters_.getRawParameterValue("playMode")->load());
+
+    if (playMode != lastPlayMode_)
+    {
+        noteStack_.reset();
+        resetPerformanceModeState();
+        lastPlayMode_ = playMode;
+        visualPlayMode_.store(playMode, std::memory_order_relaxed);
+    }
+
     applyPerformanceControls();
 
     auto* left = buffer.getWritePointer(0);
@@ -68,46 +89,81 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     };
 
-    // Render around MIDI event offsets so bow/finger transitions begin at the
-    // correct sample inside the host block rather than at the block boundary.
     for (const auto metadata : midi)
     {
         renderUntil(metadata.samplePosition);
 
         const auto message = metadata.getMessage();
+
         if (message.isNoteOn())
         {
-            const auto hadHeldNote = noteStack_.current().active;
-            const auto selection = noteStack_.noteOn(
-                message.getNoteNumber(), message.getFloatVelocity());
+            const auto note = message.getNoteNumber();
+            const auto velocity = message.getFloatVelocity();
 
-            const auto strokeMode = static_cast<fiddle::BowStrokeMode>(
-                static_cast<int>(parameters_.getRawParameterValue("strokeMode")->load()));
-            engine_.beginBowStroke(
-                fiddle::shouldAlternateBow(strokeMode, hadHeldNote));
-            activePairLowerString_.store(
-                pairForMidiNote(selection.note), std::memory_order_relaxed);
-            activeMidiNote_.store(selection.note, std::memory_order_relaxed);
-            engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
-            engine_.retune(bentFrequencyForNote(selection.note));
+            if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
+            {
+                if (fiddle::isBowActionKey(note))
+                {
+                    triggerFiddlePlayAction(note, velocity);
+                }
+                else if (fiddle::isFingeringKey(note))
+                {
+                    noteStack_.noteOn(note, velocity);
+                    updateFiddlePlayFingering();
+                }
+            }
+            else
+            {
+                const auto hadHeldNote = noteStack_.current().active;
+                const auto selection = noteStack_.noteOn(note, velocity);
+
+                const auto strokeMode = static_cast<fiddle::BowStrokeMode>(
+                    static_cast<int>(parameters_.getRawParameterValue("strokeMode")->load()));
+                engine_.beginBowStroke(
+                    fiddle::shouldAlternateBow(strokeMode, hadHeldNote));
+
+                activePairLowerString_.store(
+                    pairForMidiNote(selection.note), std::memory_order_relaxed);
+                activeMidiNote_.store(selection.note, std::memory_order_relaxed);
+
+                engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
+                engine_.retune(bentFrequencyForNote(selection.note));
+            }
         }
         else if (message.isNoteOff())
         {
-            const auto selection = noteStack_.noteOff(message.getNoteNumber());
-            if (selection.changed)
+            const auto note = message.getNoteNumber();
+
+            if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
             {
-                if (selection.active)
+                if (fiddle::isBowActionKey(note))
                 {
-                    activePairLowerString_.store(
-                        pairForMidiNote(selection.note), std::memory_order_relaxed);
-                    activeMidiNote_.store(selection.note, std::memory_order_relaxed);
-                    engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
-                    engine_.retune(bentFrequencyForNote(selection.note));
+                    releaseFiddlePlayAction(note);
                 }
-                else
+                else if (fiddle::isFingeringKey(note))
                 {
-                    activeMidiNote_.store(-1, std::memory_order_relaxed);
-                    engine_.noteOff();
+                    noteStack_.noteOff(note);
+                    updateFiddlePlayFingering();
+                }
+            }
+            else
+            {
+                const auto selection = noteStack_.noteOff(note);
+                if (selection.changed)
+                {
+                    if (selection.active)
+                    {
+                        activePairLowerString_.store(
+                            pairForMidiNote(selection.note), std::memory_order_relaxed);
+                        activeMidiNote_.store(selection.note, std::memory_order_relaxed);
+                        engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
+                        engine_.retune(bentFrequencyForNote(selection.note));
+                    }
+                    else
+                    {
+                        activeMidiNote_.store(-1, std::memory_order_relaxed);
+                        engine_.noteOff();
+                    }
                 }
             }
         }
@@ -130,15 +186,21 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 ? static_cast<float>(value - 8192) / 8191.0f
                 : static_cast<float>(value - 8192) / 8192.0f;
 
-            const auto selection = noteStack_.current();
-            if (selection.active)
-                engine_.retune(bentFrequencyForNote(selection.note));
+            if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
+            {
+                updateFiddlePlayFingering();
+            }
+            else
+            {
+                const auto selection = noteStack_.current();
+                if (selection.active)
+                    engine_.retune(bentFrequencyForNote(selection.note));
+            }
         }
         else if (message.isAllNotesOff() || message.isAllSoundOff())
         {
             noteStack_.reset();
-            activeMidiNote_.store(-1, std::memory_order_relaxed);
-            engine_.noteOff();
+            resetPerformanceModeState();
         }
     }
 
@@ -147,10 +209,11 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const auto debug = engine_.debugSnapshot();
     visualPrimaryString_.store(debug.primaryString, std::memory_order_relaxed);
     visualBowDirection_.store(debug.bowDirection, std::memory_order_relaxed);
-    const auto primary = juce::jlimit(0, 3, debug.primaryString);
-    visualSpeakingFrequencyHz_.store(
-        debug.speakingFrequencyHz[static_cast<std::size_t>(primary)],
-        std::memory_order_relaxed);
+    activePairLowerString_.store(debug.bowPairLowerString, std::memory_order_relaxed);
+
+    for (std::size_t i = 0; i < debug.speakingFrequencyHz.size(); ++i)
+        visualSpeakingFrequencyHz_[i].store(
+            debug.speakingFrequencyHz[i], std::memory_order_relaxed);
 }
 
 juce::AudioProcessorEditor* FiddleModelAudioProcessor::createEditor()
@@ -175,6 +238,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout
 FiddleModelAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        "playMode", "Play Mode",
+        juce::StringArray { "Chromatic", "Fiddle Play" }, 0));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "pressure", "Bow Pressure", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
@@ -240,9 +307,9 @@ float FiddleModelAudioProcessor::midiNoteToHz(int midiNote)
 
 int FiddleModelAudioProcessor::pairForMidiNote(int midiNote) noexcept
 {
-    if (midiNote < 62) return 0; // G-D
-    if (midiNote < 69) return 1; // D-A
-    return 2;                    // A-E
+    if (midiNote < 62) return 0;
+    if (midiNote < 69) return 1;
+    return 2;
 }
 
 float FiddleModelAudioProcessor::bentFrequencyForNote(int midiNote) const
@@ -253,6 +320,189 @@ float FiddleModelAudioProcessor::bentFrequencyForNote(int midiNote) const
         * std::pow(2.0f, semitones / 12.0f);
 }
 
+void FiddleModelAudioProcessor::updateFiddlePlayFingering()
+{
+    const auto current = noteStack_.current();
+
+    if (!current.active)
+    {
+        std::array<float, 4> openStrings{};
+        engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
+        engine_.stopBow();
+        activeMidiNote_.store(-1, std::memory_order_relaxed);
+        activePairLowerString_.store(1, std::memory_order_relaxed);
+        return;
+    }
+
+    std::array<int, 4> heldNotes { -1, -1, -1, -1 };
+    std::size_t count = 0;
+
+    heldNotes[count++] = current.note;
+
+    for (int note = fiddle::fiddleLowestNote; note <= 108 && count < heldNotes.size(); ++note)
+    {
+        if (note != current.note && noteStack_.isHeld(note))
+            heldNotes[count++] = note;
+    }
+
+    const auto layout = fiddle::voiceFingering(
+        heldNotes, count, current.note);
+
+    std::array<float, 4> frequencies{};
+    for (std::size_t stringIndex = 0; stringIndex < frequencies.size(); ++stringIndex)
+    {
+        const auto note = layout.midiNoteByString[stringIndex];
+        if (note >= 0)
+            frequencies[stringIndex] = bentFrequencyForNote(note);
+    }
+
+    engine_.setFingeringLayout(
+        frequencies,
+        layout.primaryString,
+        layout.bowPairLowerString,
+        current.velocity);
+
+    activeMidiNote_.store(current.note, std::memory_order_relaxed);
+    activePairLowerString_.store(
+        layout.bowPairLowerString, std::memory_order_relaxed);
+}
+
+void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velocity)
+{
+    const auto action = fiddle::bowActionForMidiNote(midiNote);
+    visualBowAction_.store(static_cast<int>(action), std::memory_order_relaxed);
+
+    if (action == fiddle::BowAction::Release)
+    {
+        engine_.stopBow();
+        activeBowActionNote_ = -1;
+        playModeFocusOverride_ = false;
+        playModePressureBoost_ = 0.0f;
+        applyPerformanceControls();
+        return;
+    }
+
+    if (!noteStack_.current().active)
+        return;
+
+    switch (action)
+    {
+        case fiddle::BowAction::DownBow:
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ = 0.0f;
+            applyPerformanceControls();
+            playBowDirection_ = 1;
+            engine_.startBow(1);
+            activeBowActionNote_ = midiNote;
+            break;
+
+        case fiddle::BowAction::UpBow:
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ = 0.0f;
+            applyPerformanceControls();
+            playBowDirection_ = -1;
+            engine_.startBow(-1);
+            activeBowActionNote_ = midiNote;
+            break;
+
+        case fiddle::BowAction::ShortStroke:
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ = 0.0f;
+            applyPerformanceControls();
+            playBowDirection_ = -playBowDirection_;
+            engine_.startShortStroke(playBowDirection_, 0.075f);
+            activeBowActionNote_ = -1;
+            break;
+
+        case fiddle::BowAction::Tremolo:
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ = 0.0f;
+            applyPerformanceControls();
+            engine_.startTremolo(14.0f);
+            activeBowActionNote_ = midiNote;
+            break;
+
+        case fiddle::BowAction::DroneBow:
+            playModeFocusOverride_ = true;
+            playModeFocusValue_ = 0.0f;
+            playModePressureBoost_ = 0.0f;
+            applyPerformanceControls();
+            engine_.startBow(playBowDirection_);
+            activeBowActionNote_ = midiNote;
+            break;
+
+        case fiddle::BowAction::AccentStroke:
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ =
+                0.12f + 0.12f * std::clamp(velocity, 0.0f, 1.0f);
+            applyPerformanceControls();
+            playBowDirection_ = -playBowDirection_;
+            engine_.startShortStroke(playBowDirection_, 0.060f);
+            activeBowActionNote_ = midiNote;
+            break;
+
+        case fiddle::BowAction::None:
+        case fiddle::BowAction::Release:
+            break;
+    }
+}
+
+void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
+{
+    const auto action = fiddle::bowActionForMidiNote(midiNote);
+
+    if (action == fiddle::BowAction::AccentStroke)
+    {
+        playModePressureBoost_ = 0.0f;
+        applyPerformanceControls();
+        if (activeBowActionNote_ == midiNote)
+            activeBowActionNote_ = -1;
+        return;
+    }
+
+    if (activeBowActionNote_ != midiNote)
+        return;
+
+    if (action == fiddle::BowAction::DownBow
+        || action == fiddle::BowAction::UpBow
+        || action == fiddle::BowAction::Tremolo
+        || action == fiddle::BowAction::DroneBow)
+    {
+        engine_.stopBow();
+    }
+
+    if (action == fiddle::BowAction::DroneBow)
+        playModeFocusOverride_ = false;
+
+    playModePressureBoost_ = 0.0f;
+    applyPerformanceControls();
+    activeBowActionNote_ = -1;
+    visualBowAction_.store(
+        static_cast<int>(fiddle::BowAction::None),
+        std::memory_order_relaxed);
+}
+
+void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
+{
+    engine_.stopBow();
+
+    activeBowActionNote_ = -1;
+    playBowDirection_ = 1;
+    playModeFocusOverride_ = false;
+    playModeFocusValue_ = 0.0f;
+    playModePressureBoost_ = 0.0f;
+
+    activeMidiNote_.store(-1, std::memory_order_relaxed);
+    activePairLowerString_.store(1, std::memory_order_relaxed);
+    visualBowAction_.store(
+        static_cast<int>(fiddle::BowAction::None),
+        std::memory_order_relaxed);
+
+    std::array<float, 4> openStrings{};
+    engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
+    applyPerformanceControls();
+}
+
 FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
 {
     FiddleVisualState state;
@@ -261,8 +511,13 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
     state.primaryString = visualPrimaryString_.load(std::memory_order_relaxed);
     state.pairLowerString = activePairLowerString_.load(std::memory_order_relaxed);
     state.bowDirection = visualBowDirection_.load(std::memory_order_relaxed);
-    state.speakingFrequencyHz =
-        visualSpeakingFrequencyHz_.load(std::memory_order_relaxed);
+    state.playMode = visualPlayMode_.load(std::memory_order_relaxed);
+    state.bowAction = visualBowAction_.load(std::memory_order_relaxed);
+
+    for (std::size_t i = 0; i < state.speakingFrequencyHz.size(); ++i)
+        state.speakingFrequencyHz[i] =
+            visualSpeakingFrequencyHz_[i].load(std::memory_order_relaxed);
+
     state.bowContact = parameters_.getRawParameterValue("position")->load();
     state.stringFocus = parameters_.getRawParameterValue("balance")->load();
     return state;
@@ -271,10 +526,19 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
 void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
 {
     auto controls = baseControls_;
+
     controls.pressure = std::clamp(
-        controls.pressure + 0.30f * channelPressureNormalized_, 0.0f, 1.0f);
+        controls.pressure
+            + 0.30f * channelPressureNormalized_
+            + playModePressureBoost_,
+        0.0f, 1.0f);
+
     controls.vibratoWidth = std::max(
         controls.vibratoWidth, modWheelNormalized_);
+
+    if (playModeFocusOverride_)
+        controls.balance = playModeFocusValue_;
+
     engine_.setControls(controls);
 }
 
