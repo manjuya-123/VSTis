@@ -378,6 +378,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
         activeBowActionNote_ = -1;
         playModeFocusOverride_ = false;
         playModePressureBoost_ = 0.0f;
+        playModeSpeedScale_ = 1.0f;
         applyPerformanceControls();
         return;
     }
@@ -391,6 +392,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
     switch (action)
     {
         case fiddle::BowAction::DownBow:
+            playModeSpeedScale_ = 1.0f;
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesturePressure;
             applyPerformanceControls();
@@ -400,6 +402,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::UpBow:
+            playModeSpeedScale_ = 1.0f;
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesturePressure;
             applyPerformanceControls();
@@ -409,6 +412,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::ShortStroke:
+            playModeSpeedScale_ = 1.0f;
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesturePressure;
             applyPerformanceControls();
@@ -418,6 +422,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::Tremolo:
+            playModeSpeedScale_ = 1.0f;
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesturePressure;
             applyPerformanceControls();
@@ -426,6 +431,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::DroneBow:
+            playModeSpeedScale_ = 1.0f;
             playModeFocusOverride_ = true;
             playModeFocusValue_ = 0.0f;
             playModePressureBoost_ = gesturePressure;
@@ -435,12 +441,26 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::AccentStroke:
+            playModeSpeedScale_ = 1.0f;
             playModeFocusOverride_ = false;
             playModePressureBoost_ =
                 0.12f + 0.12f * std::clamp(velocity, 0.0f, 1.0f);
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(playBowDirection_, 0.060f);
+            activeBowActionNote_ = midiNote;
+            break;
+
+        case fiddle::BowAction::Chop:
+            // Reduced-order fiddle-chop gesture: high normal force, low travel,
+            // very short contact. A future collision model can replace this.
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ =
+                0.28f + 0.12f * std::clamp(velocity, 0.0f, 1.0f);
+            playModeSpeedScale_ = 0.28f;
+            applyPerformanceControls();
+            playBowDirection_ = -playBowDirection_;
+            engine_.startShortStroke(playBowDirection_, 0.032f);
             activeBowActionNote_ = midiNote;
             break;
 
@@ -454,9 +474,11 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
 {
     const auto action = fiddle::bowActionForMidiNote(midiNote);
 
-    if (action == fiddle::BowAction::AccentStroke)
+    if (action == fiddle::BowAction::AccentStroke
+        || action == fiddle::BowAction::Chop)
     {
         playModePressureBoost_ = 0.0f;
+        playModeSpeedScale_ = 1.0f;
         applyPerformanceControls();
         if (activeBowActionNote_ == midiNote)
             activeBowActionNote_ = -1;
@@ -478,6 +500,7 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
         playModeFocusOverride_ = false;
 
     playModePressureBoost_ = 0.0f;
+    playModeSpeedScale_ = 1.0f;
     applyPerformanceControls();
     activeBowActionNote_ = -1;
     visualBowAction_.store(
@@ -494,6 +517,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModeFocusOverride_ = false;
     playModeFocusValue_ = 0.0f;
     playModePressureBoost_ = 0.0f;
+    playModeSpeedScale_ = 1.0f;
 
     activeMidiNote_.store(-1, std::memory_order_relaxed);
     activePairLowerString_.store(1, std::memory_order_relaxed);
@@ -538,6 +562,8 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
 
     controls.vibratoWidth = std::max(
         controls.vibratoWidth, modWheelNormalized_);
+    controls.speed = std::clamp(
+        controls.speed * playModeSpeedScale_, 0.0f, 1.0f);
 
     if (playModeFocusOverride_)
         controls.balance = playModeFocusValue_;
