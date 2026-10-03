@@ -24,6 +24,7 @@ int main()
         || fiddle::bowActionForMidiNote(41) != BowAction::Tremolo
         || fiddle::bowActionForMidiNote(43) != BowAction::DroneBow
         || fiddle::bowActionForMidiNote(45) != BowAction::AccentStroke
+        || fiddle::bowActionForMidiNote(46) != BowAction::Chop
         || fiddle::bowActionForMidiNote(47) != BowAction::Release)
         return fail("Bow Action key map changed unexpectedly");
 
