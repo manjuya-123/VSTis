@@ -55,6 +55,8 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
     controls.attack = std::clamp(
         controls.attack + profile.responseBoost, 0.0f, 1.0f);
     engine.setControls(controls);
+    engine.setStrokeBite(
+        profile.biteBoost, profile.biteDurationSeconds);
 
     std::array<float, 4> fingering {};
     fingering[1] = 329.6276f; // E4 on D
@@ -67,6 +69,9 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
             break;
         case fiddle::BowAction::ShortStroke:
             engine.startShortStroke(+1, profile.durationSeconds);
+            break;
+        case fiddle::BowAction::Chop:
+            engine.startChop(+1, profile.durationSeconds);
             break;
         default:
             engine.startBow(+1);
@@ -121,13 +126,17 @@ int main()
         renderGesture(fiddle::BowAction::AccentStroke, 0.82f);
     const auto shortStroke =
         renderGesture(fiddle::BowAction::ShortStroke, 0.82f);
+    const auto chop =
+        renderGesture(fiddle::BowAction::Chop, 0.82f);
 
     std::cout << "down_onset_ms=" << down.onsetMs
               << " down_peak_rms=" << down.peakRms << '\n'
               << "accent_onset_ms=" << accent.onsetMs
               << " accent_peak_rms=" << accent.peakRms << '\n'
               << "short_onset_ms=" << shortStroke.onsetMs
-              << " short_peak_rms=" << shortStroke.peakRms << '\n';
+              << " short_peak_rms=" << shortStroke.peakRms << '\n'
+              << "chop_onset_ms=" << chop.onsetMs
+              << " chop_peak_rms=" << chop.peakRms << '\n';
 
     if (!(std::isfinite(down.onsetMs)
           && std::isfinite(accent.onsetMs)
@@ -140,6 +149,9 @@ int main()
 
     if (shortStroke.onsetMs > down.onsetMs + 4.0)
         return fail("Short Stroke onset became too sluggish for fast fiddle articulation");
+
+    if (!(chop.peakRms > 1.0e-5 && chop.onsetMs <= down.onsetMs + 2.0))
+        return fail("Chop did not produce a prompt physical contact transient");
 
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
