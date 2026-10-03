@@ -17,6 +17,37 @@ struct Controls
     float vibratoPace = 0.5f;
 };
 
+enum class BodyMaterialPreset
+{
+    Traditional = 0,
+    LightStiffComposite,
+    DenseExperimental,
+    RigidComposite
+};
+
+enum class BowStickPreset
+{
+    PernambucoLike = 0,
+    CarbonLike,
+    LightRigidExperimental,
+    FlexibleExperimental
+};
+
+enum class ContactMaterialPreset
+{
+    HorsehairMediumRosin = 0,
+    DryLightGrip,
+    HighGripRosin,
+    SyntheticHair
+};
+
+struct MaterialSettings
+{
+    BodyMaterialPreset body = BodyMaterialPreset::Traditional;
+    BowStickPreset bowStick = BowStickPreset::PernambucoLike;
+    ContactMaterialPreset contact = ContactMaterialPreset::HorsehairMediumRosin;
+};
+
 struct DebugState
 {
     std::array<float, 4> contactNormalForceN{};
@@ -49,6 +80,7 @@ public:
     void noteOff();
 
     void setControls(const Controls& controls) noexcept;
+    void setMaterials(const MaterialSettings& materials) noexcept;
 
     // Adds output into left/right. No allocation, locking or I/O occurs here.
     void process(float* left, float* right, std::size_t numSamples) noexcept;
