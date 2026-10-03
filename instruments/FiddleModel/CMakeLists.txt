@@ -103,6 +103,14 @@ if (BUILD_TESTING)
     target_compile_features(FiddleModelBowStrokePolicySmoke PRIVATE cxx_std_17)
     add_test(NAME FiddleModelBowStrokePolicySmoke COMMAND FiddleModelBowStrokePolicySmoke)
 
+    add_executable(FiddleModelBowContactStateSmoke
+        Tests/BowContactStateSmoke.cpp
+        Source/Dsp/detail/BowContact.h
+    )
+    target_include_directories(FiddleModelBowContactStateSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelBowContactStateSmoke PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelBowContactStateSmoke COMMAND FiddleModelBowContactStateSmoke)
+
     add_executable(FiddleModelPlayModeSmoke
         Tests/FiddlePlayModeSmoke.cpp
         Source/Dsp/FiddlePlayLayout.h
