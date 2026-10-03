@@ -59,8 +59,15 @@ private:
     InstrumentView instrumentView_;
     juce::GroupComponent bowGroup_ { "bow", "Bow" };
     juce::GroupComponent stringsGroup_ { "strings", "Strings & Pitch" };
+    juce::GroupComponent materialsGroup_ { "materials", "Materials" };
     juce::Label strokeLabel_;
     juce::ComboBox strokeMode_;
+    juce::Label bodyMaterialLabel_;
+    juce::ComboBox bodyMaterial_;
+    juce::Label bowMaterialLabel_;
+    juce::ComboBox bowMaterial_;
+    juce::Label contactMaterialLabel_;
+    juce::ComboBox contactMaterial_;
     juce::TooltipWindow tooltips_ { this, 500 };
 
     HumanKnob pressure_ {
@@ -105,6 +112,9 @@ private:
     std::unique_ptr<Attachment> vibratoPaceAttachment_;
     std::unique_ptr<Attachment> bendRangeAttachment_;
     std::unique_ptr<ComboAttachment> strokeModeAttachment_;
+    std::unique_ptr<ComboAttachment> bodyMaterialAttachment_;
+    std::unique_ptr<ComboAttachment> bowMaterialAttachment_;
+    std::unique_ptr<ComboAttachment> contactMaterialAttachment_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessorEditor)
 };
