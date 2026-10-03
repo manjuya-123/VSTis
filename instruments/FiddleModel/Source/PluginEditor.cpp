@@ -106,6 +106,46 @@ void BowActionStrip::paint(juce::Graphics& g)
 }
 
 
+int BowActionStrip::actionKeyAt(juce::Point<float> position) const noexcept
+{
+    static constexpr std::array<int, 8> notes { 36, 38, 40, 41, 43, 45, 46, 47 };
+
+    auto area = getLocalBounds().toFloat().reduced(2.0f);
+    const auto gap = 5.0f;
+    const auto width = (area.getWidth() - gap * 7.0f) / 8.0f;
+
+    for (int i = 0; i < 8; ++i)
+    {
+        const auto pad = juce::Rectangle<float>(
+            area.getX() + (width + gap) * static_cast<float>(i),
+            area.getY(), width, area.getHeight());
+
+        if (pad.contains(position))
+            return notes[static_cast<std::size_t>(i)];
+    }
+
+    return -1;
+}
+
+void BowActionStrip::mouseDown(const juce::MouseEvent& event)
+{
+    if (playMode_ != static_cast<int>(fiddle::PlayMode::FiddlePlay))
+        return;
+
+    mouseActionKey_ = actionKeyAt(event.position);
+    if (mouseActionKey_ >= 0 && onActionKey)
+        onActionKey(mouseActionKey_, true);
+}
+
+void BowActionStrip::mouseUp(const juce::MouseEvent&)
+{
+    if (mouseActionKey_ >= 0 && onActionKey)
+        onActionKey(mouseActionKey_, false);
+
+    mouseActionKey_ = -1;
+}
+
+
 void InstrumentView::mouseDown(const juce::MouseEvent& event)
 {
     applyGesture(event.position);
@@ -367,6 +407,10 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
 
     addAndMakeVisible(instrumentView_);
     addAndMakeVisible(bowActionStrip_);
+    bowActionStrip_.onActionKey = [this](int midiNote, bool pressed)
+    {
+        processor_.requestPlayActionFromUi(midiNote, pressed);
+    };
     instrumentView_.setTooltip(
         "Drag left/right to move the bow between fingerboard and bridge. Drag toward either string to focus that string.");
     instrumentView_.onBowContactChanged = [this](float value)
