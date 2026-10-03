@@ -436,6 +436,8 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
     playModeGestureStrength_ = gestureStrength;
     const auto gesture = fiddle::makeBowGestureProfile(action, gestureStrength);
     playModeResponseBoost_ = gesture.responseBoost;
+    engine_.setStrokeBite(
+        gesture.biteBoost, gesture.biteDurationSeconds);
 
     switch (action)
     {
