@@ -377,6 +377,10 @@ struct FiddleEngine::Impl
 
         shortStrokeSamplesRemaining = 0;
         chopDampingSamplesRemaining = 0;
+        shuffleSamplesUntilFlip = 0;
+        shuffleSubdivisionsPerSecond = 0.0;
+        shufflePhase = 0;
+        shuffleEnergyScale = 1.0;
         tremoloReversalsPerSecond = std::clamp(reversalsPerSecond, 4.0, 28.0);
         tremoloSamplesUntilFlip = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(
