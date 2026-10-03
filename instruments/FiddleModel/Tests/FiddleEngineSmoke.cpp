@@ -55,6 +55,8 @@ int main()
     controls.attack = 0.55f;
     controls.position = 0.45f;
     controls.balance = 0.0f;
+    controls.vibratoWidth = 0.0f;
+    controls.vibratoPace = 0.5f;
     engine.setControls(controls);
 
     constexpr std::size_t sustainSamples = static_cast<std::size_t>(sampleRate * 1.5);
@@ -130,6 +132,29 @@ int main()
         return fail("negative Balance should favor lower/D string");
     if (!(aHeavy.contactNormalForceN[2] > aHeavy.contactNormalForceN[1]))
         return fail("positive Balance should favor upper/A string");
+
+    engine.reset();
+    controls.balance = 0.0f;
+    controls.vibratoWidth = 1.0f;
+    controls.vibratoPace = 0.5f;
+    engine.setControls(controls);
+    engine.noteOn(440.0f, 0.85f);
+    std::fill(scratch.begin(), scratch.end(), 0.0f);
+    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
+    engine.process(scratch.data(), scratchR.data(), scratch.size());
+    const auto openA = engine.debugSnapshot();
+    if (std::abs(openA.vibratoOffsetCents) > 0.001f)
+        return fail("open string should not receive left-hand vibrato");
+
+    engine.reset();
+    engine.setControls(controls);
+    engine.noteOn(493.8833f, 0.85f); // B4, stopped on A string
+    std::fill(scratch.begin(), scratch.end(), 0.0f);
+    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
+    engine.process(scratch.data(), scratchR.data(), scratch.size());
+    const auto stoppedA = engine.debugSnapshot();
+    if (std::abs(stoppedA.vibratoOffsetCents) < 1.0f)
+        return fail("stopped string should receive vibrato");
 
     std::cout << "PASS\n"
               << "sustain_rms=" << sustainRms << '\n'
