@@ -521,7 +521,7 @@ struct FiddleEngine::Impl
             * velocityScale
             * shuffleEnergyScale
             * gateValue;
-        const auto beta = 0.22 + (0.06 - 0.22) * pos;
+        const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection) * bowTargetSpeed * gateValue;
