@@ -364,6 +364,7 @@ struct FiddleEngine::Impl
             bowDirection = 1;
 
         shortStrokeSamplesRemaining = 0;
+        chopDampingSamplesRemaining = 0;
         tremoloReversalsPerSecond = std::clamp(reversalsPerSecond, 4.0, 28.0);
         tremoloSamplesUntilFlip = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(
@@ -374,6 +375,7 @@ struct FiddleEngine::Impl
     void stopBow() noexcept
     {
         shortStrokeSamplesRemaining = 0;
+        chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
         gate.setTarget(0.0);
