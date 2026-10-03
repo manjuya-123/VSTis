@@ -1,0 +1,37 @@
+name: Windows VST3 build
+
+on:
+  push:
+    branches:
+      - main
+      - 'work/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (Visual Studio 2022 x64)
+        run: cmake --preset vs2022-x64
+
+      - name: Build core test and plugins
+        run: >-
+          cmake --build --preset release
+          --target FiddleModelCoreSmoke FiddleModel_VST3 FiddleModel_Standalone
+
+      - name: Run core regression test
+        run: ctest --test-dir build/vs2022-x64 -C Release --output-on-failure
+
+      - name: Upload VST3 and Standalone artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: FiddleModel-windows-release
+          if-no-files-found: error
+          path: |
+            build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/VST3/**
+            build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/Standalone/**
