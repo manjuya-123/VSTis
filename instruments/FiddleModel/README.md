@@ -146,3 +146,16 @@ They are connected to physical model quantities rather than post-EQ:
 
 Experimental profiles are labelled as such; they are not presented as calibrated
 measurements of real commercial materials.
+
+
+## Fiddle Auto bowing
+
+The default Bow Strokes mode is now **Fiddle Auto**.
+
+- Separate/non-overlapping notes alternate bow direction automatically.
+- Overlapping legato notes keep the current bow direction.
+- Connected forces same-direction phrasing.
+- Alternate reverses on every Note On.
+
+This is intended to make ordinary MIDI-keyboard performance closer to practical fiddle
+bowing without requiring the player to automate bow direction manually.
