@@ -477,14 +477,28 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
 {
     const auto action = fiddle::bowActionForMidiNote(midiNote);
 
-    if (action == fiddle::BowAction::AccentStroke
+    if (action == fiddle::BowAction::Release)
+    {
+        visualBowAction_.store(
+            static_cast<int>(fiddle::BowAction::None),
+            std::memory_order_relaxed);
+        return;
+    }
+
+    if (action == fiddle::BowAction::ShortStroke
+        || action == fiddle::BowAction::AccentStroke
         || action == fiddle::BowAction::Chop)
     {
         playModePressureBoost_ = 0.0f;
         playModeSpeedScale_ = 1.0f;
         applyPerformanceControls();
+
         if (activeBowActionNote_ == midiNote)
             activeBowActionNote_ = -1;
+
+        visualBowAction_.store(
+            static_cast<int>(fiddle::BowAction::None),
+            std::memory_order_relaxed);
         return;
     }
 
