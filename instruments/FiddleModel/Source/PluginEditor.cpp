@@ -3,6 +3,7 @@
 #include "ParameterPresentation.h"
 #include "Dsp/FiddlePlayLayout.h"
 
+#include <algorithm>
 #include <array>
 
 namespace
