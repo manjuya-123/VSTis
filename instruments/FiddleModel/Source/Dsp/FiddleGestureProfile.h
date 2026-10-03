@@ -11,6 +11,8 @@ struct BowGestureProfile
     float pressureBoost = 0.0f;
     float speedScale = 1.0f;
     float responseBoost = 0.0f;
+    float biteBoost = 0.0f;
+    float biteDurationSeconds = 0.008f;
     float durationSeconds = 0.0f;
     float tremoloReversalsPerSecond = 0.0f;
     float shuffleSubdivisionsPerSecond = 0.0f;
@@ -33,12 +35,16 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
         case BowAction::UpBow:
             result.pressureBoost = gesturePressure;
             result.speedScale = gestureSpeed;
+            result.biteBoost = 0.03f + 0.04f * strength;
+            result.biteDurationSeconds = 0.007f;
             break;
 
         case BowAction::ShortStroke:
             result.pressureBoost = gesturePressure;
             result.speedScale = gestureSpeed;
             result.responseBoost = 0.10f + 0.06f * strength;
+            result.biteBoost = 0.08f + 0.10f * strength;
+            result.biteDurationSeconds = 0.007f;
             result.durationSeconds = 0.095f - 0.040f * strength;
             result.oneShot = true;
             break;
@@ -54,6 +60,8 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.pressureBoost = 0.04f + 0.08f * strength;
             result.speedScale = 0.90f + 0.30f * strength;
             result.responseBoost = 0.10f + 0.08f * strength;
+            result.biteBoost = 0.07f + 0.08f * strength;
+            result.biteDurationSeconds = 0.006f;
             result.shuffleSubdivisionsPerSecond = 9.0f + 7.0f * strength;
             break;
 
@@ -67,6 +75,8 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.pressureBoost = 0.12f + 0.12f * strength;
             result.speedScale = 0.90f + 0.42f * strength;
             result.responseBoost = 0.18f + 0.10f * strength;
+            result.biteBoost = 0.18f + 0.20f * strength;
+            result.biteDurationSeconds = 0.009f;
             result.durationSeconds = 0.070f - 0.025f * strength;
             result.oneShot = true;
             break;
@@ -75,6 +85,8 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.pressureBoost = 0.28f + 0.12f * strength;
             result.speedScale = 0.20f + 0.16f * strength;
             result.responseBoost = 0.14f + 0.06f * strength;
+            result.biteBoost = 0.30f + 0.22f * strength;
+            result.biteDurationSeconds = 0.006f;
             result.durationSeconds = 0.042f - 0.016f * strength;
             result.oneShot = true;
             break;
