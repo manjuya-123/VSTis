@@ -59,3 +59,14 @@ Material selectors are allowed in the normal UI because they describe a physical
 the player can understand. They must alter the physical model, not merely call an EQ
 preset. If a profile is exploratory rather than measured from a real material, label it
 Experimental.
+
+
+## Bow Strokes
+
+Normal UI exposes bowing intent, not a direction-state machine:
+
+- Fiddle Auto — separate notes alternate, overlapping legato stays connected.
+- Connected — keep the same bow direction.
+- Alternate — reverse on every new Note On.
+
+Fiddle Auto is the normal default for keyboard performance.
