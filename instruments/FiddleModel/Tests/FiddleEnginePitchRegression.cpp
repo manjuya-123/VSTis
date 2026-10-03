@@ -111,6 +111,35 @@ bool testPitch(double target)
 }
 } // namespace
 
+bool testContinuousRetune()
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.55f;
+    controls.speed = 0.60f;
+    controls.attack = 0.55f;
+    controls.position = 0.45f;
+    controls.balance = -1.0f;
+    engine.setControls(controls);
+
+    engine.noteOn(329.6276f, 0.85f);
+    std::vector<float> scratch(static_cast<std::size_t>(0.45 * sampleRate), 0.0f);
+    std::vector<float> scratchR(scratch.size(), 0.0f);
+    engine.process(scratch.data(), scratchR.data(), scratch.size());
+
+    engine.retune(391.9954f);
+    std::fill(scratch.begin(), scratch.end(), 0.0f);
+    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
+    engine.process(scratch.data(), scratchR.data(), scratch.size());
+
+    const auto debug = engine.debugSnapshot();
+    return debug.primaryString == 1
+        && debug.bowPairLowerString == 1
+        && std::abs(debug.speakingFrequencyHz[1] - 391.9954f) < 0.5f;
+}
+
 int main()
 {
     constexpr std::array<double, 3> targets {

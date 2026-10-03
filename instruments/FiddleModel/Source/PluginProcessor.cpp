@@ -12,6 +12,7 @@ FiddleModelAudioProcessor::FiddleModelAudioProcessor()
 void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
 {
     noteStack_.reset();
+    pitchWheelNormalized_ = 0.0f;
     engine_.prepare(sampleRate);
 }
 
@@ -27,6 +28,8 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     controls.attack = parameters_.getRawParameterValue("attack")->load();
     controls.position = parameters_.getRawParameterValue("position")->load();
     controls.balance = parameters_.getRawParameterValue("balance")->load();
+    pitchBendRangeSemitones_ =
+        parameters_.getRawParameterValue("bendRange")->load();
     engine_.setControls(controls);
 
     auto* left = buffer.getWritePointer(0);
@@ -58,7 +61,7 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             const auto selection = noteStack_.noteOn(
                 message.getNoteNumber(), message.getFloatVelocity());
-            engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
+            engine_.noteOn(bentFrequencyForNote(selection.note), selection.velocity);
         }
         else if (message.isNoteOff())
         {
@@ -66,10 +69,21 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             if (selection.changed)
             {
                 if (selection.active)
-                    engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
+                    engine_.noteOn(bentFrequencyForNote(selection.note), selection.velocity);
                 else
                     engine_.noteOff();
             }
+        }
+        else if (message.isPitchWheel())
+        {
+            const auto value = message.getPitchWheelValue();
+            pitchWheelNormalized_ = value >= 8192
+                ? static_cast<float>(value - 8192) / 8191.0f
+                : static_cast<float>(value - 8192) / 8192.0f;
+
+            const auto selection = noteStack_.current();
+            if (selection.active)
+                engine_.retune(bentFrequencyForNote(selection.note));
         }
         else if (message.isAllNotesOff() || message.isAllSoundOff())
         {
@@ -114,6 +128,9 @@ FiddleModelAudioProcessor::createParameterLayout()
         "position", "Position", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "balance", "Balance", juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "bendRange", "Pitch Bend Range",
+        juce::NormalisableRange<float>(1.0f, 24.0f, 1.0f), 2.0f));
 
     return { params.begin(), params.end() };
 }
@@ -121,6 +138,14 @@ FiddleModelAudioProcessor::createParameterLayout()
 float FiddleModelAudioProcessor::midiNoteToHz(int midiNote)
 {
     return 440.0f * std::pow(2.0f, (static_cast<float>(midiNote) - 69.0f) / 12.0f);
+}
+
+float FiddleModelAudioProcessor::bentFrequencyForNote(int midiNote) const
+{
+    const auto semitones =
+        pitchWheelNormalized_ * pitchBendRangeSemitones_;
+    return midiNoteToHz(midiNote)
+        * std::pow(2.0f, semitones / 12.0f);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

@@ -30,8 +30,11 @@ public:
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     static float midiNoteToHz(int midiNote);
+    float bentFrequencyForNote(int midiNote) const;
     fiddle::FiddleEngine engine_;
     fiddle::MidiNoteStack noteStack_;
     juce::AudioProcessorValueTreeState parameters_;
+    float pitchWheelNormalized_ = 0.0f;
+    float pitchBendRangeSemitones_ = 2.0f;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };

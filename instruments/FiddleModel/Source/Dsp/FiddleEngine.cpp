@@ -134,6 +134,14 @@ struct FiddleEngine::Impl
         gate.setTarget(1.0);
     }
 
+    void retune(double frequencyHz) noexcept
+    {
+        const auto primary = static_cast<std::size_t>(primaryString);
+        const auto requested = std::clamp(
+            frequencyHz, openFrequency[primary], 2500.0);
+        speakingFrequency[primary].setTarget(requested);
+    }
+
     void noteOff() noexcept
     {
         gate.setTarget(0.0);
@@ -265,6 +273,7 @@ FiddleEngine::~FiddleEngine() = default;
 void FiddleEngine::prepare(double sampleRate) { impl_->prepare(sampleRate); }
 void FiddleEngine::reset() { impl_->reset(); }
 void FiddleEngine::noteOn(float frequencyHz, float velocity) { impl_->noteOn(frequencyHz, velocity); }
+void FiddleEngine::retune(float frequencyHz) { impl_->retune(frequencyHz); }
 void FiddleEngine::noteOff() { impl_->noteOff(); }
 void FiddleEngine::setControls(const Controls& controls) noexcept { impl_->setControls(controls); }
 

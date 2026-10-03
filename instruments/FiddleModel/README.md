@@ -19,6 +19,7 @@ contains:
 - a shared passive 12-mode bridge/body admittance
 - sympathetic excitation through the shared bridge
 - continuous speaking-length changes when MIDI pitch changes strings/fingering
+- sample-accurate MIDI Pitch Bend retuning without resetting waveguide state
 - internal smoothing for Pressure, Speed, Attack, Position and Balance
 - bow release with physical-state decay rather than voice destruction
 
@@ -73,3 +74,5 @@ checks overlapping-note/legato priority without any JUCE dependency.
 4. Replace the generic JUCE editor with the performance UI.
 
 The Bow Angle calibration LUT is generated in `prepare()` rather than on the audio thread. The audio path only bilinearly interpolates the LUT and performs the final contact-depth solve.
+
+Pitch Bend range is exposed as a 1-24 semitone parameter (default ±2). Pitch-wheel events retune the current speaking length without reselecting the physical string, preserving the ongoing bow/string state.

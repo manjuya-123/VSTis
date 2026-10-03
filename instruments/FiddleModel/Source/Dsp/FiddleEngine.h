@@ -40,6 +40,7 @@ public:
     void reset();
 
     void noteOn(float frequencyHz, float velocity);
+    void retune(float frequencyHz);
     void noteOff();
 
     void setControls(const Controls& controls) noexcept;
