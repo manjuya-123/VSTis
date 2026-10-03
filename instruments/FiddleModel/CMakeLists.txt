@@ -1,47 +1,49 @@
-juce_add_plugin(FiddleModel
-    COMPANY_NAME "VSTis"
-    BUNDLE_ID "com.vstis.fiddlemodel"
-    PLUGIN_MANUFACTURER_CODE VSTI
-    PLUGIN_CODE FDL1
-    FORMATS VST3 Standalone
-    PRODUCT_NAME "Fiddle Model"
-    IS_SYNTH TRUE
-    NEEDS_MIDI_INPUT TRUE
-    NEEDS_MIDI_OUTPUT FALSE
-    IS_MIDI_EFFECT FALSE
-)
-
-target_sources(FiddleModel PRIVATE
-    Source/PluginProcessor.cpp
-    Source/PluginProcessor.h
-    Source/PluginEditor.cpp
-    Source/PluginEditor.h
-    Source/ParameterPresentation.h
-    Source/Dsp/FiddleEngine.cpp
-    Source/Dsp/FiddleEngine.h
-    Source/Dsp/MidiNoteStack.h
-    Source/Dsp/BowStrokePolicy.h
-    Source/Dsp/FiddlePlayLayout.h
-    Source/Dsp/FiddleFingeringVoicer.h
-    Source/Dsp/FiddleGestureProfile.h
-    Source/Dsp/detail/BowGeometryMapper.h
-)
-
-target_include_directories(FiddleModel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
-
-target_compile_definitions(FiddleModel PUBLIC
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0
-)
-
-target_link_libraries(FiddleModel
-    PRIVATE juce::juce_audio_utils juce::juce_dsp
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags
-)
+if (NOT VSTIS_CORE_ONLY)
+    juce_add_plugin(FiddleModel
+        COMPANY_NAME "VSTis"
+        BUNDLE_ID "com.vstis.fiddlemodel"
+        PLUGIN_MANUFACTURER_CODE VSTI
+        PLUGIN_CODE FDL1
+        FORMATS VST3 Standalone
+        PRODUCT_NAME "Fiddle Model"
+        IS_SYNTH TRUE
+        NEEDS_MIDI_INPUT TRUE
+        NEEDS_MIDI_OUTPUT FALSE
+        IS_MIDI_EFFECT FALSE
+    )
+    
+    target_sources(FiddleModel PRIVATE
+        Source/PluginProcessor.cpp
+        Source/PluginProcessor.h
+        Source/PluginEditor.cpp
+        Source/PluginEditor.h
+        Source/ParameterPresentation.h
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+        Source/Dsp/MidiNoteStack.h
+        Source/Dsp/BowStrokePolicy.h
+        Source/Dsp/FiddlePlayLayout.h
+        Source/Dsp/FiddleFingeringVoicer.h
+        Source/Dsp/FiddleGestureProfile.h
+        Source/Dsp/detail/BowGeometryMapper.h
+    )
+    
+    target_include_directories(FiddleModel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    
+    target_compile_definitions(FiddleModel PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0
+    )
+    
+    target_link_libraries(FiddleModel
+        PRIVATE juce::juce_audio_utils juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags
+    )
+endif()
 
 if (BUILD_TESTING)
     add_executable(FiddleModelCoreSmoke
