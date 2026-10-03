@@ -176,7 +176,7 @@ int main(int argc, char** argv)
     controls.pressure = 0.90f;
     controls.speed = 0.22f;
     engine.setControls(controls);
-    engine.startShortStroke(-1, 0.032f);
+    engine.startChop(-1, 0.032f);
     render(engine, left, right, 0.10);
     const auto afterChop = engine.debugSnapshot();
     const auto chopForce =
