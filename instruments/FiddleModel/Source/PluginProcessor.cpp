@@ -3,6 +3,7 @@
 #include "Dsp/BowStrokePolicy.h"
 #include "Dsp/FiddleFingeringVoicer.h"
 #include "Dsp/FiddlePlayLayout.h"
+#include "Dsp/FiddleGestureProfile.h"
 
 #include <algorithm>
 #include <array>
@@ -388,18 +389,14 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
 
     const auto gestureStrength = std::clamp(velocity, 0.0f, 1.0f);
     playModeGestureStrength_ = gestureStrength;
-
-    const auto gesturePressure =
-        0.24f * (gestureStrength - 0.5f);
-    const auto gestureSpeedScale =
-        0.72f + 0.56f * gestureStrength;
+    const auto gesture = fiddle::makeBowGestureProfile(action, gestureStrength);
 
     switch (action)
     {
         case fiddle::BowAction::DownBow:
             playModeSpeedScale_ = gestureSpeedScale;
             playModeFocusOverride_ = false;
-            playModePressureBoost_ = gesturePressure;
+            playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             playBowDirection_ = 1;
             engine_.startBow(1);
@@ -423,8 +420,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(
-                playBowDirection_,
-                0.095f - 0.040f * gestureStrength);
+                playBowDirection_, gesture.durationSeconds);
             activeBowActionNote_ = -1;
             break;
 
@@ -433,12 +429,12 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesturePressure;
             applyPerformanceControls();
-            engine_.startTremolo(10.0f + 10.0f * gestureStrength);
+            engine_.startTremolo(gesture.tremoloReversalsPerSecond);
             activeBowActionNote_ = midiNote;
             break;
 
         case fiddle::BowAction::DroneBow:
-            playModeSpeedScale_ = 0.88f + 0.32f * gestureStrength;
+            playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = true;
             playModeFocusValue_ = 0.0f;
             playModePressureBoost_ = gesturePressure;
@@ -448,15 +444,13 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::AccentStroke:
-            playModeSpeedScale_ = 0.90f + 0.42f * gestureStrength;
+            playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = false;
-            playModePressureBoost_ =
-                0.12f + 0.12f * gestureStrength;
+            playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(
-                playBowDirection_,
-                0.070f - 0.025f * gestureStrength);
+                playBowDirection_, gesture.durationSeconds);
             activeBowActionNote_ = midiNote;
             break;
 
@@ -464,14 +458,12 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             // Reduced-order fiddle-chop gesture: high normal force, low travel,
             // very short contact. A future collision model can replace this.
             playModeFocusOverride_ = false;
-            playModePressureBoost_ =
-                0.28f + 0.12f * gestureStrength;
-            playModeSpeedScale_ = 0.20f + 0.16f * gestureStrength;
+            playModePressureBoost_ = gesture.pressureBoost;
+            playModeSpeedScale_ = gesture.speedScale;
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(
-                playBowDirection_,
-                0.042f - 0.016f * gestureStrength);
+                playBowDirection_, gesture.durationSeconds);
             activeBowActionNote_ = midiNote;
             break;
 
