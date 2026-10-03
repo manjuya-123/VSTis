@@ -23,7 +23,9 @@ contains:
 - bow release with physical-state decay rather than voice destruction
 
 The JUCE processor renders around MIDI event sample offsets so note transitions begin
-at the correct position inside each host audio block.
+at the correct position inside each host audio block. A fixed-size, allocation-free MIDI
+note stack implements last-note-priority legato: releasing an older/background note does
+not stop the active note, and releasing the active note returns to the newest held note.
 
 ## Current note/string mapping
 
@@ -58,6 +60,10 @@ This mapping is an intermediate performance model and will become configurable l
 
 The same test has also been compiled with AddressSanitizer/UBSan in the development
 environment.
+
+`FiddleModelPitchRegression` checks E4/F#4/G4 on the D string with a period-correlation
+pitch estimator and currently requires <= 7 cents error. `FiddleModelNoteStackSmoke`
+checks overlapping-note/legato priority without any JUCE dependency.
 
 ## Next milestones
 

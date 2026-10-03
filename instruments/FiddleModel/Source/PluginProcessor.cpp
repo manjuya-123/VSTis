@@ -11,6 +11,7 @@ FiddleModelAudioProcessor::FiddleModelAudioProcessor()
 
 void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
 {
+    noteStack_.reset();
     engine_.prepare(sampleRate);
 }
 
@@ -55,11 +56,24 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const auto message = metadata.getMessage();
         if (message.isNoteOn())
         {
-            engine_.noteOn(midiNoteToHz(message.getNoteNumber()),
-                           message.getFloatVelocity());
+            const auto selection = noteStack_.noteOn(
+                message.getNoteNumber(), message.getFloatVelocity());
+            engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
         }
-        else if (message.isNoteOff() || message.isAllNotesOff() || message.isAllSoundOff())
+        else if (message.isNoteOff())
         {
+            const auto selection = noteStack_.noteOff(message.getNoteNumber());
+            if (selection.changed)
+            {
+                if (selection.active)
+                    engine_.noteOn(midiNoteToHz(selection.note), selection.velocity);
+                else
+                    engine_.noteOff();
+            }
+        }
+        else if (message.isAllNotesOff() || message.isAllSoundOff())
+        {
+            noteStack_.reset();
             engine_.noteOff();
         }
     }

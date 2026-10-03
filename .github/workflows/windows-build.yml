@@ -23,7 +23,7 @@ jobs:
       - name: Build core test and plugins
         run: >-
           cmake --build --preset release
-          --target FiddleModelCoreSmoke FiddleModel_VST3 FiddleModel_Standalone
+          --target FiddleModelCoreSmoke FiddleModelPitchRegression FiddleModelNoteStackSmoke FiddleModel_VST3 FiddleModel_Standalone
 
       - name: Run core regression test
         run: ctest --test-dir build/vs2022-x64 -C Release --output-on-failure

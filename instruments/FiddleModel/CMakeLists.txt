@@ -16,6 +16,7 @@ target_sources(FiddleModel PRIVATE
     Source/PluginProcessor.h
     Source/Dsp/FiddleEngine.cpp
     Source/Dsp/FiddleEngine.h
+    Source/Dsp/MidiNoteStack.h
 )
 
 target_include_directories(FiddleModel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
@@ -43,4 +44,21 @@ if (BUILD_TESTING)
     target_include_directories(FiddleModelCoreSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
     target_compile_features(FiddleModelCoreSmoke PRIVATE cxx_std_17)
     add_test(NAME FiddleModelCoreSmoke COMMAND FiddleModelCoreSmoke)
+
+    add_executable(FiddleModelPitchRegression
+        Tests/FiddleEnginePitchRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelPitchRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelPitchRegression PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelPitchRegression COMMAND FiddleModelPitchRegression)
+
+    add_executable(FiddleModelNoteStackSmoke
+        Tests/NoteStackSmoke.cpp
+        Source/Dsp/MidiNoteStack.h
+    )
+    target_include_directories(FiddleModelNoteStackSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelNoteStackSmoke PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelNoteStackSmoke COMMAND FiddleModelNoteStackSmoke)
 endif()

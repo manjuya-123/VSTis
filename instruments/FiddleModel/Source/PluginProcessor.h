@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Dsp/FiddleEngine.h"
+#include "Dsp/MidiNoteStack.h"
 
 class FiddleModelAudioProcessor final : public juce::AudioProcessor
 {
@@ -30,6 +31,7 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     static float midiNoteToHz(int midiNote);
     fiddle::FiddleEngine engine_;
+    fiddle::MidiNoteStack noteStack_;
     juce::AudioProcessorValueTreeState parameters_;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
