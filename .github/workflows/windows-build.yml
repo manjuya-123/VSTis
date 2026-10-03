@@ -20,20 +20,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure (Visual Studio 2022 x64)
-        run: cmake --preset vs2022-x64
+      - name: Configure physical core (no JUCE)
+        run: cmake --preset vs2022-core
 
-      - name: Build core test and plugins
-        run: >-
-          cmake --build --preset release
-          --target FiddleModelCoreSmoke FiddleModelPitchRegression FiddleModelNoteStackSmoke FiddleModelBowStrokePolicySmoke FiddleModelBowContactStateSmoke FiddleModelPlayModeSmoke FiddleModelGestureProfileSmoke FiddleModelGestureOnsetRegression FiddleModelPlayPerformanceRegression FiddleModelAudioRegression FiddleModelFastPassageRegression FiddleModelMaterialRegression FiddleModel_VST3 FiddleModel_Standalone
+      - name: Build physical core regressions
+        run: cmake --build --preset core-release
 
-      - name: Run core regression test
-        run: ctest --test-dir build/vs2022-x64 -C Release --output-on-failure
+      - name: Run physical core regressions
+        run: ctest --test-dir build/vs2022-core -C Release --output-on-failure
 
       - name: Print audio regression metrics
         shell: pwsh
-        run: Get-Content build/vs2022-x64/instruments/FiddleModel/regression-audio/metrics.csv
+        run: Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/metrics.csv
+
+      - name: Configure plugin (Visual Studio 2022 x64)
+        run: cmake --preset vs2022-x64
+
+      - name: Build VST3 and Standalone
+        run: >-
+          cmake --build --preset release
+          --target FiddleModel_VST3 FiddleModel_Standalone
 
       - name: Upload VST3, Standalone and listening artifacts
         uses: actions/upload-artifact@v4
@@ -43,4 +49,4 @@ jobs:
           path: |
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/VST3/**
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/Standalone/**
-            build/vs2022-x64/instruments/FiddleModel/regression-audio/**
+            build/vs2022-core/instruments/FiddleModel/regression-audio/**
