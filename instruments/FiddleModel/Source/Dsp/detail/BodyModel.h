@@ -37,23 +37,47 @@ struct ModalBiquad
 struct ModalBank
 {
     std::array<ModalBiquad, bodyModeCount> modes{};
+    double sampleRate = 48000.0;
+    double frequencyScale = 1.0;
+    double dampingScale = 1.0;
+    double admittanceScale = 1.0;
 
-    void prepare(double sampleRate) noexcept
+    void prepare(double newSampleRate) noexcept
+    {
+        sampleRate = newSampleRate;
+        updateCoefficients(true);
+    }
+
+    void setMaterialScales(double newFrequencyScale,
+                           double newDampingScale,
+                           double newAdmittanceScale) noexcept
+    {
+        frequencyScale = newFrequencyScale;
+        dampingScale = newDampingScale;
+        admittanceScale = newAdmittanceScale;
+        updateCoefficients(false);
+    }
+
+    void updateCoefficients(bool resetState) noexcept
     {
         const auto c = 2.0 * sampleRate;
         for (std::size_t i = 0; i < modes.size(); ++i)
         {
             const auto& def = bodyModes[i];
-            const auto w = 2.0 * pi * def.frequencyHz;
-            const auto g = def.peakAdmittance * 2.0 * def.zeta * w;
-            const auto a0 = c * c + 2.0 * def.zeta * w * c + w * w;
+            const auto w = 2.0 * pi * def.frequencyHz * frequencyScale;
+            const auto zeta = std::max(0.002, def.zeta * dampingScale);
+            const auto peak = def.peakAdmittance * admittanceScale;
+            const auto g = peak * 2.0 * zeta * w;
+            const auto a0 = c * c + 2.0 * zeta * w * c + w * w;
             const auto a1 = -2.0 * c * c + 2.0 * w * w;
-            const auto a2 = c * c - 2.0 * def.zeta * w * c + w * w;
+            const auto a2 = c * c - 2.0 * zeta * w * c + w * w;
             const auto gc = g * c;
 
             modes[i].b = { gc / a0, 0.0, -gc / a0 };
             modes[i].a = { 1.0, a1 / a0, a2 / a0 };
-            modes[i].reset();
+
+            if (resetState)
+                modes[i].reset();
         }
     }
 
