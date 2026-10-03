@@ -17,7 +17,10 @@ FiddleModelAudioProcessor::FiddleModelAudioProcessor()
         195.9977f, 293.6648f, 440.0f, 659.2551f
     };
     for (std::size_t i = 0; i < openHz.size(); ++i)
+    {
         visualSpeakingFrequencyHz_[i].store(openHz[i], std::memory_order_relaxed);
+        visualContactTemperatureC_[i].store(20.0f, std::memory_order_relaxed);
+    }
 }
 
 void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
@@ -246,8 +249,12 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     activePairLowerString_.store(debug.bowPairLowerString, std::memory_order_relaxed);
 
     for (std::size_t i = 0; i < debug.speakingFrequencyHz.size(); ++i)
+    {
         visualSpeakingFrequencyHz_[i].store(
             debug.speakingFrequencyHz[i], std::memory_order_relaxed);
+        visualContactTemperatureC_[i].store(
+            debug.contactTemperatureC[i], std::memory_order_relaxed);
+    }
 }
 
 juce::AudioProcessorEditor* FiddleModelAudioProcessor::createEditor()
@@ -637,8 +644,12 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
         visualFingeringHold_.load(std::memory_order_relaxed);
 
     for (std::size_t i = 0; i < state.speakingFrequencyHz.size(); ++i)
+    {
         state.speakingFrequencyHz[i] =
             visualSpeakingFrequencyHz_[i].load(std::memory_order_relaxed);
+        state.contactTemperatureC[i] =
+            visualContactTemperatureC_[i].load(std::memory_order_relaxed);
+    }
 
     state.bowContact = parameters_.getRawParameterValue("position")->load();
     state.stringFocus = parameters_.getRawParameterValue("balance")->load();
