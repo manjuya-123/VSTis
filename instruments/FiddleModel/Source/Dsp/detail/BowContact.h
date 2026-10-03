@@ -30,11 +30,15 @@ struct BowContact
                  double bowVelocity,
                  double normalForce,
                  double stringImpedance,
-                 double sampleRate) noexcept
+                 double sampleRate,
+                 double staticGripScale = 1.0,
+                 double slidingGripScale = 1.0,
+                 double stateRateScale = 1.0) noexcept
     {
         state = std::clamp(state, 0.20, 1.35);
         const auto requiredForce = 2.0 * stringImpedance * (bowVelocity - incomingVelocity);
-        const auto staticLimit = 1.2 * normalForce * std::clamp(state, 0.45, 1.15);
+        const auto staticLimit = 1.2 * staticGripScale * normalForce
+                               * std::clamp(state, 0.45, 1.15);
 
         if (std::abs(requiredForce) <= staticLimit)
         {
@@ -49,7 +53,8 @@ struct BowContact
 
         const auto equation = [&](double stringVelocity) noexcept
         {
-            const auto friction = normalForce * muJump(stringVelocity - bowVelocity) * state;
+            const auto friction = slidingGripScale * normalForce
+                                * muJump(stringVelocity - bowVelocity) * state;
             return 2.0 * stringImpedance * (stringVelocity - incomingVelocity)
                  + (positive ? -friction : friction);
         };
@@ -89,7 +94,8 @@ struct BowContact
             timeConstant = 0.0018 / (1.0 + 18.0 * frictionPower) + 0.00025;
         }
 
-        const auto stateAlpha = 1.0 - std::exp(-1.0 / (sampleRate * timeConstant));
+        const auto stateAlpha = 1.0 - std::exp(
+            -stateRateScale / (sampleRate * timeConstant));
         state += stateAlpha * (stateTarget - state);
         state = std::clamp(state, 0.20, 1.35);
         return stringVelocity;
