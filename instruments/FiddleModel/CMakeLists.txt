@@ -23,6 +23,7 @@ target_sources(FiddleModel PRIVATE
     Source/Dsp/BowStrokePolicy.h
     Source/Dsp/FiddlePlayLayout.h
     Source/Dsp/FiddleFingeringVoicer.h
+    Source/Dsp/FiddleGestureProfile.h
     Source/Dsp/detail/BowGeometryMapper.h
 )
 
@@ -110,6 +111,15 @@ if (BUILD_TESTING)
     target_include_directories(FiddleModelPlayModeSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
     target_compile_features(FiddleModelPlayModeSmoke PRIVATE cxx_std_17)
     add_test(NAME FiddleModelPlayModeSmoke COMMAND FiddleModelPlayModeSmoke)
+
+    add_executable(FiddleModelGestureProfileSmoke
+        Tests/FiddleGestureProfileSmoke.cpp
+        Source/Dsp/FiddleGestureProfile.h
+        Source/Dsp/FiddlePlayLayout.h
+    )
+    target_include_directories(FiddleModelGestureProfileSmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelGestureProfileSmoke PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelGestureProfileSmoke COMMAND FiddleModelGestureProfileSmoke)
 
     add_executable(FiddleModelPlayPerformanceRegression
         Tests/FiddlePlayPerformanceRegression.cpp
