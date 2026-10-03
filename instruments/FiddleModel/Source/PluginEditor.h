@@ -69,6 +69,14 @@ private:
         "String Focus",
         "Aim the bow toward the lower or upper string of the active adjacent pair."
     };
+    HumanKnob vibratoWidth_ {
+        "Vibrato Width",
+        "How far the left hand rocks the stopped pitch."
+    };
+    HumanKnob vibratoPace_ {
+        "Vibrato Pace",
+        "How quickly the left hand rocks back and forth."
+    };
     HumanKnob bendRange_ {
         "Pitch Bend Range",
         "How far the MIDI pitch wheel can move the fingered pitch."
@@ -79,6 +87,8 @@ private:
     std::unique_ptr<Attachment> responseAttachment_;
     std::unique_ptr<Attachment> contactAttachment_;
     std::unique_ptr<Attachment> focusAttachment_;
+    std::unique_ptr<Attachment> vibratoWidthAttachment_;
+    std::unique_ptr<Attachment> vibratoPaceAttachment_;
     std::unique_ptr<Attachment> bendRangeAttachment_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessorEditor)
