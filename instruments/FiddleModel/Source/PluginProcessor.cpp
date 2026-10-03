@@ -424,6 +424,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
         playModeFocusOverride_ = false;
         playModePressureBoost_ = 0.0f;
         playModeSpeedScale_ = 1.0f;
+        playModeResponseBoost_ = 0.0f;
         applyPerformanceControls();
         return;
     }
@@ -434,6 +435,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
     const auto gestureStrength = std::clamp(velocity, 0.0f, 1.0f);
     playModeGestureStrength_ = gestureStrength;
     const auto gesture = fiddle::makeBowGestureProfile(action, gestureStrength);
+    playModeResponseBoost_ = gesture.responseBoost;
 
     switch (action)
     {
@@ -572,6 +574,7 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
 
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
+    playModeResponseBoost_ = 0.0f;
     applyPerformanceControls();
     activeBowActionNote_ = -1;
     visualBowAction_.store(
@@ -592,6 +595,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModeFocusValue_ = 0.0f;
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
+    playModeResponseBoost_ = 0.0f;
     playModeGestureStrength_ = 0.5f;
     playModePreferredPrimaryString_ = -1;
 
@@ -670,6 +674,8 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         controls.vibratoWidth, modWheelNormalized_);
     controls.speed = std::clamp(
         controls.speed * playModeSpeedScale_, 0.0f, 1.0f);
+    controls.attack = std::clamp(
+        controls.attack + playModeResponseBoost_, 0.0f, 1.0f);
 
     if (playModeFocusOverride_)
         controls.balance = playModeFocusValue_;
