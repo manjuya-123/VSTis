@@ -27,6 +27,8 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> allpassX1{};
     std::array<double, stringCount> allpassY1{};
     std::array<double, stringCount> filterPhaseDelay{};
+    std::array<double, stringCount> runtimeLossGain = lossGain;
+    std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<BowContact, stringCount> contacts{};
 
     ModalBank body{};
@@ -83,7 +85,7 @@ struct FiddleEngine::Impl
         {
             speakingFrequency[i].prepare(sampleRate, 0.018);
             filterPhaseDelay[i] = reflectionPhaseDelaySamples(
-                sampleRate, openFrequency[i], lossGain[i], lossAlpha[i], allpassA[i]);
+                sampleRate, openFrequency[i], runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
         }
         reset();
     }
@@ -149,7 +151,8 @@ struct FiddleEngine::Impl
             materialConfigured
             && materialSettings.body == materials.body
             && materialSettings.bowStick == materials.bowStick
-            && materialSettings.contact == materials.contact;
+            && materialSettings.contact == materials.contact
+            && materialSettings.strings == materials.strings;
 
         if (unchanged)
             return;
@@ -211,6 +214,41 @@ struct FiddleEngine::Impl
                 slidingGripScale = 0.95;
                 contactStateRateScale = 1.05;
                 break;
+        }
+
+        double lossAmountScale = 1.0;
+        double dispersionScale = 1.0;
+        switch (materials.strings)
+        {
+            case StringCorePreset::SyntheticCore:
+                lossAmountScale = 1.00;
+                dispersionScale = 1.00;
+                break;
+            case StringCorePreset::SteelCore:
+                // Quicker, more persistent response: reduce distributed loss and
+                // slightly reduce the phase-smearing allpass strength.
+                lossAmountScale = 0.72;
+                dispersionScale = 0.82;
+                break;
+            case StringCorePreset::GutLike:
+                // A deliberately broad profile for a softer, slower-response core.
+                // This is not a calibrated commercial string model.
+                lossAmountScale = 1.34;
+                dispersionScale = 1.12;
+                break;
+        }
+
+        for (std::size_t i = 0; i < stringCount; ++i)
+        {
+            const auto baseLoss = 1.0 - lossGain[i];
+            runtimeLossGain[i] = std::clamp(
+                1.0 - baseLoss * lossAmountScale, 0.96, 0.99995);
+            runtimeAllpassA[i] = std::clamp(
+                allpassA[i] * dispersionScale, -0.20, 0.20);
+
+            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
+                sampleRate, openFrequency[i],
+                runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
         }
     }
 
@@ -350,13 +388,13 @@ struct FiddleEngine::Impl
         for (std::size_t i = 0; i < stringCount; ++i)
         {
             const auto reflectedBridge = bridgeVelocity - incidentBridge[i];
-            const auto lossFiltered = lossGain[i]
+            const auto lossFiltered = runtimeLossGain[i]
                 * ((1.0 - lossAlpha[i]) * incidentNut[i] + lossAlpha[i] * lossX1[i]);
             lossX1[i] = incidentNut[i];
 
-            const auto filtered = allpassA[i] * lossFiltered
+            const auto filtered = runtimeAllpassA[i] * lossFiltered
                                 + allpassX1[i]
-                                - allpassA[i] * allpassY1[i];
+                                - runtimeAllpassA[i] * allpassY1[i];
             allpassX1[i] = lossFiltered;
             allpassY1[i] = filtered;
             const auto reflectedNut = -filtered;
