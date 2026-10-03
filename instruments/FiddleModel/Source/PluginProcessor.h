@@ -6,6 +6,18 @@
 
 #include <atomic>
 
+struct FiddleVisualState
+{
+    bool active = false;
+    int midiNote = -1;
+    int primaryString = 1;
+    int pairLowerString = 1;
+    int bowDirection = 1;
+    float speakingFrequencyHz = 293.6648f;
+    float bowContact = 0.5f;
+    float stringFocus = 0.0f;
+};
+
 class FiddleModelAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -31,6 +43,7 @@ public:
 
     juce::AudioProcessorValueTreeState& parameterState() noexcept { return parameters_; }
     int activePairLowerString() const noexcept { return activePairLowerString_.load(std::memory_order_relaxed); }
+    FiddleVisualState visualState() const noexcept;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -47,5 +60,9 @@ private:
     float channelPressureNormalized_ = 0.0f;
     fiddle::Controls baseControls_{};
     std::atomic<int> activePairLowerString_ { 1 };
+    std::atomic<int> activeMidiNote_ { -1 };
+    std::atomic<int> visualPrimaryString_ { 1 };
+    std::atomic<int> visualBowDirection_ { 1 };
+    std::atomic<float> visualSpeakingFrequencyHz_ { 293.6648f };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
