@@ -217,14 +217,17 @@ Metrics measure(const Render& render, double fundamentalHz)
         m.peak = std::max(m.peak, std::abs(static_cast<double>(value)));
     }
 
-    const auto spectralBegin = static_cast<std::size_t>(0.95 * sampleRate);
-    const auto spectralEnd = static_cast<std::size_t>(1.25 * sampleRate);
+    // Use a short Hann window so a modest analysis grid captures the narrow
+    // harmonic peaks of a bowed string. A long window combined with sparse
+    // 100-Hz probes badly under-samples those lines and exaggerates HF ratios.
+    const auto spectralBegin = static_cast<std::size_t>(1.00 * sampleRate);
+    const auto spectralEnd = static_cast<std::size_t>(1.05 * sampleRate);
 
     double totalEnergy = 0.0;
     double highEnergy = 0.0;
     double weightedFrequency = 0.0;
 
-    for (double frequency = 200.0; frequency <= 8000.0; frequency += 100.0)
+    for (double frequency = 100.0; frequency <= 8000.0; frequency += 20.0)
     {
         const auto power = goertzelPower(x, spectralBegin, spectralEnd, frequency);
         totalEnergy += power;
