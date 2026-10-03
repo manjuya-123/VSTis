@@ -137,3 +137,14 @@ row, so the GUI is not a separate audition-only sound path.
 - Shuffle — a repeating long-short-short physical bow gesture on the current fingering.
   Velocity changes the subdivision rate/energy. Do not describe it as a sampled
   articulation or expose its internal scheduler counters in the normal UI.
+
+
+## Physical-state visualization
+
+Internal physical state may be shown when it helps playing, but should be translated
+into musician-readable language. Rosin contact temperature is therefore shown as
+Cool / Working / Hot and by bow colour, not as a thermal solver coefficient or a
+degrees-Celsius performance control.
+
+The long-short-short action on C#2 is labelled Nashville Shuffle. It remains a bow
+gesture acting on the current fingering, not a switched articulation sample.
