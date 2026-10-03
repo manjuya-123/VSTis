@@ -13,6 +13,7 @@ public:
 
     juce::Slider& slider() noexcept { return slider_; }
     void setValueText(const juce::String& text);
+    void setTitle(const juce::String& text);
 
     void resized() override;
 
@@ -24,11 +25,12 @@ private:
 };
 
 class FiddleModelAudioProcessorEditor final
-    : public juce::AudioProcessorEditor
+    : public juce::AudioProcessorEditor,
+      private juce::Timer
 {
 public:
     explicit FiddleModelAudioProcessorEditor(FiddleModelAudioProcessor&);
-    ~FiddleModelAudioProcessorEditor() override = default;
+    ~FiddleModelAudioProcessorEditor() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -37,6 +39,7 @@ private:
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
     void refreshHumanReadableValues();
+    void timerCallback() override;
 
     FiddleModelAudioProcessor& processor_;
 

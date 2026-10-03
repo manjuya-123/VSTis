@@ -4,6 +4,8 @@
 #include "Dsp/FiddleEngine.h"
 #include "Dsp/MidiNoteStack.h"
 
+#include <atomic>
+
 class FiddleModelAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -28,15 +30,18 @@ public:
     void setStateInformation(const void*, int) override;
 
     juce::AudioProcessorValueTreeState& parameterState() noexcept { return parameters_; }
+    int activePairLowerString() const noexcept { return activePairLowerString_.load(std::memory_order_relaxed); }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     static float midiNoteToHz(int midiNote);
+    static int pairForMidiNote(int midiNote) noexcept;
     float bentFrequencyForNote(int midiNote) const;
     fiddle::FiddleEngine engine_;
     fiddle::MidiNoteStack noteStack_;
     juce::AudioProcessorValueTreeState parameters_;
     float pitchWheelNormalized_ = 0.0f;
     float pitchBendRangeSemitones_ = 2.0f;
+    std::atomic<int> activePairLowerString_ { 1 };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };

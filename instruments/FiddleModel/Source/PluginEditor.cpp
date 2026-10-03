@@ -36,6 +36,11 @@ void HumanKnob::setValueText(const juce::String& text)
     value_.setText(text, juce::dontSendNotification);
 }
 
+void HumanKnob::setTitle(const juce::String& text)
+{
+    title_.setText(text, juce::dontSendNotification);
+}
+
 void HumanKnob::resized()
 {
     auto area = getLocalBounds();
@@ -95,6 +100,12 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     bendRange_.slider().onValueChange = [this] { refreshHumanReadableValues(); };
 
     refreshHumanReadableValues();
+    startTimerHz(10);
+}
+
+FiddleModelAudioProcessorEditor::~FiddleModelAudioProcessorEditor()
+{
+    stopTimer();
 }
 
 void FiddleModelAudioProcessorEditor::paint(juce::Graphics& g)
@@ -139,6 +150,11 @@ void FiddleModelAudioProcessorEditor::resized()
     bendRange_.setBounds(stringsContent);
 }
 
+void FiddleModelAudioProcessorEditor::timerCallback()
+{
+    refreshHumanReadableValues();
+}
+
 void FiddleModelAudioProcessorEditor::refreshHumanReadableValues()
 {
     pressure_.setValueText(
@@ -153,6 +169,11 @@ void FiddleModelAudioProcessorEditor::refreshHumanReadableValues()
     contact_.setValueText(
         fiddle::presentation::bowContact(
             static_cast<float>(contact_.slider().getValue())));
+    static constexpr std::array<const char*, 3> pairNames {
+        "G \u2194 D", "D \u2194 A", "A \u2194 E"
+    };
+    const auto pair = juce::jlimit(0, 2, processor_.activePairLowerString());
+    focus_.setTitle("String Focus  " + juce::String::fromUTF8(pairNames[static_cast<std::size_t>(pair)]));
     focus_.setValueText(
         fiddle::presentation::stringFocus(
             static_cast<float>(focus_.slider().getValue())));

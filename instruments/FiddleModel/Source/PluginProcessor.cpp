@@ -62,6 +62,8 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             const auto selection = noteStack_.noteOn(
                 message.getNoteNumber(), message.getFloatVelocity());
+            activePairLowerString_.store(
+                pairForMidiNote(selection.note), std::memory_order_relaxed);
             engine_.noteOn(bentFrequencyForNote(selection.note), selection.velocity);
         }
         else if (message.isNoteOff())
@@ -70,9 +72,15 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             if (selection.changed)
             {
                 if (selection.active)
+                {
+                    activePairLowerString_.store(
+                        pairForMidiNote(selection.note), std::memory_order_relaxed);
                     engine_.noteOn(bentFrequencyForNote(selection.note), selection.velocity);
+                }
                 else
+                {
                     engine_.noteOff();
+                }
             }
         }
         else if (message.isPitchWheel())
@@ -139,6 +147,13 @@ FiddleModelAudioProcessor::createParameterLayout()
 float FiddleModelAudioProcessor::midiNoteToHz(int midiNote)
 {
     return 440.0f * std::pow(2.0f, (static_cast<float>(midiNote) - 69.0f) / 12.0f);
+}
+
+int FiddleModelAudioProcessor::pairForMidiNote(int midiNote) noexcept
+{
+    if (midiNote < 62) return 0; // G-D
+    if (midiNote < 69) return 1; // D-A
+    return 2;                    // A-E
 }
 
 float FiddleModelAudioProcessor::bentFrequencyForNote(int midiNote) const
