@@ -184,6 +184,18 @@ int main()
         }
     }
 
+    if (!testContinuousRetune())
+    {
+        std::cerr << "FAIL: continuous retune changed string assignment or missed target\n";
+        return EXIT_FAILURE;
+    }
+
+    if (!testStringAssignmentSurvivesBend())
+    {
+        std::cerr << "FAIL: pitch bend migrated the note to a different physical string\n";
+        return EXIT_FAILURE;
+    }
+
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
 }
