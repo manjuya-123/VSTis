@@ -18,6 +18,7 @@ inline double muJump(double v) noexcept
 struct BowContact
 {
     static constexpr double ambientTemperatureC = 20.0;
+    static constexpr double crossingTemperatureC = 46.2;
 
     double temperatureC = ambientTemperatureC;
     bool sticking = false;
@@ -28,16 +29,45 @@ struct BowContact
         sticking = false;
     }
 
+    [[nodiscard]] static double reducedYield(double temperature) noexcept
+    {
+        // Smooth reduced-order surrogate for Y(T). The full paper derives Y(T)
+        // from a thermal control-volume model; we retain one scalar contact
+        // temperature for real-time use.
+        return 1.5 + 4.0
+            / (1.0 + std::exp((temperature - 48.0) / 7.5));
+    }
+
+    [[nodiscard]] static double referenceYield() noexcept
+    {
+        // Eq. (10) in Woodhouse & Galluzzo fixes K*Y(T0)=1 at the crossing
+        // between mu_steady and mu_jump. Their normal-bow fit gives T0=46.2 C.
+        return reducedYield(crossingTemperatureC);
+    }
+
     [[nodiscard]] double rosinStrengthScale() const noexcept
     {
-        // Reduced-order fit to the qualitative Y(T) shape in Woodhouse &
-        // Galluzzo (2025). This is deliberately not the paper's full thermal
-        // control-volume model. The normalization keeps ordinary playing near
-        // the previous model while allowing hot rosin to soften.
-        const auto yield = 1.5 + 4.0
-            / (1.0 + std::exp((temperatureC - 48.0) / 7.5));
-        constexpr double referenceYield = 4.05; // around mid-transition
-        return std::clamp(yield / referenceYield, 0.35, 1.35);
+        return std::clamp(
+            reducedYield(temperatureC) / referenceYield(), 0.35, 1.45);
+    }
+
+    [[nodiscard]] static double steadyCalibratedTemperatureC(double slipSpeed) noexcept
+    {
+        const auto speed = std::max(std::abs(slipSpeed), 1.0e-6);
+        const auto desiredScale = std::clamp(
+            muSteady(speed) / muJump(speed), 0.36, 1.44);
+
+        // Invert reducedYield(T)/Y(T0)=desiredScale. This makes the
+        // reduced-order steady state reproduce the published mu_steady fit
+        // while preserving mu_jump as the instantaneous rate term.
+        const auto desiredYield = desiredScale * referenceYield();
+        const auto q = std::clamp(
+            (desiredYield - 1.5) / 4.0, 1.0e-5, 1.0 - 1.0e-5);
+        const auto temperature =
+            48.0 + 7.5 * std::log(1.0 / q - 1.0);
+
+        return std::clamp(
+            temperature, ambientTemperatureC, ambientTemperatureC + 65.0);
     }
 
     [[nodiscard]] double contactTemperatureC() const noexcept
@@ -57,14 +87,14 @@ struct BowContact
 
         if (speed > 1.0e-6)
         {
-            // Steady contact temperature rises steeply at low sliding speed and
-            // then approaches a plateau, matching the qualitative shape of the
-            // enhanced-model contact-temperature curve.
-            const auto rise = 55.0 * std::sqrt(speed / (speed + 0.15));
-            targetTemperature = ambientTemperatureC + rise;
+            // Calibrate the reduced-order thermal state from the two published
+            // friction fits: in steady sliding, mu_jump(v)*Y(T)/Y(T0) should
+            // reproduce mu_steady(v).
+            targetTemperature = steadyCalibratedTemperatureC(speed);
 
-            // Frictional work accelerates heating. The values are a real-time
-            // reduced-order calibration, not literal rosin thermal constants.
+            // Frictional work controls how quickly the contact approaches that
+            // calibrated steady state. These time constants remain a real-time
+            // surrogate, not literal rosin thermal constants.
             timeConstant =
                 0.0016 / (1.0 + 14.0 * std::abs(frictionPower)) + 0.00035;
         }
