@@ -24,6 +24,16 @@ private:
     juce::Label explanation_;
 };
 
+class InstrumentView final : public juce::Component
+{
+public:
+    void setState(FiddleVisualState state);
+    void paint(juce::Graphics&) override;
+
+private:
+    FiddleVisualState state_{};
+};
+
 class FiddleModelAudioProcessorEditor final
     : public juce::AudioProcessorEditor,
       private juce::Timer
@@ -37,6 +47,7 @@ public:
 
 private:
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ComboAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
     void refreshHumanReadableValues();
     void timerCallback() override;
@@ -45,8 +56,11 @@ private:
 
     juce::Label title_;
     juce::Label subtitle_;
+    InstrumentView instrumentView_;
     juce::GroupComponent bowGroup_ { "bow", "Bow" };
     juce::GroupComponent stringsGroup_ { "strings", "Strings & Pitch" };
+    juce::Label strokeLabel_;
+    juce::ComboBox strokeMode_;
     juce::TooltipWindow tooltips_ { this, 500 };
 
     HumanKnob pressure_ {
@@ -90,6 +104,7 @@ private:
     std::unique_ptr<Attachment> vibratoWidthAttachment_;
     std::unique_ptr<Attachment> vibratoPaceAttachment_;
     std::unique_ptr<Attachment> bendRangeAttachment_;
+    std::unique_ptr<ComboAttachment> strokeModeAttachment_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessorEditor)
 };
