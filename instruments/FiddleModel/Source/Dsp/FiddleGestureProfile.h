@@ -12,6 +12,7 @@ struct BowGestureProfile
     float speedScale = 1.0f;
     float durationSeconds = 0.0f;
     float tremoloReversalsPerSecond = 0.0f;
+    float shuffleSubdivisionsPerSecond = 0.0f;
     bool oneShot = false;
     bool balancedPair = false;
 };
@@ -44,6 +45,12 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.pressureBoost = gesturePressure;
             result.speedScale = gestureSpeed;
             result.tremoloReversalsPerSecond = 10.0f + 10.0f * strength;
+            break;
+
+        case BowAction::Shuffle:
+            result.pressureBoost = 0.04f + 0.08f * strength;
+            result.speedScale = 0.90f + 0.30f * strength;
+            result.shuffleSubdivisionsPerSecond = 9.0f + 7.0f * strength;
             break;
 
         case BowAction::DroneBow:
