@@ -603,6 +603,10 @@ void FiddleEngine::startShortStroke(int direction, float durationSeconds) noexce
 {
     impl_->startShortStroke(direction, durationSeconds);
 }
+void FiddleEngine::startChop(int direction, float durationSeconds) noexcept
+{
+    impl_->startChop(direction, durationSeconds);
+}
 void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
 {
     impl_->startTremolo(reversalsPerSecond);
