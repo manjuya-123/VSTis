@@ -159,3 +159,16 @@ The default Bow Strokes mode is now **Fiddle Auto**.
 
 This is intended to make ordinary MIDI-keyboard performance closer to practical fiddle
 bowing without requiring the player to automate bow direction manually.
+
+
+### String Core material
+
+The Materials section also includes String Core:
+
+- Synthetic core — balanced baseline profile.
+- Steel core — lower distributed loss and a quicker, more persistent response.
+- Gut-like — higher distributed loss and a softer/slower response.
+
+These profiles alter the physical string loop, including its loss and phase behaviour.
+They are not post-EQ presets and are intentionally labelled as broad material profiles,
+not calibrated copies of commercial string brands.
