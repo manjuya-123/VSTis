@@ -111,6 +111,19 @@ if (BUILD_TESTING)
     target_compile_features(FiddleModelPlayModeSmoke PRIVATE cxx_std_17)
     add_test(NAME FiddleModelPlayModeSmoke COMMAND FiddleModelPlayModeSmoke)
 
+    add_executable(FiddleModelPlayPerformanceRegression
+        Tests/FiddlePlayPerformanceRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelPlayPerformanceRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelPlayPerformanceRegression PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleModelPlayPerformanceRegression
+        COMMAND FiddleModelPlayPerformanceRegression
+                ${CMAKE_CURRENT_BINARY_DIR}/regression-audio/09_fiddle_play_demo.wav
+    )
+
     add_executable(FiddleModelMaterialRegression
         Tests/FiddleMaterialRegression.cpp
         Source/Dsp/FiddleEngine.cpp
