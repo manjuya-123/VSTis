@@ -213,10 +213,11 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     strokeLabel_.setText("Bow Strokes", juce::dontSendNotification);
     strokeLabel_.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(strokeLabel_);
-    strokeMode_.addItem("Connected", 1);
-    strokeMode_.addItem("Alternate", 2);
+    strokeMode_.addItem("Fiddle Auto", 1);
+    strokeMode_.addItem("Connected", 2);
+    strokeMode_.addItem("Alternate", 3);
     strokeMode_.setTooltip(
-        "Connected keeps the same bow direction. Alternate reverses the bow on each new note.");
+        "Fiddle Auto alternates separate notes but keeps overlapping legato notes on the same bow. Connected never auto-reverses. Alternate reverses on every Note On.");
     addAndMakeVisible(strokeMode_);
 
     bodyMaterialLabel_.setText("Body", juce::dontSendNotification);
