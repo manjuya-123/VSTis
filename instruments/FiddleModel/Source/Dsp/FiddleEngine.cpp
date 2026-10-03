@@ -530,7 +530,7 @@ struct FiddleEngine::Impl
             }
             else
             {
-                contacts[i].sticking = false;
+                contacts[i].relax(sampleRate, contactStateRateScale);
             }
 
             toBridge[i].write(incomingNut[i] + injection);
