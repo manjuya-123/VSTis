@@ -13,6 +13,7 @@ FiddleModelAudioProcessor::FiddleModelAudioProcessor()
 void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
 {
     noteStack_.reset();
+    activeMidiNote_.store(-1, std::memory_order_relaxed);
     pitchWheelNormalized_ = 0.0f;
     modWheelNormalized_ = 0.0f;
     channelPressureNormalized_ = 0.0f;
