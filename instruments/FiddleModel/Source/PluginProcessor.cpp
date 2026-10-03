@@ -70,6 +70,13 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         visualPlayMode_.store(playMode, std::memory_order_relaxed);
     }
 
+    if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
+    {
+        const bool parameterHold =
+            parameters_.getRawParameterValue("fingeringHold")->load() >= 0.5f;
+        updateFingeringHoldState(parameterHold || fingeringPedalHold_);
+    }
+
     applyPerformanceControls();
 
     auto* left = buffer.getWritePointer(0);
@@ -176,27 +183,10 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         else if (message.isController() && message.getControllerNumber() == 64
                  && playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
         {
-            const bool newHold = message.getControllerValue() >= 64;
-
-            if (newHold != fingeringHold_)
-            {
-                fingeringHold_ = newHold;
-                visualFingeringHold_.store(
-                    fingeringHold_, std::memory_order_relaxed);
-
-                if (!fingeringHold_)
-                {
-                    for (int note = fiddle::fiddleLowestNote; note <= 108; ++note)
-                    {
-                        if (!fingeringKeyDown_[static_cast<std::size_t>(note)]
-                            && noteStack_.isHeld(note))
-                        {
-                            noteStack_.noteOff(note);
-                        }
-                    }
-                    updateFiddlePlayFingering();
-                }
-            }
+            fingeringPedalHold_ = message.getControllerValue() >= 64;
+            const bool parameterHold =
+                parameters_.getRawParameterValue("fingeringHold")->load() >= 0.5f;
+            updateFingeringHoldState(parameterHold || fingeringPedalHold_);
         }
         else if (message.isController() && message.getControllerNumber() == 1)
         {
@@ -290,6 +280,8 @@ FiddleModelAudioProcessor::createParameterLayout()
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "vibratoPace", "Vibrato Pace",
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        "fingeringHold", "Fingering Hold", false));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "strokeMode", "Bow Strokes",
         juce::StringArray { "Fiddle Auto", "Connected", "Alternate" }, 0));
@@ -565,6 +557,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playBowDirection_ = 1;
     playModeFocusOverride_ = false;
     fingeringHold_ = false;
+    fingeringPedalHold_ = false;
     fingeringKeyDown_.fill(false);
     playModeFocusValue_ = 0.0f;
     playModePressureBoost_ = 0.0f;
@@ -582,6 +575,29 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     std::array<float, 4> openStrings{};
     engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
     applyPerformanceControls();
+}
+
+void FiddleModelAudioProcessor::updateFingeringHoldState(bool enabled)
+{
+    if (enabled == fingeringHold_)
+        return;
+
+    fingeringHold_ = enabled;
+    visualFingeringHold_.store(
+        fingeringHold_, std::memory_order_relaxed);
+
+    if (!fingeringHold_)
+    {
+        for (int note = fiddle::fiddleLowestNote; note <= 108; ++note)
+        {
+            if (!fingeringKeyDown_[static_cast<std::size_t>(note)]
+                && noteStack_.isHeld(note))
+            {
+                noteStack_.noteOff(note);
+            }
+        }
+        updateFiddlePlayFingering();
+    }
 }
 
 FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
