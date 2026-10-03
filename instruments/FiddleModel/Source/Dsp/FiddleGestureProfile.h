@@ -40,10 +40,10 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             break;
 
         case BowAction::ShortStroke:
-            result.pressureBoost = gesturePressure;
-            result.speedScale = gestureSpeed;
-            result.responseBoost = 0.10f + 0.06f * strength;
-            result.biteBoost = 0.08f + 0.10f * strength;
+            result.pressureBoost = gesturePressure + 0.03f;
+            result.speedScale = 0.82f + 0.62f * strength;
+            result.responseBoost = 0.22f + 0.08f * strength;
+            result.biteBoost = 0.12f + 0.14f * strength;
             result.biteDurationSeconds = 0.007f;
             result.durationSeconds = 0.095f - 0.040f * strength;
             result.oneShot = true;
