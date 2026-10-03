@@ -153,7 +153,11 @@ if (BUILD_TESTING)
     )
     target_include_directories(FiddleModelGestureOnsetRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
     target_compile_features(FiddleModelGestureOnsetRegression PRIVATE cxx_std_17)
-    add_test(NAME FiddleModelGestureOnsetRegression COMMAND FiddleModelGestureOnsetRegression)
+    add_test(
+        NAME FiddleModelGestureOnsetRegression
+        COMMAND FiddleModelGestureOnsetRegression
+                ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
+    )
 
     add_executable(FiddleModelMaterialRegression
         Tests/FiddleMaterialRegression.cpp
