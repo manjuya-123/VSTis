@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Dsp/BowStrokePolicy.h"
 
 #include <algorithm>
 #include <cmath>
@@ -80,13 +81,10 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             const auto selection = noteStack_.noteOn(
                 message.getNoteNumber(), message.getFloatVelocity());
 
-            const auto strokeMode = static_cast<int>(
-                parameters_.getRawParameterValue("strokeMode")->load());
-            const bool alternateStrokes =
-                strokeMode == 2
-                || (strokeMode == 0 && !hadHeldNote);
-
-            engine_.beginBowStroke(alternateStrokes);
+            const auto strokeMode = static_cast<fiddle::BowStrokeMode>(
+                static_cast<int>(parameters_.getRawParameterValue("strokeMode")->load()));
+            engine_.beginBowStroke(
+                fiddle::shouldAlternateBow(strokeMode, hadHeldNote));
             activePairLowerString_.store(
                 pairForMidiNote(selection.note), std::memory_order_relaxed);
             activeMidiNote_.store(selection.note, std::memory_order_relaxed);
