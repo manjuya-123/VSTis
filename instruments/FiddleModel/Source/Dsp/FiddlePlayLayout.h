@@ -17,6 +17,7 @@ enum class BowAction
     Tremolo,
     DroneBow,
     AccentStroke,
+    Chop,
     Release
 };
 
@@ -33,6 +34,7 @@ inline BowAction bowActionForMidiNote(int midiNote) noexcept
         case 41: return BowAction::Tremolo;       // F2
         case 43: return BowAction::DroneBow;      // G2
         case 45: return BowAction::AccentStroke;  // A2
+        case 46: return BowAction::Chop;          // A#2
         case 47: return BowAction::Release;       // B2
         default: return BowAction::None;
     }
