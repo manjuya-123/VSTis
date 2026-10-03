@@ -44,7 +44,8 @@ struct FiddleEngine::Impl
     Smoother balance{};
     Smoother vibratoWidth{};
     Smoother vibratoPace{};
-    Smoother gate{};
+    Smoother forceGate{};
+    Smoother motionGate{};
     std::array<Smoother, stringCount> speakingFrequency{};
 
     Controls controlTargets{};
@@ -89,7 +90,12 @@ struct FiddleEngine::Impl
         balance.prepare(sampleRate, 0.015);
         vibratoWidth.prepare(sampleRate, 0.030);
         vibratoPace.prepare(sampleRate, 0.050);
-        gate.prepare(sampleRate, 0.018);
+
+        // Contact force establishes quickly, while actual bow velocity is
+        // governed mainly by the explicit acceleration limit below. Keeping
+        // these states separate avoids double-smoothing the bow motion.
+        forceGate.prepare(sampleRate, 0.005);
+        motionGate.prepare(sampleRate, 0.0015);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
         {
@@ -122,7 +128,8 @@ struct FiddleEngine::Impl
         balance.reset(controlTargets.balance);
         vibratoWidth.reset(controlTargets.vibratoWidth);
         vibratoPace.reset(controlTargets.vibratoPace);
-        gate.reset(0.0);
+        forceGate.reset(0.0);
+        motionGate.reset(0.0);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
             speakingFrequency[i].reset(openFrequency[i]);
@@ -328,7 +335,8 @@ struct FiddleEngine::Impl
             std::clamp(selectedString, 0, stringCount - 2),
             velocity);
 
-        gate.setTarget(1.0);
+        forceGate.setTarget(1.0);
+        motionGate.setTarget(1.0);
     }
 
     void retune(double frequencyHz) noexcept
@@ -351,7 +359,8 @@ struct FiddleEngine::Impl
         shuffleSubdivisionsPerSecond = 0.0;
         shufflePhase = 0;
         shuffleEnergyScale = 1.0;
-        gate.setTarget(1.0);
+        forceGate.setTarget(1.0);
+        motionGate.setTarget(1.0);
     }
 
     void startShortStroke(int direction, double durationSeconds) noexcept
@@ -385,7 +394,8 @@ struct FiddleEngine::Impl
         tremoloSamplesUntilFlip = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(
                 sampleRate / tremoloReversalsPerSecond));
-        gate.setTarget(1.0);
+        forceGate.setTarget(1.0);
+        motionGate.setTarget(1.0);
     }
 
     void startShuffle(double subdivisionsPerSecond) noexcept
@@ -408,7 +418,8 @@ struct FiddleEngine::Impl
         shuffleSamplesUntilFlip = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(
                 2.0 * sampleRate / shuffleSubdivisionsPerSecond));
-        gate.setTarget(1.0);
+        forceGate.setTarget(1.0);
+        motionGate.setTarget(1.0);
     }
 
     void stopBow() noexcept
@@ -421,7 +432,8 @@ struct FiddleEngine::Impl
         shuffleSubdivisionsPerSecond = 0.0;
         shufflePhase = 0;
         shuffleEnergyScale = 1.0;
-        gate.setTarget(0.0);
+        forceGate.setTarget(0.0);
+        motionGate.setTarget(0.0);
     }
 
     void noteOff() noexcept
@@ -443,7 +455,8 @@ struct FiddleEngine::Impl
         {
             --shortStrokeSamplesRemaining;
             if (shortStrokeSamplesRemaining == 0)
-                gate.setTarget(0.0);
+                forceGate.setTarget(0.0);
+        motionGate.setTarget(0.0);
         }
 
         const bool chopDampingActive = chopDampingSamplesRemaining > 0;
@@ -495,7 +508,8 @@ struct FiddleEngine::Impl
         const auto bal = balance.next();
         const auto vibWidth = vibratoWidth.next();
         const auto vibPace = vibratoPace.next();
-        const auto gateValue = gate.next();
+        const auto forceGateValue = forceGate.next();
+        const auto motionGateValue = motionGate.next();
 
         const auto bowTargetSpeed =
             (0.04 + 0.61 * std::pow(s, 1.25)) * shuffleEnergyScale;
@@ -520,11 +534,13 @@ struct FiddleEngine::Impl
             * contactForceCompensation
             * velocityScale
             * shuffleEnergyScale
-            * gateValue;
+            * forceGateValue;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
-            static_cast<double>(bowDirection) * bowTargetSpeed * gateValue;
+            static_cast<double>(bowDirection)
+            * bowTargetSpeed
+            * motionGateValue;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
