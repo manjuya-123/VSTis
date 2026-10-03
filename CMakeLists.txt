@@ -6,7 +6,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(VSTIS_CORE_ONLY "Build JUCE-independent physical-model tests only" OFF)
+
 include(CTest)
-include(cmake/JUCE.cmake)
+
+if (NOT VSTIS_CORE_ONLY)
+    include(cmake/JUCE.cmake)
+endif()
 
 add_subdirectory(instruments/FiddleModel)
