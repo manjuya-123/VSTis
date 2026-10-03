@@ -2,6 +2,7 @@
 
 #include "ParameterPresentation.h"
 #include "Dsp/FiddlePlayLayout.h"
+#include "Dsp/detail/ModelConstants.h"
 
 #include <algorithm>
 #include <array>
@@ -184,7 +185,10 @@ void InstrumentView::applyGesture(juce::Point<float> position)
     const auto x = juce::jlimit(nutX, bridgeX, position.x);
     const auto beta = (bridgeX - x) / (bridgeX - nutX);
     const auto contact = juce::jlimit(
-        0.0f, 1.0f, (0.22f - beta) / (0.22f - 0.06f));
+        0.0f, 1.0f,
+        static_cast<float>(
+            (fiddle::detail::bowBetaFingerboard - beta)
+            / (fiddle::detail::bowBetaFingerboard - fiddle::detail::bowBetaBridge)));
 
     const auto pair = juce::jlimit(0, 2, state_.pairLowerString);
     const auto pairCenterY = topY + spacing * (static_cast<float>(pair) + 0.5f);
@@ -279,8 +283,10 @@ void InstrumentView::paint(juce::Graphics& g)
         }
     }
 
-    const auto beta = 0.22f + (0.06f - 0.22f)
-                    * juce::jlimit(0.0f, 1.0f, state_.bowContact);
+    const auto beta = static_cast<float>(
+        fiddle::detail::bowBetaFingerboard
+        + (fiddle::detail::bowBetaBridge - fiddle::detail::bowBetaFingerboard)
+        * juce::jlimit(0.0f, 1.0f, state_.bowContact));
     const auto bowX = bridgeX - beta * (bridgeX - nutX);
     const auto pair = juce::jlimit(0, 2, state_.pairLowerString);
     const auto pairTopY = topY + spacing * static_cast<float>(pair) - 22.0f;
