@@ -29,6 +29,7 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> filterPhaseDelay{};
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
+    std::array<double, stringCount> fingerTouch{};
     std::array<BowContact, stringCount> contacts{};
 
     ModalBank body{};
@@ -100,6 +101,7 @@ struct FiddleEngine::Impl
 
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
+        fingerTouch.fill(0.0);
         allpassY1.fill(0.0);
         body.reset();
         radiation.reset();
@@ -275,7 +277,12 @@ struct FiddleEngine::Impl
             speakingFrequency[i].setTarget(openFrequency[i]);
 
         const auto primary = static_cast<std::size_t>(primaryString);
-        speakingFrequency[primary].setTarget(std::max(requested, openFrequency[primary]));
+        const auto stoppedFrequency = std::max(requested, openFrequency[primary]);
+        speakingFrequency[primary].setTarget(stoppedFrequency);
+
+        fingerTouch.fill(0.0);
+        if (stoppedFrequency > openFrequency[primary] * 1.0005)
+            fingerTouch[primary] = 1.0;
 
         velocityScale = 0.35 + 0.65 * clamp01(velocity);
         gate.setTarget(1.0);
@@ -397,7 +404,30 @@ struct FiddleEngine::Impl
                                 - runtimeAllpassA[i] * allpassY1[i];
             allpassX1[i] = lossFiltered;
             allpassY1[i] = filtered;
-            const auto reflectedNut = -filtered;
+
+            const auto fingered =
+                static_cast<int>(i) == primaryString
+                && speakingFrequency[i].target > openFrequency[i] * 1.0005;
+
+            // A stopped string loses additional transverse energy into the
+            // fingertip. The short extra loss after Note On represents the
+            // finger settling onto the string; it is applied at the termination,
+            // not as an output amplitude envelope.
+            double fingerTerminationGain = 1.0;
+            if (fingered)
+            {
+                fingerTerminationGain =
+                    0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
+                const auto touchDecay =
+                    std::exp(-1.0 / (sampleRate * 0.005));
+                fingerTouch[i] *= touchDecay;
+            }
+            else
+            {
+                fingerTouch[i] = 0.0;
+            }
+
+            const auto reflectedNut = -filtered * fingerTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
