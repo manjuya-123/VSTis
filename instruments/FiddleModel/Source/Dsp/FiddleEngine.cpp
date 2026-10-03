@@ -70,6 +70,9 @@ struct FiddleEngine::Impl
     double shuffleSubdivisionsPerSecond = 0.0;
     int shufflePhase = 0;
     double shuffleEnergyScale = 1.0;
+    double strokeBiteAmount = 0.0;
+    std::int64_t strokeBiteSamplesRemaining = 0;
+    std::int64_t strokeBiteTotalSamples = 0;
     int primaryString = 1;
     int pairLower = 1;
 
@@ -140,6 +143,9 @@ struct FiddleEngine::Impl
         shuffleSubdivisionsPerSecond = 0.0;
         shufflePhase = 0;
         shuffleEnergyScale = 1.0;
+        strokeBiteAmount = 0.0;
+        strokeBiteSamplesRemaining = 0;
+        strokeBiteTotalSamples = 0;
         primaryString = 1;
         pairLower = 1;
         debug = {};
@@ -339,6 +345,15 @@ struct FiddleEngine::Impl
         speakingFrequency[primary].setTarget(requested);
     }
 
+    void setStrokeBite(double amount, double durationSeconds) noexcept
+    {
+        strokeBiteAmount = std::clamp(amount, 0.0, 0.80);
+        strokeBiteTotalSamples = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                std::clamp(durationSeconds, 0.001, 0.030) * sampleRate));
+        strokeBiteSamplesRemaining = strokeBiteTotalSamples;
+    }
+
     void startBow(int direction) noexcept
     {
         bowStrokeStarted = true;
@@ -515,11 +530,25 @@ struct FiddleEngine::Impl
         // stiffer bridge region. Reducing the fingerboard force made that end
         // slip/noise-rich rather than genuinely warm.
         const auto contactForceCompensation = 1.00 + 0.55 * pos;
+        double strokeBiteGain = 1.0;
+        if (strokeBiteSamplesRemaining > 0 && strokeBiteTotalSamples > 0)
+        {
+            const auto phase =
+                static_cast<double>(strokeBiteSamplesRemaining)
+                / static_cast<double>(strokeBiteTotalSamples);
+            // Cosine-shaped preload release avoids a discontinuous force step
+            // while still giving the first few milliseconds extra grip.
+            const auto shaped = 0.5 - 0.5 * std::cos(pi * phase);
+            strokeBiteGain += strokeBiteAmount * shaped;
+            --strokeBiteSamplesRemaining;
+        }
+
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
             * velocityScale
             * shuffleEnergyScale
+            * strokeBiteGain
             * gateValue;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
@@ -662,6 +691,7 @@ struct FiddleEngine::Impl
         debug.bowSpeedMps = static_cast<float>(bowSpeed);
         debug.bridgeVelocity = static_cast<float>(bridgeVelocity);
         debug.vibratoOffsetCents = static_cast<float>(appliedVibratoCents);
+        debug.strokeBiteGain = static_cast<float>(strokeBiteGain);
         debug.bowDirection = bowDirection;
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;
@@ -686,6 +716,10 @@ void FiddleEngine::setFingeringLayout(const std::array<float, 4>& frequencyHz,
     impl_->setFingeringLayout(frequencyHz, primaryString, bowPairLowerString, velocity);
 }
 void FiddleEngine::retune(float frequencyHz) { impl_->retune(frequencyHz); }
+void FiddleEngine::setStrokeBite(float amount, float durationSeconds) noexcept
+{
+    impl_->setStrokeBite(amount, durationSeconds);
+}
 void FiddleEngine::startBow(int direction) noexcept { impl_->startBow(direction); }
 void FiddleEngine::startShortStroke(int direction, float durationSeconds) noexcept
 {
