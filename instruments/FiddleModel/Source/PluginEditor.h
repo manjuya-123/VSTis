@@ -42,6 +42,17 @@ private:
     FiddleVisualState state_{};
 };
 
+class BowActionStrip final : public juce::Component
+{
+public:
+    void setState(int playMode, int bowAction);
+    void paint(juce::Graphics&) override;
+
+private:
+    int playMode_ = 0;
+    int bowAction_ = 0;
+};
+
 class FiddleModelAudioProcessorEditor final
     : public juce::AudioProcessorEditor,
       private juce::Timer
@@ -65,6 +76,7 @@ private:
     juce::Label title_;
     juce::Label subtitle_;
     InstrumentView instrumentView_;
+    BowActionStrip bowActionStrip_;
     juce::GroupComponent bowGroup_ { "bow", "Bow" };
     juce::GroupComponent stringsGroup_ { "strings", "Strings & Pitch" };
     juce::GroupComponent materialsGroup_ { "materials", "Materials" };
