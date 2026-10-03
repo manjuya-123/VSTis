@@ -66,6 +66,10 @@ struct FiddleEngine::Impl
     std::int64_t chopDampingSamplesRemaining = 0;
     std::int64_t tremoloSamplesUntilFlip = 0;
     double tremoloReversalsPerSecond = 0.0;
+    std::int64_t shuffleSamplesUntilFlip = 0;
+    double shuffleSubdivisionsPerSecond = 0.0;
+    int shufflePhase = 0;
+    double shuffleEnergyScale = 1.0;
     int primaryString = 1;
     int pairLower = 1;
 
@@ -132,6 +136,10 @@ struct FiddleEngine::Impl
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
+        shuffleSamplesUntilFlip = 0;
+        shuffleSubdivisionsPerSecond = 0.0;
+        shufflePhase = 0;
+        shuffleEnergyScale = 1.0;
         primaryString = 1;
         pairLower = 1;
         debug = {};
@@ -339,6 +347,10 @@ struct FiddleEngine::Impl
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
+        shuffleSamplesUntilFlip = 0;
+        shuffleSubdivisionsPerSecond = 0.0;
+        shufflePhase = 0;
+        shuffleEnergyScale = 1.0;
         gate.setTarget(1.0);
     }
 
@@ -372,12 +384,39 @@ struct FiddleEngine::Impl
         gate.setTarget(1.0);
     }
 
+    void startShuffle(double subdivisionsPerSecond) noexcept
+    {
+        bowStrokeStarted = true;
+        if (bowDirection == 0)
+            bowDirection = 1;
+
+        shortStrokeSamplesRemaining = 0;
+        chopDampingSamplesRemaining = 0;
+        tremoloSamplesUntilFlip = 0;
+        tremoloReversalsPerSecond = 0.0;
+
+        shuffleSubdivisionsPerSecond =
+            std::clamp(subdivisionsPerSecond, 6.0, 20.0);
+        shufflePhase = 0;
+        shuffleEnergyScale = 1.12;
+
+        // First stroke is the long member of a long-short-short bowing cell.
+        shuffleSamplesUntilFlip = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                2.0 * sampleRate / shuffleSubdivisionsPerSecond));
+        gate.setTarget(1.0);
+    }
+
     void stopBow() noexcept
     {
         shortStrokeSamplesRemaining = 0;
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
+        shuffleSamplesUntilFlip = 0;
+        shuffleSubdivisionsPerSecond = 0.0;
+        shufflePhase = 0;
+        shuffleEnergyScale = 1.0;
         gate.setTarget(0.0);
     }
 
@@ -419,6 +458,32 @@ struct FiddleEngine::Impl
             }
         }
 
+        if (shuffleSamplesUntilFlip > 0 && shuffleSubdivisionsPerSecond > 0.0)
+        {
+            --shuffleSamplesUntilFlip;
+            if (shuffleSamplesUntilFlip == 0)
+            {
+                bowDirection = -bowDirection;
+                shufflePhase = (shufflePhase + 1) % 6;
+
+                // Two mirrored long-short-short cells:
+                // long D, short U, short D, long U, short D, short U.
+                static constexpr std::array<double, 6> durationUnits {
+                    2.0, 1.0, 1.0, 2.0, 1.0, 1.0
+                };
+                static constexpr std::array<double, 6> energyScale {
+                    1.12, 0.78, 0.86, 1.10, 0.78, 0.86
+                };
+
+                shuffleEnergyScale =
+                    energyScale[static_cast<std::size_t>(shufflePhase)];
+                shuffleSamplesUntilFlip = std::max<std::int64_t>(
+                    1, static_cast<std::int64_t>(
+                        durationUnits[static_cast<std::size_t>(shufflePhase)]
+                        * sampleRate / shuffleSubdivisionsPerSecond));
+            }
+        }
+
         const auto p = pressure.next();
         const auto s = speed.next();
         const auto a = attack.next();
@@ -428,7 +493,8 @@ struct FiddleEngine::Impl
         const auto vibPace = vibratoPace.next();
         const auto gateValue = gate.next();
 
-        const auto bowTargetSpeed = 0.04 + 0.61 * std::pow(s, 1.25);
+        const auto bowTargetSpeed =
+            (0.04 + 0.61 * std::pow(s, 1.25)) * shuffleEnergyScale;
         // Bow Response is the player's ability to accelerate/reverse the bow,
         // not an amplitude-envelope attack. The earlier 0.25..3 m/s^2 range
         // made alternating fiddle strokes unrealistically sluggish.
@@ -449,6 +515,7 @@ struct FiddleEngine::Impl
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
             * velocityScale
+            * shuffleEnergyScale
             * gateValue;
         const auto beta = 0.22 + (0.06 - 0.22) * pos;
 
@@ -628,6 +695,10 @@ void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
 {
     impl_->startTremolo(reversalsPerSecond);
 }
+void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
+{ impl_->startTremolo(reversalsPerSecond); }
+void FiddleEngine::startShuffle(float subdivisionsPerSecond) noexcept
+{ impl_->startShuffle(subdivisionsPerSecond); }
 void FiddleEngine::stopBow() noexcept { impl_->stopBow(); }
 void FiddleEngine::noteOff() { impl_->noteOff(); }
 void FiddleEngine::setControls(const Controls& controls) noexcept { impl_->setControls(controls); }
