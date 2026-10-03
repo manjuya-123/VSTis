@@ -85,3 +85,20 @@ Current material-facing controls:
 
 String Core offers Synthetic core, Steel core, and Gut-like profiles. The UI should
 describe their playing consequence rather than expose loop-loss or allpass coefficients.
+
+
+## Fiddle Play Mode language
+
+Use the term **Fiddle Play Mode**, not "keyswitch mode", in the normal UI.
+
+The action keys are closer to right-hand gesture commands than to sample keyswitches:
+they operate the physical bow state while Fingering Keys maintain left-hand string stops.
+
+Stable initial action row:
+C2 Down Bow / D2 Up Bow / E2 Short Stroke / F2 Tremolo /
+G2 Drone Bow / A2 Accent Stroke / B2 Release.
+
+G3 and above are Fingering Keys.
+
+Keep the black action-row keys unassigned until a genuinely useful fiddle technique
+requires them; do not fill the map merely for completeness.
