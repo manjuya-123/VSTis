@@ -61,6 +61,7 @@ private:
     void triggerFiddlePlayAction(int midiNote, float velocity);
     void releaseFiddlePlayAction(int midiNote);
     void resetPerformanceModeState() noexcept;
+    void updateFingeringHoldState(bool enabled);
     fiddle::FiddleEngine engine_;
     fiddle::MidiNoteStack noteStack_;
     juce::AudioProcessorValueTreeState parameters_;
@@ -74,6 +75,7 @@ private:
     int playBowDirection_ = 1;
     bool playModeFocusOverride_ = false;
     bool fingeringHold_ = false;
+    bool fingeringPedalHold_ = false;
     std::array<bool, 128> fingeringKeyDown_{};
     float playModeFocusValue_ = 0.0f;
     float playModePressureBoost_ = 0.0f;
