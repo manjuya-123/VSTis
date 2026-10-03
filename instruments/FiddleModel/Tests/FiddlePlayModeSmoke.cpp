@@ -19,6 +19,7 @@ int main()
     using fiddle::BowAction;
 
     if (fiddle::bowActionForMidiNote(36) != BowAction::DownBow
+        || fiddle::bowActionForMidiNote(37) != BowAction::Shuffle
         || fiddle::bowActionForMidiNote(38) != BowAction::UpBow
         || fiddle::bowActionForMidiNote(40) != BowAction::ShortStroke
         || fiddle::bowActionForMidiNote(41) != BowAction::Tremolo
