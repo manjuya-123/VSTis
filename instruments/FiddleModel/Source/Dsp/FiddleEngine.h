@@ -26,6 +26,7 @@ struct DebugState
     float bridgeVelocity = 0.0f;
     float bowAngleDeg = 0.0f;
     float vibratoOffsetCents = 0.0f;
+    int bowDirection = 1;
     int bowPairLowerString = 1;
     int primaryString = 1;
 };
@@ -42,6 +43,7 @@ public:
     void prepare(double sampleRate);
     void reset();
 
+    void beginBowStroke(bool alternateDirection) noexcept;
     void noteOn(float frequencyHz, float velocity);
     void retune(float frequencyHz);
     void noteOff();
