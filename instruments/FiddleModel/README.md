@@ -116,3 +116,33 @@ LFO depth/rate. Open strings intentionally ignore this finger vibrato.
 
 These mappings are intentionally described as player gestures rather than DSP modulation
 sources.
+
+
+## Dedicated fiddle view
+
+The editor now visualises the instrument as four strings rather than as a piano keyboard.
+It shows:
+
+- G / D / A / E strings
+- the currently selected physical string
+- approximate stopped-string finger position
+- the active adjacent bow pair
+- bow contact position between fingerboard side and bridge side
+- current up-bow / down-bow direction
+
+The default Bow Strokes mode is **Alternate**. Each new MIDI Note On reverses bow
+direction without resetting string/body state, which is intended for fast fiddle
+detaché/shuffle-style passages. **Connected** keeps the current bow direction for
+slurred/legato playing.
+
+## Materials
+
+The normal editor now has Body / Bow Stick / Hair+Rosin material selectors.
+They are connected to physical model quantities rather than post-EQ:
+
+- Body -> modal frequency, damping and admittance
+- Bow Stick -> effective acceleration/reversal response
+- Hair+Rosin -> static grip, sliding friction and contact-state relaxation
+
+Experimental profiles are labelled as such; they are not presented as calibrated
+measurements of real commercial materials.
