@@ -555,7 +555,6 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
     visualBowAction_.store(
         static_cast<int>(fiddle::BowAction::None),
         std::memory_order_relaxed);
-    visualFingeringHold_.store(false, std::memory_order_relaxed);
 }
 
 void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
@@ -578,6 +577,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     visualBowAction_.store(
         static_cast<int>(fiddle::BowAction::None),
         std::memory_order_relaxed);
+    visualFingeringHold_.store(false, std::memory_order_relaxed);
 
     std::array<float, 4> openStrings{};
     engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
