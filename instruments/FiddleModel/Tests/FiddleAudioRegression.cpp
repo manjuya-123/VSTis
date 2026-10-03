@@ -288,6 +288,54 @@ Render renderScenario(const Scenario& scenario)
     return result;
 }
 
+Render renderFastAlternatePassage()
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.56f;
+    controls.speed = 0.68f;
+    controls.attack = 0.82f;
+    controls.position = 0.48f;
+    controls.balance = -0.82f;
+    controls.vibratoWidth = 0.0f;
+    controls.vibratoPace = 0.5f;
+    engine.setControls(controls);
+
+    constexpr std::array<float, 16> phrase {
+        329.6276f, 369.9944f, 391.9954f, 369.9944f,
+        329.6276f, 369.9944f, 391.9954f, 440.0000f,
+        493.8833f, 440.0000f, 391.9954f, 369.9944f,
+        329.6276f, 391.9954f, 369.9944f, 329.6276f
+    };
+
+    constexpr double noteSeconds = 0.090;
+    const auto samplesPerNote = static_cast<std::size_t>(noteSeconds * sampleRate);
+    const auto releaseSamples = static_cast<std::size_t>(0.35 * sampleRate);
+
+    Render result;
+    result.left.assign(samplesPerNote * phrase.size() + releaseSamples, 0.0f);
+    result.right.assign(result.left.size(), 0.0f);
+
+    for (std::size_t i = 0; i < phrase.size(); ++i)
+    {
+        engine.beginBowStroke(true);
+        engine.noteOn(phrase[i], 0.88f);
+        const auto offset = i * samplesPerNote;
+        engine.process(result.left.data() + offset,
+                       result.right.data() + offset,
+                       samplesPerNote);
+    }
+
+    engine.noteOff();
+    const auto releaseOffset = samplesPerNote * phrase.size();
+    engine.process(result.left.data() + releaseOffset,
+                   result.right.data() + releaseOffset,
+                   releaseSamples);
+    return result;
+}
+
 fiddle::Controls baseControls()
 {
     fiddle::Controls c;
@@ -435,6 +483,19 @@ int main(int argc, char** argv)
         comparisonLeft.insert(comparisonLeft.end(), silenceSamples, 0.0f);
         comparisonRight.insert(comparisonRight.end(), silenceSamples, 0.0f);
     }
+
+    const auto fastPassage = renderFastAlternatePassage();
+    if (!writeStereoWav16(outputDirectory / "08_fast_alternate_passage.wav",
+                          fastPassage.left, fastPassage.right))
+    {
+        std::cerr << "FAIL: cannot write fast passage WAV\n";
+        ok = false;
+    }
+
+    comparisonLeft.insert(comparisonLeft.end(),
+                          fastPassage.left.begin(), fastPassage.left.end());
+    comparisonRight.insert(comparisonRight.end(),
+                           fastPassage.right.begin(), fastPassage.right.end());
 
     if (!writeStereoWav16(outputDirectory / "00_comparison.wav",
                           comparisonLeft, comparisonRight))
