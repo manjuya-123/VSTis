@@ -13,6 +13,8 @@ struct Controls
     float attack = 0.5f;
     float position = 0.5f;
     float balance = 0.0f;
+    float vibratoWidth = 0.0f;
+    float vibratoPace = 0.5f;
 };
 
 struct DebugState
@@ -23,6 +25,7 @@ struct DebugState
     float bowSpeedMps = 0.0f;
     float bridgeVelocity = 0.0f;
     float bowAngleDeg = 0.0f;
+    float vibratoOffsetCents = 0.0f;
     int bowPairLowerString = 1;
     int primaryString = 1;
 };
