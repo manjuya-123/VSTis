@@ -434,7 +434,18 @@ struct FiddleEngine::Impl
         // made alternating fiddle strokes unrealistically sluggish.
         const auto bowAcceleration =
             bowResponseScale * 2.5 * std::pow(24.0, a);
-        const auto totalForce = (0.06 * std::pow(8.0, p)) * velocityScale * gateValue;
+        // A player's "same pressure" gesture does not produce the same usable
+        // string-normal force everywhere along the speaking length. Close to the
+        // bridge the string is mechanically stiffer and stable Helmholtz motion
+        // needs more normal force. Compensate the player-facing control so
+        // Bow Contact keeps its intended warm->bright behaviour without exposing
+        // a separate force-vs-position parameter.
+        const auto contactForceCompensation = 0.70 + 0.60 * pos;
+        const auto totalForce =
+            (0.06 * std::pow(8.0, p))
+            * contactForceCompensation
+            * velocityScale
+            * gateValue;
         const auto beta = 0.22 + (0.06 - 0.22) * pos;
 
         const auto desiredSpeed =
