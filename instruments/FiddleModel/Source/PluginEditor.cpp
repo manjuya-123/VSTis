@@ -259,11 +259,11 @@ void InstrumentView::paint(juce::Graphics& g)
     {
         status = juce::String("Fiddle Play  |  ") + status;
         if (actionText.isNotEmpty())
-            status += "  |  " + actionText;
+            status += juce::String("  |  ") + actionText;
     }
     else
     {
-        status += "  |  " + directionText;
+        status += juce::String("  |  ") + juce::String(directionText);
     }
 
     g.setColour(juce::Colours::white.withAlpha(0.82f));
