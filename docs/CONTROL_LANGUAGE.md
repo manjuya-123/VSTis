@@ -127,3 +127,8 @@ Fiddle Play is a two-hand performance workflow:
 - Drone Bow means physically bow the selected adjacent pair with balanced focus.
 - Short / Accent / Chop are gestures built from bow force, speed and contact duration,
   not alternate rendered samples.
+
+
+The dedicated Fiddle Play action strip is interactive. Mouse gestures use the same
+Down / Up / Short / Tremolo / Drone / Accent / Chop / Release paths as the MIDI action
+row, so the GUI is not a separate audition-only sound path.
