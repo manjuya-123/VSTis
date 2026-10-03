@@ -27,21 +27,29 @@ int main()
     const auto hardShort = makeBowGestureProfile(BowAction::ShortStroke, 0.9f);
     if (!(hardShort.durationSeconds < softShort.durationSeconds
           && hardShort.speedScale > softShort.speedScale
+          && hardShort.responseBoost > softShort.responseBoost
           && hardShort.oneShot))
         return fail("Short Stroke velocity should make the stroke quicker/crisper");
 
     const auto softTremolo = makeBowGestureProfile(BowAction::Tremolo, 0.2f);
     const auto hardTremolo = makeBowGestureProfile(BowAction::Tremolo, 0.9f);
     if (!(hardTremolo.tremoloReversalsPerSecond
-          > softTremolo.tremoloReversalsPerSecond))
+          > softTremolo.tremoloReversalsPerSecond
+          && hardTremolo.responseBoost > softTremolo.responseBoost))
         return fail("Tremolo velocity should increase reversal rate");
 
     const auto shuffleSoft = makeBowGestureProfile(BowAction::Shuffle, 0.2f);
     const auto shuffleHard = makeBowGestureProfile(BowAction::Shuffle, 0.9f);
     if (!(shuffleHard.shuffleSubdivisionsPerSecond
           > shuffleSoft.shuffleSubdivisionsPerSecond
-          && shuffleHard.speedScale > shuffleSoft.speedScale))
+          && shuffleHard.speedScale > shuffleSoft.speedScale
+          && shuffleHard.responseBoost > shuffleSoft.responseBoost))
         return fail("Shuffle velocity should increase bow subdivision rate and energy");
+
+    const auto accent = makeBowGestureProfile(BowAction::AccentStroke, 0.8f);
+    if (!(accent.responseBoost > hardDown.responseBoost
+          && accent.pressureBoost > hardDown.pressureBoost))
+        return fail("Accent should catch the string faster and harder than ordinary Down Bow");
 
     const auto drone = makeBowGestureProfile(BowAction::DroneBow, 0.7f);
     if (!drone.balancedPair)
