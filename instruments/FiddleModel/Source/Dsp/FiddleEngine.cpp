@@ -440,7 +440,11 @@ struct FiddleEngine::Impl
         // needs more normal force. Compensate the player-facing control so
         // Bow Contact keeps its intended warm->bright behaviour without exposing
         // a separate force-vs-position parameter.
-        const auto contactForceCompensation = 0.70 + 0.60 * pos;
+        // Keep the fingerboard-side gesture at the ordinary pressure baseline.
+        // Only add the extra normal force required as the contact approaches the
+        // stiffer bridge region. Reducing the fingerboard force made that end
+        // slip/noise-rich rather than genuinely warm.
+        const auto contactForceCompensation = 1.00 + 0.55 * pos;
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
