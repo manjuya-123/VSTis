@@ -152,6 +152,23 @@ int main(int argc, char** argv)
         return fail("Short Stroke did not release the bow automatically");
     render(engine, left, right, 0.06);
 
+    // Short percussive Chop surrogate.
+    controls.pressure = 0.90f;
+    controls.speed = 0.22f;
+    engine.setControls(controls);
+    engine.startShortStroke(-1, 0.032f);
+    render(engine, left, right, 0.10);
+    const auto afterChop = engine.debugSnapshot();
+    const auto chopForce =
+        afterChop.contactNormalForceN[1] + afterChop.contactNormalForceN[2];
+    if (chopForce > 0.015f)
+        return fail("Chop surrogate did not release quickly");
+    render(engine, left, right, 0.05);
+
+    controls.pressure = 0.56f;
+    controls.speed = 0.66f;
+    engine.setControls(controls);
+
     // Tremolo on the same stopped notes.
     engine.startTremolo(14.0f);
     const auto tremoloStartDirection = engine.debugSnapshot().bowDirection;
