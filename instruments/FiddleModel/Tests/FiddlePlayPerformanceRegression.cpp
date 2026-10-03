@@ -142,6 +142,26 @@ int main(int argc, char** argv)
     engine.stopBow();
     render(engine, left, right, 0.08);
 
+    // Slur: keep the bow moving while the left hand changes stopped positions.
+    engine.startBow(+1);
+    std::array<float, 4> slurFingering {};
+    slurFingering[1] = 369.9944f; // F#4 on D
+    slurFingering[2] = 554.3653f; // C#5 on A
+    engine.setFingeringLayout(slurFingering, 1, 1, 0.88f);
+    render(engine, left, right, 0.24);
+
+    const auto slurDebug = engine.debugSnapshot();
+    if (slurDebug.bowDirection != 1)
+        return fail("Slur changed bow direction unexpectedly");
+    if (std::abs(slurDebug.speakingFrequencyHz[1] - 369.9944f) > 2.0f
+        || std::abs(slurDebug.speakingFrequencyHz[2] - 554.3653f) > 2.0f)
+        return fail("Slur did not move the held fingering while bowing");
+    engine.stopBow();
+    render(engine, left, right, 0.08);
+
+    // Restore the original D/A fingering for the remaining gestures.
+    engine.setFingeringLayout(fingering, 1, 1, 0.88f);
+
     // Short stroke.
     engine.startShortStroke(+1, 0.075f);
     render(engine, left, right, 0.18);
