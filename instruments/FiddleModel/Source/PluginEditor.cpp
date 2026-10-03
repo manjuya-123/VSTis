@@ -345,8 +345,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     playModeLabel_.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(playModeLabel_);
 
-    playMode_.addItem("Chromatic", 1);
-    playMode_.addItem("Fiddle Play", 2);
+    playMode_.addItem("Chromatic (keyboard)", 1);
+    playMode_.addItem("Fiddle Play (performance)", 2);
     playMode_.setTooltip(
         "Chromatic behaves like a normal MIDI instrument. Fiddle Play separates left-hand fingering from right-hand bow actions.");
     addAndMakeVisible(playMode_);
