@@ -210,24 +210,43 @@ int main(int argc, char** argv)
     controls.speed = 0.66f;
     engine.setControls(controls);
 
-    // Tremolo on the same stopped notes.
+    // Tremolo on the same stopped notes. Count actual physical reversals,
+    // rather than only comparing the first and final direction.
     engine.startTremolo(14.0f);
-    const auto tremoloStartDirection = engine.debugSnapshot().bowDirection;
-    render(engine, left, right, 0.52);
-    const auto tremoloEndDirection = engine.debugSnapshot().bowDirection;
-    if (tremoloEndDirection == tremoloStartDirection)
-        return fail("Tremolo did not reverse bow direction");
+    auto tremoloDirection = engine.debugSnapshot().bowDirection;
+    int tremoloReversals = 0;
+    for (int i = 0; i < 52; ++i)
+    {
+        render(engine, left, right, 0.010);
+        const auto direction = engine.debugSnapshot().bowDirection;
+        if (direction != tremoloDirection)
+        {
+            ++tremoloReversals;
+            tremoloDirection = direction;
+        }
+    }
+    if (tremoloReversals < 5)
+        return fail("Tremolo did not produce repeated physical bow reversals");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
-    // Fiddle shuffle: long-short-short bow cells must produce multiple
-    // physical direction changes without resetting the held strings.
+    // Fiddle shuffle: long-short-short bow cells must produce several physical
+    // direction changes while preserving the same stopped-string state.
     engine.startShuffle(13.0f);
-    const auto shuffleStartDirection = engine.debugSnapshot().bowDirection;
-    render(engine, left, right, 0.58);
-    const auto shuffleEndDirection = engine.debugSnapshot().bowDirection;
-    if (shuffleEndDirection == shuffleStartDirection)
-        return fail("Shuffle did not advance through physical bow-direction changes");
+    auto shuffleDirection = engine.debugSnapshot().bowDirection;
+    int shuffleReversals = 0;
+    for (int i = 0; i < 58; ++i)
+    {
+        render(engine, left, right, 0.010);
+        const auto direction = engine.debugSnapshot().bowDirection;
+        if (direction != shuffleDirection)
+        {
+            ++shuffleReversals;
+            shuffleDirection = direction;
+        }
+    }
+    if (shuffleReversals < 4)
+        return fail("Shuffle did not advance through repeated long-short-short bow reversals");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
