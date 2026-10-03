@@ -16,6 +16,7 @@ struct FiddleVisualState
     int bowDirection = 1;
     int playMode = 0;
     int bowAction = 0;
+    bool fingeringHold = false;
     std::array<float, 4> speakingFrequencyHz {
         195.9977f, 293.6648f, 440.0f, 659.2551f
     };
@@ -72,6 +73,8 @@ private:
     int activeBowActionNote_ = -1;
     int playBowDirection_ = 1;
     bool playModeFocusOverride_ = false;
+    bool fingeringHold_ = false;
+    std::array<bool, 128> fingeringKeyDown_{};
     float playModeFocusValue_ = 0.0f;
     float playModePressureBoost_ = 0.0f;
     float playModeSpeedScale_ = 1.0f;
@@ -83,6 +86,7 @@ private:
     std::atomic<int> visualBowDirection_ { 1 };
     std::atomic<int> visualPlayMode_ { 0 };
     std::atomic<int> visualBowAction_ { 0 };
+    std::atomic<bool> visualFingeringHold_ { false };
     std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
 };
