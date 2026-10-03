@@ -26,7 +26,7 @@ inline constexpr int fiddleLowestNote = 55; // G3
 
 inline BowAction bowActionForMidiNote(int midiNote) noexcept
 {
-    // White keys from C2 to B2 form the right-hand action row.
+    // C2-B2 form the right-hand action row; C#2 carries Nashville Shuffle.
     switch (midiNote)
     {
         case 36: return BowAction::DownBow;       // C2
