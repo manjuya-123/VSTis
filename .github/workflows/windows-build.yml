@@ -27,7 +27,11 @@ jobs:
       - name: Run core regression test
         run: ctest --test-dir build/vs2022-x64 -C Release --output-on-failure
 
-      - name: Upload VST3 and Standalone artifacts
+      - name: Print audio regression metrics
+        shell: pwsh
+        run: Get-Content build/vs2022-x64/instruments/FiddleModel/regression-audio/metrics.csv
+
+      - name: Upload VST3, Standalone and listening artifacts
         uses: actions/upload-artifact@v4
         with:
           name: FiddleModel-windows-release
