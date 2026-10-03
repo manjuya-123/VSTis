@@ -537,9 +537,12 @@ int main(int argc, char** argv)
     {
         const auto& fingerboard = measured[1];
         const auto& bridge = measured[2];
+        // Spectral centroid is the primary perceptual-brightness guard.
+        // The >2.5 kHz ratio is secondary: individual narrow harmonics can move
+        // across that fixed boundary even while the overall spectrum gets brighter.
         const bool brighterAtBridge =
-            bridge.spectralCentroidHz > fingerboard.spectralCentroidHz * 1.08
-            && bridge.highBandRatio > fingerboard.highBandRatio * 1.08;
+            bridge.spectralCentroidHz > fingerboard.spectralCentroidHz * 1.10
+            && bridge.highBandRatio > fingerboard.highBandRatio * 0.70;
 
         if (!brighterAtBridge)
         {
