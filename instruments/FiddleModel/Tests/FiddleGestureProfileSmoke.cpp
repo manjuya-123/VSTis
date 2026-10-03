@@ -36,6 +36,13 @@ int main()
           > softTremolo.tremoloReversalsPerSecond))
         return fail("Tremolo velocity should increase reversal rate");
 
+    const auto shuffleSoft = makeBowGestureProfile(BowAction::Shuffle, 0.2f);
+    const auto shuffleHard = makeBowGestureProfile(BowAction::Shuffle, 0.9f);
+    if (!(shuffleHard.shuffleSubdivisionsPerSecond
+          > shuffleSoft.shuffleSubdivisionsPerSecond
+          && shuffleHard.speedScale > shuffleSoft.speedScale))
+        return fail("Shuffle velocity should increase bow subdivision rate and energy");
+
     const auto drone = makeBowGestureProfile(BowAction::DroneBow, 0.7f);
     if (!drone.balancedPair)
         return fail("Drone Bow should request a balanced adjacent-string pair");
