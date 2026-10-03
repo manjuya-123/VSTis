@@ -91,6 +91,11 @@ int main()
     if (!(forceSum > 0.05f && forceSum < 0.60f))
         return fail("normal-force mapping is outside the expected physical range");
 
+    const auto hotContact = std::max(
+        debug.contactTemperatureC[1], debug.contactTemperatureC[2]);
+    if (!(hotContact > 21.0f && hotContact < 85.0f))
+        return fail("thermal rosin state did not heat during sustained bowing");
+
     if (!finiteBuffer(left) || !finiteBuffer(right))
         return fail("non-finite audio sample detected");
 
@@ -108,6 +113,12 @@ int main()
                              sustainSamples + releaseSamples);
     if (!(tailRms < sustainRms * 0.55))
         return fail("release tail did not decay enough");
+
+    const auto cooledDebug = engine.debugSnapshot();
+    const auto cooledContact = std::max(
+        cooledDebug.contactTemperatureC[1], cooledDebug.contactTemperatureC[2]);
+    if (!(cooledContact < hotContact - 0.5f))
+        return fail("thermal rosin state did not cool after bow release");
 
     engine.reset();
     engine.setControls(controls);
@@ -162,7 +173,9 @@ int main()
               << "balanced_D_force_N=" << debug.contactNormalForceN[1] << '\n'
               << "balanced_A_force_N=" << debug.contactNormalForceN[2] << '\n'
               << "bow_speed_mps=" << debug.bowSpeedMps << '\n'
-              << "bow_angle_deg=" << debug.bowAngleDeg << '\n';
+              << "bow_angle_deg=" << debug.bowAngleDeg << '\n'
+              << "hot_contact_c=" << hotContact << '\n'
+              << "cooled_contact_c=" << cooledContact << '\n';
 
     return EXIT_SUCCESS;
 }
