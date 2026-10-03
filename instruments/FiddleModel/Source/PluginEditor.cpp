@@ -1,11 +1,29 @@
 #include "PluginEditor.h"
 
 #include "ParameterPresentation.h"
+#include "Dsp/FiddlePlayLayout.h"
 
 #include <array>
 
 namespace
 {
+juce::String bowActionName(int actionValue)
+{
+    const auto action = static_cast<fiddle::BowAction>(actionValue);
+    switch (action)
+    {
+        case fiddle::BowAction::DownBow: return "Down Bow";
+        case fiddle::BowAction::UpBow: return "Up Bow";
+        case fiddle::BowAction::ShortStroke: return "Short Stroke";
+        case fiddle::BowAction::Tremolo: return "Tremolo";
+        case fiddle::BowAction::DroneBow: return "Drone Bow";
+        case fiddle::BowAction::AccentStroke: return "Accent Stroke";
+        case fiddle::BowAction::Release: return "Release";
+        case fiddle::BowAction::None: break;
+    }
+    return {};
+}
+
 juce::String midiNoteName(int note)
 {
     static constexpr std::array<const char*, 12> names {
@@ -120,20 +138,30 @@ void InstrumentView::paint(juce::Graphics& g)
     }
 
     const auto primary = juce::jlimit(0, 3, state_.primaryString);
-    const auto primaryY = topY + spacing * static_cast<float>(primary);
-    const auto openHz = openFrequency[static_cast<std::size_t>(primary)];
-    const auto ratio = state_.speakingFrequencyHz > 1.0f
-        ? 1.0f - openHz / state_.speakingFrequencyHz
-        : 0.0f;
-    const auto fingerFraction = juce::jlimit(0.0f, 0.78f, ratio);
 
-    if (fingerFraction > 0.002f)
+    for (int stringIndex = 0; stringIndex < 4; ++stringIndex)
     {
-        const auto fingerX = nutX + fingerFraction * (bridgeX - nutX);
-        g.setColour(juce::Colour::fromRGB(235, 126, 104));
-        g.fillEllipse(fingerX - 7.0f, primaryY - 7.0f, 14.0f, 14.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.72f));
-        g.drawLine(fingerX, primaryY - 17.0f, fingerX, primaryY + 17.0f, 1.2f);
+        const auto openHz = openFrequency[static_cast<std::size_t>(stringIndex)];
+        const auto speakingHz =
+            state_.speakingFrequencyHz[static_cast<std::size_t>(stringIndex)];
+        const auto ratio = speakingHz > openHz * 1.0005f
+            ? 1.0f - openHz / speakingHz
+            : 0.0f;
+        const auto fingerFraction = juce::jlimit(0.0f, 0.78f, ratio);
+
+        if (fingerFraction > 0.002f)
+        {
+            const auto y = topY + spacing * static_cast<float>(stringIndex);
+            const auto fingerX = nutX + fingerFraction * (bridgeX - nutX);
+
+            g.setColour(stringIndex == primary
+                ? juce::Colour::fromRGB(245, 132, 105)
+                : juce::Colour::fromRGB(212, 112, 96));
+            g.fillEllipse(fingerX - 7.0f, y - 7.0f, 14.0f, 14.0f);
+
+            g.setColour(juce::Colours::white.withAlpha(0.62f));
+            g.drawLine(fingerX, y - 15.0f, fingerX, y + 15.0f, 1.1f);
+        }
     }
 
     const auto beta = 0.22f + (0.06f - 0.22f)
@@ -165,10 +193,23 @@ void InstrumentView::paint(juce::Graphics& g)
     const auto noteText = midiNoteName(state_.midiNote);
     const auto stringText = juce::String(stringNames[static_cast<std::size_t>(primary)]);
     const auto directionText = state_.bowDirection >= 0 ? "Down bow" : "Up bow";
+    const auto actionText = bowActionName(state_.bowAction);
+
+    juce::String status = noteText + " on " + stringText + " string";
+    if (state_.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
+    {
+        status = "Fiddle Play  |  " + status;
+        if (actionText.isNotEmpty())
+            status += "  |  " + actionText;
+    }
+    else
+    {
+        status += "  |  " + directionText;
+    }
 
     g.setColour(juce::Colours::white.withAlpha(0.82f));
     g.setFont(juce::FontOptions(15.0f).withStyle("Bold"));
-    g.drawText(noteText + " on " + stringText + " string  |  " + directionText,
+    g.drawText(status,
                getLocalBounds().removeFromTop(30).reduced(18, 0),
                juce::Justification::centredRight);
 }
@@ -226,8 +267,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
       processor_(processor)
 {
     setResizable(true, true);
-    setResizeLimits(840, 720, 1280, 980);
-    setSize(980, 820);
+    setResizeLimits(860, 760, 1320, 1040);
+    setSize(1020, 890);
 
     title_.setText("Fiddle Model", juce::dontSendNotification);
     title_.setFont(juce::FontOptions(28.0f).withStyle("Bold"));
@@ -240,6 +281,24 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     subtitle_.setColour(juce::Label::textColourId,
                         juce::Colours::white.withAlpha(0.68f));
     addAndMakeVisible(subtitle_);
+
+    playModeLabel_.setText("Play Mode", juce::dontSendNotification);
+    playModeLabel_.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(playModeLabel_);
+
+    playMode_.addItem("Chromatic", 1);
+    playMode_.addItem("Fiddle Play", 2);
+    playMode_.setTooltip(
+        "Chromatic behaves like a normal MIDI instrument. Fiddle Play separates left-hand fingering from right-hand bow actions.");
+    addAndMakeVisible(playMode_);
+
+    playModeGuide_.setText(
+        "Fiddle Play: G3+ Fingering   |   C2 Down   D2 Up   E2 Short   F2 Tremolo   G2 Drone   A2 Accent   B2 Release",
+        juce::dontSendNotification);
+    playModeGuide_.setFont(juce::FontOptions(12.5f));
+    playModeGuide_.setColour(juce::Label::textColourId,
+                             juce::Colours::white.withAlpha(0.70f));
+    addAndMakeVisible(playModeGuide_);
 
     addAndMakeVisible(instrumentView_);
     instrumentView_.setTooltip(
@@ -320,6 +379,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         addAndMakeVisible(*component);
 
     auto& state = processor_.parameterState();
+    playModeAttachment_ = std::make_unique<ComboAttachment>(
+        state, "playMode", playMode_);
     pressureAttachment_ = std::make_unique<Attachment>(
         state, "pressure", pressure_.slider());
     speedAttachment_ = std::make_unique<Attachment>(
@@ -388,7 +449,13 @@ void FiddleModelAudioProcessorEditor::resized()
     area.removeFromTop(12);
 
     instrumentView_.setBounds(area.removeFromTop(180));
-    area.removeFromTop(10);
+    area.removeFromTop(8);
+
+    auto playModeRow = area.removeFromTop(48);
+    playModeLabel_.setBounds(playModeRow.removeFromLeft(110));
+    playMode_.setBounds(playModeRow.removeFromLeft(180).reduced(4, 7));
+    playModeGuide_.setBounds(playModeRow.reduced(10, 3));
+    area.removeFromTop(6);
 
     const auto bowHeight = 235;
     auto bowArea = area.removeFromTop(bowHeight);
