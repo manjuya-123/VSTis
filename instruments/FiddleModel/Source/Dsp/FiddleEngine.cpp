@@ -401,6 +401,10 @@ struct FiddleEngine::Impl
                 gate.setTarget(0.0);
         }
 
+        const bool chopDampingActive = chopDampingSamplesRemaining > 0;
+        if (chopDampingSamplesRemaining > 0)
+            --chopDampingSamplesRemaining;
+
         if (tremoloSamplesUntilFlip > 0 && tremoloReversalsPerSecond > 0.0)
         {
             --tremoloSamplesUntilFlip;
@@ -528,7 +532,10 @@ struct FiddleEngine::Impl
                 fingerTouch[i] = 0.0;
             }
 
-            const auto reflectedNut = -filtered * fingerTerminationGain;
+            const auto chopTerminationGain =
+                chopDampingActive ? 0.960 : 1.0;
+            const auto reflectedNut =
+                -filtered * fingerTerminationGain * chopTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
