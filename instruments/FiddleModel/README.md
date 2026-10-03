@@ -296,3 +296,13 @@ Fiddle Play can now be driven without a second MIDI controller:
 
 GUI commands are queued to the audio thread through atomics; the editor never calls the
 physical DSP directly from the message thread.
+
+
+### Shuffle Bow
+
+C#2 / MIDI 37 triggers a reduced-order fiddle shuffle gesture. The engine repeats
+mirrored long-short-short bow cells by changing the physical bow direction and the
+stroke energy. MIDI velocity increases the subdivision rate and gesture energy.
+
+Shuffle is intentionally implemented as bow motion acting on the currently held
+physical fingering; it is not an articulation sample or alternate synth voice.
