@@ -27,6 +27,8 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
+    juce::AudioProcessorValueTreeState& parameterState() noexcept { return parameters_; }
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     static float midiNoteToHz(int midiNote);

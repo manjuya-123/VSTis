@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 
 #include <algorithm>
 #include <cmath>
@@ -97,7 +98,7 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
 juce::AudioProcessorEditor* FiddleModelAudioProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new FiddleModelAudioProcessorEditor(*this);
 }
 
 void FiddleModelAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
@@ -119,15 +120,15 @@ FiddleModelAudioProcessor::createParameterLayout()
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "pressure", "Pressure", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+        "pressure", "Bow Pressure", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "speed", "Speed", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+        "speed", "Bow Speed", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "attack", "Attack", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+        "attack", "Bow Response", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "position", "Position", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+        "position", "Bow Contact", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "balance", "Balance", juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
+        "balance", "String Focus", juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "bendRange", "Pitch Bend Range",
         juce::NormalisableRange<float>(1.0f, 24.0f, 1.0f), 2.0f));

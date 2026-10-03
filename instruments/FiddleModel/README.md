@@ -76,3 +76,22 @@ checks overlapping-note/legato priority without any JUCE dependency.
 The Bow Angle calibration LUT is generated in `prepare()` rather than on the audio thread. The audio path only bilinearly interpolates the LUT and performs the final contact-depth solve.
 
 Pitch Bend range is exposed as a 1-24 semitone parameter (default ±2). Pitch-wheel events retune the current speaking length without reselecting the physical string, preserving the ongoing bow/string state.
+
+
+## UI philosophy
+
+The plug-in deliberately does not expose solver coefficients as performance controls.
+The first dedicated editor presents actions and audible consequences in player language:
+
+| UI control | What the player means | Internal effect |
+| --- | --- | --- |
+| Bow Pressure | press the bow lighter/harder | total normal force, then geometry/contact solve |
+| Bow Speed | move the bow slower/faster | physical bow velocity |
+| Bow Response | make the onset soft/crisp | bow acceleration |
+| Bow Contact | move toward fingerboard/bridge | physical bow position on the speaking length |
+| String Focus | lean toward one string of the pair | pressure-aware physical bow-angle calibration |
+| Pitch Bend Range | choose usable wheel travel | speaking-length retune range |
+
+The UI hides normalized 0..1 values and displays player words such as Light, Natural,
+Firm, Near bridge, and Upper-biased. Numerical values remain only where the unit itself
+is meaningful to a musician, for example ±2 semitones.

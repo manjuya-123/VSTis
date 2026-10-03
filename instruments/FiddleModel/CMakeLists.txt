@@ -14,6 +14,9 @@ juce_add_plugin(FiddleModel
 target_sources(FiddleModel PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
+    Source/PluginEditor.cpp
+    Source/PluginEditor.h
+    Source/ParameterPresentation.h
     Source/Dsp/FiddleEngine.cpp
     Source/Dsp/FiddleEngine.h
     Source/Dsp/MidiNoteStack.h
