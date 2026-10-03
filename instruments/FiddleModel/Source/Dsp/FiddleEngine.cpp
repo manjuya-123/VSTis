@@ -541,6 +541,8 @@ struct FiddleEngine::Impl
             debug.contactNormalForceN[i] = static_cast<float>(bowForce[i]);
             debug.speakingFrequencyHz[i] = static_cast<float>(currentFrequency[i]);
             debug.sticking[i] = contacts[i].sticking;
+            debug.contactTemperatureC[i] =
+                static_cast<float>(contacts[i].contactTemperatureC());
         }
 
         for (std::size_t i = 0; i < stringCount; ++i)
