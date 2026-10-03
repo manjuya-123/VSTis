@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -25,6 +28,69 @@ double rms(const std::vector<float>& x, std::size_t begin, std::size_t end)
     return std::sqrt(sum / static_cast<double>(end - begin));
 }
 
+void writeU16(std::ofstream& out, std::uint16_t value)
+{
+    const char b[2] {
+        static_cast<char>(value & 0xffu),
+        static_cast<char>((value >> 8u) & 0xffu)
+    };
+    out.write(b, 2);
+}
+
+void writeU32(std::ofstream& out, std::uint32_t value)
+{
+    const char b[4] {
+        static_cast<char>(value & 0xffu),
+        static_cast<char>((value >> 8u) & 0xffu),
+        static_cast<char>((value >> 16u) & 0xffu),
+        static_cast<char>((value >> 24u) & 0xffu)
+    };
+    out.write(b, 4);
+}
+
+bool writeStereoWav(const std::filesystem::path& path,
+                    const std::vector<float>& left,
+                    const std::vector<float>& right)
+{
+    if (left.size() != right.size())
+        return false;
+
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+
+    std::ofstream out(path, std::ios::binary);
+    if (!out)
+        return false;
+
+    constexpr std::uint16_t channels = 2;
+    constexpr std::uint16_t bits = 16;
+    const auto frames = static_cast<std::uint32_t>(left.size());
+    const auto bytes = frames * channels * (bits / 8u);
+
+    out.write("RIFF", 4); writeU32(out, 36u + bytes);
+    out.write("WAVE", 4);
+    out.write("fmt ", 4); writeU32(out, 16u);
+    writeU16(out, 1u); writeU16(out, channels);
+    writeU32(out, static_cast<std::uint32_t>(sampleRate));
+    writeU32(out, static_cast<std::uint32_t>(sampleRate) * 4u);
+    writeU16(out, 4u); writeU16(out, bits);
+    out.write("data", 4); writeU32(out, bytes);
+
+    constexpr float listeningGain = 0.16f;
+    for (std::size_t i = 0; i < left.size(); ++i)
+    {
+        const auto encode = [](float x)
+        {
+            x = std::clamp(x * listeningGain, -1.0f, 1.0f);
+            return static_cast<std::uint16_t>(
+                static_cast<std::int16_t>(std::lrint(x * 32767.0f)));
+        };
+        writeU16(out, encode(left[i]));
+        writeU16(out, encode(right[i]));
+    }
+    return static_cast<bool>(out);
+}
+
 int fail(const char* message)
 {
     std::cerr << "FAIL: " << message << '\n';
@@ -32,7 +98,7 @@ int fail(const char* message)
 }
 }
 
-int main()
+int main(int argc, char** argv)
 {
     fiddle::FiddleEngine engine;
     engine.prepare(sampleRate);
@@ -93,6 +159,14 @@ int main()
             return fail("fast passage produced non-finite or runaway audio");
 
     engine.noteOff();
+
+    if (argc >= 2)
+    {
+        const std::filesystem::path wavPath(argv[1]);
+        if (!writeStereoWav(wavPath, left, right))
+            return fail("could not write fast-passage listening WAV");
+        std::cout << "wav=" << wavPath.string() << '\n';
+    }
 
     std::cout << "PASS\n"
               << "notes=" << phrase.size() << '\n'
