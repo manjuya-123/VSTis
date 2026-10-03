@@ -101,3 +101,8 @@ Pitch-wheel state no longer participates in physical-string selection at Note On
 The MIDI note first selects the string/fingering, then Pitch Bend retunes that same
 speaking length. This prevents a downward bend from accidentally moving an A-string
 note onto the D string.
+
+
+Left-hand vibrato is modeled as continuous speaking-length motion on the fingered
+primary string. The normal GUI exposes Vibrato Width and Vibrato Pace rather than
+LFO depth/rate. Open strings intentionally ignore this finger vibrato.
