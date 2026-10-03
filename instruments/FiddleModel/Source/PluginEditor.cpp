@@ -18,6 +18,7 @@ juce::String bowActionName(int actionValue)
         case fiddle::BowAction::Tremolo: return "Tremolo";
         case fiddle::BowAction::DroneBow: return "Drone Bow";
         case fiddle::BowAction::AccentStroke: return "Accent Stroke";
+        case fiddle::BowAction::Chop: return "Chop";
         case fiddle::BowAction::Release: return "Release";
         case fiddle::BowAction::None: break;
     }
@@ -56,23 +57,23 @@ void BowActionStrip::setState(int playMode, int bowAction)
 
 void BowActionStrip::paint(juce::Graphics& g)
 {
-    static constexpr std::array<const char*, 7> keys {
+    static constexpr std::array<const char*, 8> keys {
         "C2 / 36", "D2 / 38", "E2 / 40", "F2 / 41",
-        "G2 / 43", "A2 / 45", "B2 / 47"
+        "G2 / 43", "A2 / 45", "A#2 / 46", "B2 / 47"
     };
-    static constexpr std::array<const char*, 7> names {
-        "Down", "Up", "Short", "Tremolo", "Drone", "Accent", "Release"
+    static constexpr std::array<const char*, 8> names {
+        "Down", "Up", "Short", "Tremolo", "Drone", "Accent", "Chop", "Release"
     };
 
     auto area = getLocalBounds().toFloat().reduced(2.0f);
     const auto gap = 5.0f;
     const auto width =
-        (area.getWidth() - gap * 6.0f) / 7.0f;
+        (area.getWidth() - gap * 7.0f) / 8.0f;
 
     const bool fiddlePlay =
         playMode_ == static_cast<int>(fiddle::PlayMode::FiddlePlay);
 
-    for (int i = 0; i < 7; ++i)
+    for (int i = 0; i < 8; ++i)
     {
         auto pad = juce::Rectangle<float>(
             area.getX() + (width + gap) * static_cast<float>(i),
@@ -351,7 +352,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playMode_);
 
     playModeGuide_.setText(
-        "Fiddle Play: G3+ Fingering (MIDI 55+)   |   36 Down   38 Up   40 Short   41 Tremolo   43 Drone   45 Accent   47 Release",
+        "Fiddle Play: G3+ Fingering (MIDI 55+)   |   36 Down   38 Up   40 Short   41 Tremolo   43 Drone   45 Accent   46 Chop   47 Release",
         juce::dontSendNotification);
     playModeGuide_.setFont(juce::FontOptions(12.5f));
     playModeGuide_.setColour(juce::Label::textColourId,
