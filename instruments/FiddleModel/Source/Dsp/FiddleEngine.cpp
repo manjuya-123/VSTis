@@ -196,7 +196,10 @@ struct FiddleEngine::Impl
         const auto gateValue = gate.next();
 
         const auto bowTargetSpeed = 0.04 + 0.61 * std::pow(s, 1.25);
-        const auto bowAcceleration = 0.25 * std::pow(12.0, a);
+        // Bow Response is the player's ability to accelerate/reverse the bow,
+        // not an amplitude-envelope attack. The earlier 0.25..3 m/s^2 range
+        // made alternating fiddle strokes unrealistically sluggish.
+        const auto bowAcceleration = 2.5 * std::pow(24.0, a);
         const auto totalForce = (0.06 * std::pow(8.0, p)) * velocityScale * gateValue;
         const auto beta = 0.22 + (0.06 - 0.22) * pos;
 
