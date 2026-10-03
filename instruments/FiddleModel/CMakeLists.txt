@@ -142,6 +142,17 @@ if (BUILD_TESTING)
                 ${CMAKE_CURRENT_BINARY_DIR}/regression-audio/09_fiddle_play_demo.wav
     )
 
+    add_executable(FiddleModelGestureOnsetRegression
+        Tests/FiddleGestureOnsetRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+        Source/Dsp/FiddleGestureProfile.h
+        Source/Dsp/FiddlePlayLayout.h
+    )
+    target_include_directories(FiddleModelGestureOnsetRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelGestureOnsetRegression PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelGestureOnsetRegression COMMAND FiddleModelGestureOnsetRegression)
+
     add_executable(FiddleModelMaterialRegression
         Tests/FiddleMaterialRegression.cpp
         Source/Dsp/FiddleEngine.cpp
