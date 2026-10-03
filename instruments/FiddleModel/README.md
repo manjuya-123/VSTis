@@ -306,3 +306,14 @@ stroke energy. MIDI velocity increases the subdivision rate and gesture energy.
 
 Shuffle is intentionally implemented as bow motion acting on the currently held
 physical fingering; it is not an articulation sample or alternate synth voice.
+
+
+### Rosin contact visualization
+
+The dedicated string view also visualizes the reduced rosin contact state. The normal
+performance UI does not expose contact temperature in degrees; instead the bow colour
+and status text move through **Rosin Cool / Working / Hot** according to the hottest
+contact in the active string pair.
+
+This is a visualization of the same state used by the bow/string friction model, not a
+separate cosmetic meter.
