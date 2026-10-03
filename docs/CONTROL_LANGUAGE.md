@@ -45,3 +45,17 @@ implementation details rather than normal performance parameters.
 Normal UI copy should describe the musical gesture first. Controller numbers and DSP
 scaling are implementation details unless the user explicitly opens a diagnostics or
 MIDI-mapping view.
+
+
+## Dedicated instrument view
+
+The primary visual metaphor is the bowed instrument itself, not a piano keyboard.
+Show the player which string is active, where it is stopped, where the bow contacts
+the string pair, and the bow direction.
+
+## Material controls
+
+Material selectors are allowed in the normal UI because they describe a physical object
+the player can understand. They must alter the physical model, not merely call an EQ
+preset. If a profile is exploratory rather than measured from a real material, label it
+Experimental.
