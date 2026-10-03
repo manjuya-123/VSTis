@@ -20,6 +20,7 @@ target_sources(FiddleModel PRIVATE
     Source/Dsp/FiddleEngine.cpp
     Source/Dsp/FiddleEngine.h
     Source/Dsp/MidiNoteStack.h
+    Source/Dsp/BowStrokePolicy.h
     Source/Dsp/detail/BowGeometryMapper.h
 )
 
@@ -90,6 +91,14 @@ if (BUILD_TESTING)
         COMMAND FiddleModelFastPassageRegression
                 ${CMAKE_CURRENT_BINARY_DIR}/regression-audio/08_fast_fiddle_passage.wav
     )
+
+    add_executable(FiddleModelBowStrokePolicySmoke
+        Tests/BowStrokePolicySmoke.cpp
+        Source/Dsp/BowStrokePolicy.h
+    )
+    target_include_directories(FiddleModelBowStrokePolicySmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelBowStrokePolicySmoke PRIVATE cxx_std_17)
+    add_test(NAME FiddleModelBowStrokePolicySmoke COMMAND FiddleModelBowStrokePolicySmoke)
 
     add_executable(FiddleModelMaterialRegression
         Tests/FiddleMaterialRegression.cpp
