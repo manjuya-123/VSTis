@@ -47,6 +47,63 @@ void InstrumentView::setState(FiddleVisualState state)
 }
 
 
+void BowActionStrip::setState(int playMode, int bowAction)
+{
+    playMode_ = playMode;
+    bowAction_ = bowAction;
+    repaint();
+}
+
+void BowActionStrip::paint(juce::Graphics& g)
+{
+    static constexpr std::array<const char*, 7> keys {
+        "C2", "D2", "E2", "F2", "G2", "A2", "B2"
+    };
+    static constexpr std::array<const char*, 7> names {
+        "Down", "Up", "Short", "Tremolo", "Drone", "Accent", "Release"
+    };
+
+    auto area = getLocalBounds().toFloat().reduced(2.0f);
+    const auto gap = 5.0f;
+    const auto width =
+        (area.getWidth() - gap * 6.0f) / 7.0f;
+
+    const bool fiddlePlay =
+        playMode_ == static_cast<int>(fiddle::PlayMode::FiddlePlay);
+
+    for (int i = 0; i < 7; ++i)
+    {
+        auto pad = juce::Rectangle<float>(
+            area.getX() + (width + gap) * static_cast<float>(i),
+            area.getY(),
+            width,
+            area.getHeight());
+
+        const bool active =
+            fiddlePlay && bowAction_ == i + 1;
+
+        g.setColour(active
+            ? juce::Colour::fromRGB(82, 151, 170)
+            : juce::Colour::fromRGB(42, 45, 51));
+        g.fillRoundedRectangle(pad, 6.0f);
+
+        g.setColour(juce::Colours::white.withAlpha(
+            fiddlePlay ? (active ? 0.95f : 0.72f) : 0.28f));
+        g.drawRoundedRectangle(pad, 6.0f, active ? 2.0f : 1.0f);
+
+        auto textArea = pad.toNearestInt().reduced(3);
+        g.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
+        g.drawText(keys[static_cast<std::size_t>(i)],
+                   textArea.removeFromTop(17),
+                   juce::Justification::centred);
+        g.setFont(juce::FontOptions(12.0f));
+        g.drawText(names[static_cast<std::size_t>(i)],
+                   textArea,
+                   juce::Justification::centred);
+    }
+}
+
+
 void InstrumentView::mouseDown(const juce::MouseEvent& event)
 {
     applyGesture(event.position);
@@ -267,8 +324,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
       processor_(processor)
 {
     setResizable(true, true);
-    setResizeLimits(860, 760, 1320, 1040);
-    setSize(1020, 890);
+    setResizeLimits(860, 810, 1320, 1100);
+    setSize(1020, 950);
 
     title_.setText("Fiddle Model", juce::dontSendNotification);
     title_.setFont(juce::FontOptions(28.0f).withStyle("Bold"));
@@ -301,6 +358,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playModeGuide_);
 
     addAndMakeVisible(instrumentView_);
+    addAndMakeVisible(bowActionStrip_);
     instrumentView_.setTooltip(
         "Drag left/right to move the bow between fingerboard and bridge. Drag toward either string to focus that string.");
     instrumentView_.onBowContactChanged = [this](float value)
@@ -455,6 +513,8 @@ void FiddleModelAudioProcessorEditor::resized()
     playModeLabel_.setBounds(playModeRow.removeFromLeft(110));
     playMode_.setBounds(playModeRow.removeFromLeft(180).reduced(4, 7));
     playModeGuide_.setBounds(playModeRow.reduced(10, 3));
+
+    bowActionStrip_.setBounds(area.removeFromTop(54).reduced(6, 3));
     area.removeFromTop(6);
 
     const auto bowHeight = 235;
@@ -507,7 +567,9 @@ void FiddleModelAudioProcessorEditor::resized()
 
 void FiddleModelAudioProcessorEditor::timerCallback()
 {
-    instrumentView_.setState(processor_.visualState());
+    const auto state = processor_.visualState();
+    instrumentView_.setState(state);
+    bowActionStrip_.setState(state.playMode, state.bowAction);
     refreshHumanReadableValues();
 }
 
