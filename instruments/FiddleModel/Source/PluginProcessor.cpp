@@ -74,10 +74,16 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const auto message = metadata.getMessage();
         if (message.isNoteOn())
         {
+            const auto hadHeldNote = noteStack_.current().active;
             const auto selection = noteStack_.noteOn(
                 message.getNoteNumber(), message.getFloatVelocity());
-            const auto alternateStrokes =
-                parameters_.getRawParameterValue("strokeMode")->load() >= 0.5f;
+
+            const auto strokeMode = static_cast<int>(
+                parameters_.getRawParameterValue("strokeMode")->load());
+            const bool alternateStrokes =
+                strokeMode == 2
+                || (strokeMode == 0 && !hadHeldNote);
+
             engine_.beginBowStroke(alternateStrokes);
             activePairLowerString_.store(
                 pairForMidiNote(selection.note), std::memory_order_relaxed);
@@ -188,7 +194,7 @@ FiddleModelAudioProcessor::createParameterLayout()
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "strokeMode", "Bow Strokes",
-        juce::StringArray { "Connected", "Alternate" }, 1));
+        juce::StringArray { "Fiddle Auto", "Connected", "Alternate" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "bodyMaterial", "Body Material",
         juce::StringArray {
