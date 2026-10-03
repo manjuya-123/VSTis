@@ -79,6 +79,19 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     applyPerformanceControls();
 
+    if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
+    {
+        const auto uiPress =
+            pendingUiActionPress_.exchange(-1, std::memory_order_relaxed);
+        if (uiPress >= 0)
+            triggerFiddlePlayAction(uiPress, 0.82f);
+
+        const auto uiRelease =
+            pendingUiActionRelease_.exchange(-1, std::memory_order_relaxed);
+        if (uiRelease >= 0)
+            releaseFiddlePlayAction(uiRelease);
+    }
+
     auto* left = buffer.getWritePointer(0);
     auto* right = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : left;
     const auto numBlockSamples = buffer.getNumSamples();
@@ -641,6 +654,18 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         controls.balance = playModeFocusValue_;
 
     engine_.setControls(controls);
+}
+
+void FiddleModelAudioProcessor::requestPlayActionFromUi(
+    int midiNote, bool pressed) noexcept
+{
+    if (!fiddle::isBowActionKey(midiNote))
+        return;
+
+    if (pressed)
+        pendingUiActionPress_.store(midiNote, std::memory_order_relaxed);
+    else
+        pendingUiActionRelease_.store(midiNote, std::memory_order_relaxed);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
