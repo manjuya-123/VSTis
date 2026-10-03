@@ -470,6 +470,15 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             activeBowActionNote_ = midiNote;
             break;
 
+        case fiddle::BowAction::Shuffle:
+            playModeSpeedScale_ = gesture.speedScale;
+            playModeFocusOverride_ = false;
+            playModePressureBoost_ = gesture.pressureBoost;
+            applyPerformanceControls();
+            engine_.startShuffle(gesture.shuffleSubdivisionsPerSecond);
+            activeBowActionNote_ = midiNote;
+            break;
+
         case fiddle::BowAction::DroneBow:
             playModeSpeedScale_ = gesture.speedScale;
             playModeFocusOverride_ = true;
@@ -545,6 +554,7 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
     if (action == fiddle::BowAction::DownBow
         || action == fiddle::BowAction::UpBow
         || action == fiddle::BowAction::Tremolo
+        || action == fiddle::BowAction::Shuffle
         || action == fiddle::BowAction::DroneBow)
     {
         engine_.stopBow();
