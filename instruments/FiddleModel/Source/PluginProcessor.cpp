@@ -241,7 +241,7 @@ FiddleModelAudioProcessor::createParameterLayout()
 
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "playMode", "Play Mode",
-        juce::StringArray { "Chromatic", "Fiddle Play" }, 0));
+        juce::StringArray { "Chromatic (keyboard)", "Fiddle Play (performance)" }, 1));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "pressure", "Bow Pressure", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
