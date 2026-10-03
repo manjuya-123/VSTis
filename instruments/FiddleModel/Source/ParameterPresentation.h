@@ -51,6 +51,24 @@ inline juce::String stringFocus(float value)
     return "Upper string";
 }
 
+inline juce::String vibratoWidth(float value)
+{
+    if (value < 0.08f) return "Off";
+    if (value < 0.30f) return "Narrow";
+    if (value < 0.65f) return "Natural";
+    if (value < 0.85f) return "Wide";
+    return "Very wide";
+}
+
+inline juce::String vibratoPace(float value)
+{
+    if (value < 0.15f) return "Slow";
+    if (value < 0.35f) return "Relaxed";
+    if (value < 0.70f) return "Natural";
+    if (value < 0.90f) return "Quick";
+    return "Fast";
+}
+
 inline juce::String bendRange(float value)
 {
     const auto semitones = static_cast<int>(std::lround(value));
