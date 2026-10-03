@@ -7,10 +7,22 @@
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/build/vs2022-x64"
+    },
+    {
+      "name": "vs2022-core",
+      "displayName": "Visual Studio 2022 x64 - Core only",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/vs2022-core",
+      "cacheVariables": {
+        "VSTIS_CORE_ONLY": "ON",
+        "BUILD_TESTING": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "vs2022-x64", "configuration": "Debug" },
-    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release" }
+    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release" },
+    { "name": "core-release", "configurePreset": "vs2022-core", "configuration": "Release" }
   ]
 }
