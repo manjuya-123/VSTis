@@ -75,6 +75,7 @@ private:
     float playModeFocusValue_ = 0.0f;
     float playModePressureBoost_ = 0.0f;
     float playModeSpeedScale_ = 1.0f;
+    float playModeGestureStrength_ = 0.5f;
     std::atomic<int> activePairLowerString_ { 1 };
     std::atomic<int> activeMidiNote_ { -1 };
     std::atomic<int> visualPrimaryString_ { 1 };
