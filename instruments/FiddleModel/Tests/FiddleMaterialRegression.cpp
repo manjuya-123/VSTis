@@ -60,6 +60,34 @@ double differenceRms(const std::vector<float>& a, const std::vector<float>& b)
     return std::sqrt(sum / static_cast<double>(n));
 }
 
+double maxRosinNoiseVelocity(fiddle::ContactMaterialPreset preset)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::MaterialSettings materials;
+    materials.contact = preset;
+    engine.setMaterials(materials);
+    engine.setControls(controls());
+    engine.beginBowStroke(false);
+    engine.noteOn(329.6276f, 0.86f);
+
+    double maximum = 0.0;
+    const auto samples = static_cast<std::size_t>(0.55 * sampleRate);
+    for (std::size_t sample = 0; sample < samples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+
+        const auto debug = engine.debugSnapshot();
+        for (const auto noise : debug.rosinNoiseVelocityMps)
+            maximum = std::max(maximum, std::abs(static_cast<double>(noise)));
+    }
+
+    return maximum;
+}
+
 double reversalSpeed(fiddle::BowStickPreset preset)
 {
     fiddle::FiddleEngine engine;
@@ -123,6 +151,18 @@ int main()
     if (!std::isfinite(contactDifference) || contactDifference < 1.0e-5)
         return fail("Hair/Rosin material profile did not change bow-string interaction");
 
+    const auto mediumRosinNoise = maxRosinNoiseVelocity(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin);
+    const auto dryRosinNoise = maxRosinNoiseVelocity(
+        fiddle::ContactMaterialPreset::DryLightGrip);
+    const auto highGripRosinNoise = maxRosinNoiseVelocity(
+        fiddle::ContactMaterialPreset::HighGripRosin);
+
+    if (!(mediumRosinNoise > 1.0e-7
+          && dryRosinNoise > 1.0e-7
+          && dryRosinNoise > highGripRosinNoise))
+        return fail("Microscopic rosin roughness is missing or ignores contact material");
+
     auto steel = traditional;
     steel.strings = fiddle::StringCorePreset::SteelCore;
     auto gut = traditional;
@@ -153,6 +193,9 @@ int main()
     std::cout << "PASS\n"
               << "body_difference_rms=" << bodyDifference << '\n'
               << "contact_difference_rms=" << contactDifference << '\n'
+              << "medium_rosin_noise_velocity=" << mediumRosinNoise << '\n'
+              << "dry_rosin_noise_velocity=" << dryRosinNoise << '\n'
+              << "high_grip_rosin_noise_velocity=" << highGripRosinNoise << '\n'
               << "string_difference_rms=" << stringDifference << '\n'
               << "rigid_bow_speed=" << rigidBowSpeed << '\n'
               << "flexible_bow_speed=" << flexibleBowSpeed << '\n';
