@@ -20,6 +20,7 @@ struct ContactTextureMetrics
 {
     double noiseRms = 0.0;
     double stickingNoiseRms = 0.0;
+    double brightnessRatio = 0.0;
     double maxGripUtilization = 0.0;
     double slidingFraction = 0.0;
     std::size_t nearYieldStickSamples = 0;
@@ -120,9 +121,14 @@ ContactTextureMetrics contactTexture(
 
     double noiseEnergy = 0.0;
     double stickingNoiseEnergy = 0.0;
+    double aggregateNoiseEnergy = 0.0;
+    double aggregateNoiseDeltaEnergy = 0.0;
+    double previousAggregateNoise = 0.0;
     std::size_t observedContacts = 0;
+    std::size_t aggregateNoiseSamples = 0;
     std::size_t stickingNoiseSamples = 0;
     std::size_t slidingSamples = 0;
+    bool havePreviousAggregateNoise = false;
 
     ContactTextureMetrics result;
     const auto samples = static_cast<std::size_t>(0.55 * sampleRate);
@@ -138,14 +144,18 @@ ContactTextureMetrics contactTexture(
             continue;
 
         const auto debug = engine.debugSnapshot();
+        double aggregateNoise = 0.0;
+        bool observedThisSample = false;
         for (std::size_t i = 0; i < debug.contactNormalForceN.size(); ++i)
         {
             if (debug.contactNormalForceN[i] <= 1.0e-6f)
                 continue;
 
             ++observedContacts;
+            observedThisSample = true;
             const auto noise =
                 static_cast<double>(debug.rosinNoiseVelocityMps[i]);
+            aggregateNoise += noise;
             const auto grip =
                 static_cast<double>(debug.contactGripUtilization[i]);
             noiseEnergy += noise * noise;
@@ -166,6 +176,20 @@ ContactTextureMetrics contactTexture(
                 ++slidingSamples;
             }
         }
+
+        if (observedThisSample)
+        {
+            aggregateNoiseEnergy += aggregateNoise * aggregateNoise;
+            if (havePreviousAggregateNoise)
+            {
+                const auto delta =
+                    aggregateNoise - previousAggregateNoise;
+                aggregateNoiseDeltaEnergy += delta * delta;
+            }
+            previousAggregateNoise = aggregateNoise;
+            havePreviousAggregateNoise = true;
+            ++aggregateNoiseSamples;
+        }
     }
 
     if (observedContacts > 0)
@@ -181,6 +205,18 @@ ContactTextureMetrics contactTexture(
         result.stickingNoiseRms = std::sqrt(
             stickingNoiseEnergy
             / static_cast<double>(stickingNoiseSamples));
+
+    if (aggregateNoiseSamples > 1)
+    {
+        const auto aggregateRms = std::sqrt(
+            aggregateNoiseEnergy
+            / static_cast<double>(aggregateNoiseSamples));
+        const auto deltaRms = std::sqrt(
+            aggregateNoiseDeltaEnergy
+            / static_cast<double>(aggregateNoiseSamples - 1));
+        result.brightnessRatio =
+            deltaRms / (aggregateRms + 1.0e-30);
+    }
 
     return result;
 }
@@ -276,6 +312,18 @@ int main()
           && mediumTexture.maxGripUtilization >= 0.68))
         return fail("Near-yield sticking no longer produces microscopic pre-slip roughness");
 
+    const auto fingerboardTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin,
+        0.44f, 0.60f, 0.10f);
+    const auto bridgeTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin,
+        0.44f, 0.60f, 0.90f);
+
+    if (!(fingerboardTexture.brightnessRatio > 0.0
+          && bridgeTexture.brightnessRatio
+             > fingerboardTexture.brightnessRatio * 1.08))
+        return fail("Bow Contact no longer makes microscopic rosin texture brighter toward bridge");
+
     auto steel = traditional;
     steel.strings = fiddle::StringCorePreset::SteelCore;
     auto gut = traditional;
@@ -314,6 +362,10 @@ int main()
               << "medium_max_grip_utilization=" << mediumTexture.maxGripUtilization << '\n'
               << "medium_near_yield_stick_samples=" << mediumTexture.nearYieldStickSamples << '\n'
               << "medium_sliding_fraction=" << mediumTexture.slidingFraction << '\n'
+              << "fingerboard_texture_brightness="
+              << fingerboardTexture.brightnessRatio << '\n'
+              << "bridge_texture_brightness="
+              << bridgeTexture.brightnessRatio << '\n'
               << "dry_texture_rms=" << dryTexture.noiseRms << '\n'
               << "high_grip_texture_rms=" << highGripTexture.noiseRms << '\n'
               << "string_difference_rms=" << stringDifference << '\n'
