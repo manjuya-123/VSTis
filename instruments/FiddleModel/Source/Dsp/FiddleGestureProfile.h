@@ -17,6 +17,8 @@ struct BowGestureProfile
     float liftDurationSeconds = 0.012f;
     float liftBrake = 2.0f;
     float liftForceCurve = 1.0f;
+    float impactVelocityMps = 0.0f;
+    float impactDurationSeconds = 0.0f;
     float tremoloReversalsPerSecond = 0.0f;
     float shuffleSubdivisionsPerSecond = 0.0f;
     bool oneShot = false;
@@ -111,6 +113,13 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.biteBoost = 0.30f + 0.22f * strength;
             result.biteDurationSeconds = 0.006f;
             result.durationSeconds = 0.042f - 0.016f * strength;
+            result.liftDurationSeconds = 0.0045f;
+            result.liftBrake = 6.0f;
+            result.liftForceCurve = 2.4f;
+            // A chop is a collision at the bowing point, not merely a very
+            // short sustained bow. Velocity controls the transverse impact.
+            result.impactVelocityMps = 0.008f + 0.009f * strength;
+            result.impactDurationSeconds = 0.0026f - 0.0006f * strength;
             result.oneShot = true;
             break;
 
