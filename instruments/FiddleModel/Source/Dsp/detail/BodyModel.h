@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <complex>
 
 namespace fiddle::detail
 {
@@ -111,6 +112,31 @@ struct ModalBank
         double sum = bodyDirectConductance * admittanceScale;
         for (const auto& mode : modes)
             sum += mode.direct();
+        return sum;
+    }
+
+    [[nodiscard]] std::complex<double> responseAt(
+        double frequencyHz) const noexcept
+    {
+        const auto omega =
+            2.0 * pi * std::max(0.0, frequencyHz) / sampleRate;
+        const std::complex<double> z1 {
+            std::cos(omega), -std::sin(omega)
+        };
+        const auto z2 = z1 * z1;
+
+        std::complex<double> sum {
+            bodyDirectConductance * admittanceScale, 0.0
+        };
+
+        for (const auto& mode : modes)
+        {
+            const auto numerator =
+                mode.b[0] + mode.b[1] * z1 + mode.b[2] * z2;
+            const auto denominator =
+                1.0 + mode.a[1] * z1 + mode.a[2] * z2;
+            sum += numerator / denominator;
+        }
         return sum;
     }
 
