@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_basics/juce_audio_basics.h>
 #include "Dsp/FiddleEngine.h"
 #include "Dsp/MidiNoteStack.h"
 
@@ -70,6 +71,8 @@ private:
     void updateFingeringHoldState(bool enabled);
     fiddle::FiddleEngine engine_;
     fiddle::MidiNoteStack noteStack_;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+        outputGainLinear_ { 1.0f };
     juce::AudioProcessorValueTreeState parameters_;
     float pitchWheelNormalized_ = 0.0f;
     float pitchBendRangeSemitones_ = 2.0f;
