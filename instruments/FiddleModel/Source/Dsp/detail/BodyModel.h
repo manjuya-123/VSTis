@@ -115,17 +115,22 @@ struct RadiationFilter
 {
     double hpAlpha = 0.0;
     double lpAlpha = 0.0;
+    double airMix = 0.22;
     double hpX1 = 0.0;
     double hpY1 = 0.0;
     double lpY = 0.0;
 
-    void prepare(double sampleRate) noexcept
+    void prepare(double sampleRate,
+                 double lowPassHz = 7200.0,
+                 double newAirMix = 0.22) noexcept
     {
         const auto dt = 1.0 / sampleRate;
         const auto hpRC = 1.0 / (2.0 * pi * 90.0);
         hpAlpha = hpRC / (hpRC + dt);
-        const auto lpRC = 1.0 / (2.0 * pi * 7200.0);
+        const auto lpRC = 1.0 / (
+            2.0 * pi * std::clamp(lowPassHz, 4000.0, 12000.0));
         lpAlpha = dt / (lpRC + dt);
+        airMix = std::clamp(newAirMix, 0.0, 0.5);
         reset();
     }
 
@@ -138,11 +143,11 @@ struct RadiationFilter
         hpY1 = hp;
         lpY += lpAlpha * (hp - lpY);
 
-        // Preserve a small amount of bridge-side air above the body low-pass.
-        // This stays derived from bridge velocity, so it adds no synthetic
-        // excitation; it simply makes the radiation model less overly dark.
+        // Preserve some bridge-side air above the body low-pass. Separate
+        // left/right instances may use slightly different radiation angles,
+        // but both remain derived from the same physical bridge velocity.
         const auto air = hp - lpY;
-        return lpY + 0.22 * air;
+        return lpY + airMix * air;
     }
 };
 } // namespace fiddle::detail
