@@ -319,9 +319,13 @@ int main(int argc, char** argv)
               << "pitch_matrix_mean_abs_cents="
               << pitchMatrix.meanAbsCents << '\n';
 
-    if (pitchMatrix.maxAbsCents > 3.0)
+    if (pitchMatrix.maxAbsCents > 2.0
+        || pitchMatrix.meanAbsCents > 0.80)
     {
-        std::cerr << "FAIL: bridge/body loaded pitch matrix exceeded 3 cents\n";
+        std::cerr
+            << "FAIL: bridge/body loaded pitch matrix lost calibrated accuracy"
+            << " max_cents=" << pitchMatrix.maxAbsCents
+            << " mean_cents=" << pitchMatrix.meanAbsCents << '\n';
         return EXIT_FAILURE;
     }
 
