@@ -673,6 +673,20 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
                         juce::Colours::white.withAlpha(0.68f));
     addAndMakeVisible(subtitle_);
 
+    outputLevelLabel_.setText("Output", juce::dontSendNotification);
+    outputLevelLabel_.setJustificationType(juce::Justification::centredRight);
+    outputLevelLabel_.setColour(
+        juce::Label::textColourId, juce::Colours::white.withAlpha(0.82f));
+    addAndMakeVisible(outputLevelLabel_);
+
+    outputLevel_.setSliderStyle(juce::Slider::LinearHorizontal);
+    outputLevel_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 66, 20);
+    outputLevel_.setNumDecimalPlacesToDisplay(1);
+    outputLevel_.setTextValueSuffix(" dB");
+    outputLevel_.setTooltip(
+        "Final post-model level. This changes loudness only and does not feed back into the bow, strings, or body model.");
+    addAndMakeVisible(outputLevel_);
+
     playModeLabel_.setText("Play Mode", juce::dontSendNotification);
     playModeLabel_.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(playModeLabel_);
@@ -801,6 +815,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         state, "vibratoPace", vibratoPace_.slider());
     bendRangeAttachment_ = std::make_unique<Attachment>(
         state, "bendRange", bendRange_.slider());
+    outputLevelAttachment_ = std::make_unique<Attachment>(
+        state, "outputLevelDb", outputLevel_);
     strokeModeAttachment_ = std::make_unique<ComboAttachment>(
         state, "strokeMode", strokeMode_);
     bodyMaterialAttachment_ = std::make_unique<ComboAttachment>(
@@ -848,6 +864,11 @@ void FiddleModelAudioProcessorEditor::resized()
 
     auto header = area.removeFromTop(54);
     title_.setBounds(header.removeFromLeft(230));
+
+    auto outputArea = header.removeFromRight(235);
+    outputLevelLabel_.setBounds(outputArea.removeFromLeft(62));
+    outputLevel_.setBounds(outputArea.reduced(4, 12));
+
     subtitle_.setBounds(header);
 
     area.removeFromTop(12);
