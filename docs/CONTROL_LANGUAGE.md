@@ -132,12 +132,14 @@ Fiddle Play is a two-hand performance workflow:
 - CC64 is labelled Fingering Hold, not Sustain, because it latches the left-hand shape.
 - Slur is not a hidden articulation switch: keep the bow moving and change the fingers.
 - Drone Bow means physically bow the selected adjacent pair with balanced focus.
-- Short / Accent / Chop are gestures built from bow force, speed and contact duration,
-  not alternate rendered samples. They are one-shot right-hand gestures: releasing the
-  action key does not truncate or re-parameterize the stroke halfway through. Short uses
-  a rounded wrist lift from the string; Accent uses a harder initial catch followed by a
-  faster, more strongly braked bow lift, while the string/body resonance is allowed to
-  ring naturally.
+- Short / Accent / Chop are physical one-shot right-hand gestures, not alternate
+  rendered samples. Releasing the action key does not truncate or re-parameterize the
+  gesture halfway through. Short uses a rounded wrist lift from the string; Accent uses
+  a harder initial catch followed by a faster, more strongly braked bow lift. Chop adds
+  a short transverse bow/string collision at the bowing point, distributed across the
+  active adjacent-string pair by the same bridge-curvature/String Focus geometry, then
+  applies a short strongly damped release. String/body resonance is still produced by
+  the physical model rather than by an output-layer click.
 
 
 The dedicated Fiddle Play Key Map is interactive on the bow-action octave. Mouse
