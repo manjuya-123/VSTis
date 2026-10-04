@@ -946,13 +946,13 @@ struct FiddleEngine::Impl
                 // friction reserve is small. Keep a sub-linear force term, then
                 // explicitly expose that under-gripped sliding instability.
                 const auto forceScale = std::clamp(
-                    std::pow(std::max(bowForce[i], 1.0e-9) / 0.30, 0.34),
-                    0.0, 1.25);
+                    std::pow(std::max(bowForce[i], 1.0e-9) / 0.30, 0.27),
+                    0.0, 1.22);
                 const auto underGrip = std::clamp(
-                    (gripUtilization - 0.82) / 0.95, 0.0, 1.0);
+                    (gripUtilization - 0.80) / 0.90, 0.0, 1.0);
                 const auto instabilityScale = contacts[i].sticking
                     ? 1.0
-                    : 1.0 + 0.48 * underGrip;
+                    : 1.0 + 0.78 * underGrip;
                 const auto bowSpeedScale = std::clamp(
                     std::sqrt(std::abs(bowSpeed) / 0.45), 0.22, 1.25);
                 const auto temperatureScale = std::clamp(
