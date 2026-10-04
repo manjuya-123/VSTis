@@ -70,7 +70,7 @@ struct FiddleEngine::Impl
     double rosinNoiseScale = 1.0;
 
     ModalBank body{};
-    ModalBank bodyRocking{};
+    ModalBank bodyRocking{true};
     RadiationFilter radiationLeft{};
     RadiationFilter radiationRight{};
     BowGeometryMapper bowGeometry{};
@@ -260,19 +260,19 @@ struct FiddleEngine::Impl
         {
             case BodyMaterialPreset::Traditional:
                 body.setMaterialScales(1.00, 1.00, 1.00);
-                bodyRocking.setMaterialScales(1.13, 1.18, 0.17);
+                bodyRocking.setMaterialScales(1.00, 1.00, 0.17);
                 break;
             case BodyMaterialPreset::LightStiffComposite:
                 body.setMaterialScales(1.04, 0.82, 1.05);
-                bodyRocking.setMaterialScales(1.17, 0.97, 0.18);
+                bodyRocking.setMaterialScales(1.03, 0.90, 0.18);
                 break;
             case BodyMaterialPreset::DenseExperimental:
                 body.setMaterialScales(0.97, 1.28, 0.90);
-                bodyRocking.setMaterialScales(1.10, 1.50, 0.15);
+                bodyRocking.setMaterialScales(0.98, 1.32, 0.15);
                 break;
             case BodyMaterialPreset::RigidComposite:
                 body.setMaterialScales(1.08, 0.68, 0.96);
-                bodyRocking.setMaterialScales(1.22, 0.80, 0.16);
+                bodyRocking.setMaterialScales(1.06, 0.76, 0.16);
                 break;
         }
 
