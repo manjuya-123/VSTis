@@ -60,6 +60,11 @@ int main()
           && accent.biteBoost > hardDown.biteBoost))
         return fail("Accent should catch the string faster and harder than ordinary Down Bow");
 
+    if (!(accent.liftDurationSeconds < hardShort.liftDurationSeconds
+          && accent.liftBrake > hardShort.liftBrake
+          && accent.liftForceCurve > hardShort.liftForceCurve))
+        return fail("Accent should leave the string faster and more abruptly than Short Stroke");
+
     const auto drone = makeBowGestureProfile(BowAction::DroneBow, 0.7f);
     if (!drone.balancedPair)
         return fail("Drone Bow should request a balanced adjacent-string pair");
