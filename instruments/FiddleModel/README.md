@@ -91,6 +91,7 @@ The first dedicated editor presents actions and audible consequences in player l
 | Bow Contact | move toward fingerboard/bridge | physical bow position on the speaking length |
 | String Focus | lean toward one string of the pair | pressure-aware physical bow-angle calibration |
 | Pitch Bend Range | choose usable wheel travel | speaking-length retune range |
+| Output Level | make the instrument sit at a practical DAW level | post-model gain only; default +12 dB |
 
 The UI hides normalized 0..1 values and displays player words such as Light, Natural,
 Firm, Near bridge, and Upper-biased. Numerical values remain only where the unit itself
