@@ -29,8 +29,18 @@ int main()
         || fiddle::bowActionForMidiNote(47) != BowAction::Release)
         return fail("Bow Action key map changed unexpectedly");
 
-    if (!fiddle::isFingeringKey(55) || fiddle::isFingeringKey(54))
-        return fail("Fingering region must begin at G3");
+    if (!fiddle::isFingeringKey(55) || fiddle::isFingeringKey(54)
+        || !fiddle::isFingeringKey(108) || fiddle::isFingeringKey(109))
+        return fail("Fingering region must be G3 through C8");
+
+    const auto g3Mask = fiddle::fingeringMaskBit(55);
+    const auto e4Mask = fiddle::fingeringMaskBit(64);
+    const auto c8Mask = fiddle::fingeringMaskBit(108);
+    if (g3Mask == 0 || e4Mask == 0 || c8Mask == 0
+        || g3Mask == e4Mask || e4Mask == c8Mask
+        || fiddle::fingeringMaskBit(54) != 0
+        || fiddle::fingeringMaskBit(109) != 0)
+        return fail("Fingering visual mask must map each G3-C8 key to one distinct bit");
 
     {
         std::array<int, 4> notes { 64, -1, -1, -1 }; // E4
