@@ -452,7 +452,7 @@ struct FiddleEngine::Impl
         shuffleSubdivisionsPerSecond =
             std::clamp(subdivisionsPerSecond, 6.0, 20.0);
         shufflePhase = 0;
-        shuffleEnergyScale = 1.12;
+        shuffleEnergyScale = 1.22;
 
         // First stroke is the long member of a long-short-short bowing cell.
         shuffleSamplesUntilFlip = std::max<std::int64_t>(
@@ -531,13 +531,13 @@ struct FiddleEngine::Impl
                     2.0, 1.0, 1.0, 2.0, 1.0, 1.0
                 };
                 static constexpr std::array<double, 6> energyScale {
-                    1.12, 0.78, 0.86, 1.10, 0.78, 0.86
+                    1.22, 0.68, 0.82, 1.18, 0.68, 0.82
                 };
 
                 shuffleEnergyScale =
                     energyScale[static_cast<std::size_t>(shufflePhase)];
                 retriggerBowCatch(
-                    0.08 + 0.06 * shuffleEnergyScale, 0.0050);
+                    0.10 + 0.10 * shuffleEnergyScale, 0.0055);
                 triggerBowReversalAssist(3.0, 0.0090);
                 shuffleSamplesUntilFlip = std::max<std::int64_t>(
                     1, static_cast<std::int64_t>(
