@@ -28,6 +28,9 @@ struct ReversalMetrics
     int reversals = 0;
     double maxLatencyMs = 0.0;
     double meanLatencyMs = 0.0;
+    double minIntervalMs = 0.0;
+    double maxIntervalMs = 0.0;
+    double intervalRatio = 1.0;
 };
 
 double windowRms(const std::vector<float>& x,
@@ -159,7 +162,10 @@ ReversalMetrics measureReversalCatch(fiddle::BowAction action,
     ReversalMetrics result;
     auto previousDirection = engine.debugSnapshot().bowDirection;
     std::int64_t pendingReversalSample = -1;
+    std::int64_t previousReversalSample = 0;
     double latencySumMs = 0.0;
+    double minIntervalMs = 1000.0;
+    double maxIntervalMs = 0.0;
 
     constexpr auto speedCatchThreshold = 0.08f;
     const auto maxSamples =
@@ -174,6 +180,15 @@ ReversalMetrics measureReversalCatch(fiddle::BowAction action,
         const auto state = engine.debugSnapshot();
         if (state.bowDirection != previousDirection)
         {
+            const auto intervalMs =
+                1000.0
+                * static_cast<double>(
+                    sample - previousReversalSample + 1)
+                / sampleRate;
+            minIntervalMs = std::min(minIntervalMs, intervalMs);
+            maxIntervalMs = std::max(maxIntervalMs, intervalMs);
+            previousReversalSample = sample + 1;
+
             // A second scheduled reversal before the bow has acquired useful
             // speed in the new direction is a failed re-catch.
             if (pendingReversalSample >= 0)
@@ -210,6 +225,13 @@ ReversalMetrics measureReversalCatch(fiddle::BowAction action,
     if (result.reversals > 0)
         result.meanLatencyMs =
             latencySumMs / static_cast<double>(result.reversals);
+
+    if (maxIntervalMs > 0.0 && minIntervalMs < 999.0)
+    {
+        result.minIntervalMs = minIntervalMs;
+        result.maxIntervalMs = maxIntervalMs;
+        result.intervalRatio = maxIntervalMs / minIntervalMs;
+    }
 
     return result;
 }
@@ -308,9 +330,11 @@ int main(int argc, char** argv)
               << " chop_peak_rms=" << chop.peakRms << '\n'
               << "tremolo_reversal_max_ms=" << tremoloCatch.maxLatencyMs
               << " tremolo_reversal_mean_ms=" << tremoloCatch.meanLatencyMs
+              << " tremolo_interval_ratio=" << tremoloCatch.intervalRatio
               << " tremolo_reversals=" << tremoloCatch.reversals << '\n'
               << "shuffle_reversal_max_ms=" << shuffleCatch.maxLatencyMs
               << " shuffle_reversal_mean_ms=" << shuffleCatch.meanLatencyMs
+              << " shuffle_interval_ratio=" << shuffleCatch.intervalRatio
               << " shuffle_reversals=" << shuffleCatch.reversals << '\n';
 
     if (!(std::isfinite(down.onsetMs)
@@ -336,6 +360,10 @@ int main(int argc, char** argv)
           && shuffleCatch.maxLatencyMs <= 18.0))
         return fail("Shuffle bow reversal did not re-catch useful speed promptly");
 
+    if (!(tremoloCatch.intervalRatio <= 1.10
+          && shuffleCatch.intervalRatio >= 1.65))
+        return fail("Tremolo and Shuffle reversal timing is not musically distinct");
+
     if (argc >= 2)
     {
         const std::filesystem::path outputDirectory(argv[1]);
@@ -359,14 +387,21 @@ int main(int argc, char** argv)
         if (!reversalCsv)
             return fail("Could not write gesture reversal metrics CSV");
 
-        reversalCsv << "gesture,reversals,max_latency_ms,mean_latency_ms\n"
-                    << std::setprecision(9)
-                    << "Tremolo," << tremoloCatch.reversals << ','
-                    << tremoloCatch.maxLatencyMs << ','
-                    << tremoloCatch.meanLatencyMs << '\n'
-                    << "Shuffle," << shuffleCatch.reversals << ','
-                    << shuffleCatch.maxLatencyMs << ','
-                    << shuffleCatch.meanLatencyMs << '\n';
+        reversalCsv
+            << "gesture,reversals,max_latency_ms,mean_latency_ms,min_interval_ms,max_interval_ms,interval_ratio\n"
+            << std::setprecision(9)
+            << "Tremolo," << tremoloCatch.reversals << ','
+            << tremoloCatch.maxLatencyMs << ','
+            << tremoloCatch.meanLatencyMs << ','
+            << tremoloCatch.minIntervalMs << ','
+            << tremoloCatch.maxIntervalMs << ','
+            << tremoloCatch.intervalRatio << '\n'
+            << "Shuffle," << shuffleCatch.reversals << ','
+            << shuffleCatch.maxLatencyMs << ','
+            << shuffleCatch.meanLatencyMs << ','
+            << shuffleCatch.minIntervalMs << ','
+            << shuffleCatch.maxIntervalMs << ','
+            << shuffleCatch.intervalRatio << '\n';
 
         if (!writeComparisonWav(
                 outputDirectory / "10_gesture_onset_comparison.wav",
