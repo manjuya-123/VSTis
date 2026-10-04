@@ -58,7 +58,7 @@ struct ReducedTorsionalResonator
 
         // Torsion changes the velocity seen by the bow but should remain much
         // smaller than the transverse string velocity in normal playing.
-        driveGain = 0.12 * (1.0 - radius);
+        driveGain = 0.06 * (1.0 - radius);
     }
 
     [[nodiscard]] double surfaceVelocity() const noexcept
@@ -1014,7 +1014,7 @@ struct FiddleEngine::Impl
                 // strongly damped torsional mode. Torsion is not sent to the
                 // bridge output directly; it only changes the next contact
                 // velocity seen by the bow.
-                torsion[i].drive(0.22 * injection);
+                torsion[i].drive(0.16 * injection);
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
