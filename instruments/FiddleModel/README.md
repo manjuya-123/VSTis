@@ -224,7 +224,9 @@ They change the state and motion of the physical bow/string model while the left
 fingering remains persistent.
 
 The CI listening artifact `09_fiddle_play_demo.wav` demonstrates one held E4+B4
-fingering through Down Bow, Up Bow, Short Stroke, Tremolo, and balanced D/A bowing.
+fingering across the main Fiddle Play gestures. `11_fiddle_gesture_showcase.wav` is the
+focused comparison render: Short → Accent → Chop → Tremolo → Nashville Shuffle, with
+silence between gestures for quick auditioning.
 
 
 ## Fiddle Play mode
