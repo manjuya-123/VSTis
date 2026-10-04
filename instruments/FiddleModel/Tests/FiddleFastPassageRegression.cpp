@@ -82,7 +82,7 @@ bool writeStereoWav(const std::filesystem::path& path,
     {
         const auto encode = [](float x)
         {
-            constexpr float listeningGain = 3.9810717f; // +12 dB audition level.
+            constexpr float listeningGain = 7.9432823f; // +18 dB audition level.
             x = std::clamp(x * listeningGain, -1.0f, 1.0f);
             return static_cast<std::uint16_t>(
                 static_cast<std::int16_t>(std::lrint(x * 32767.0f)));
