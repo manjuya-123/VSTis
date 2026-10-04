@@ -564,6 +564,62 @@ int main(int argc, char** argv)
         ok = false;
     }
 
+    // Player-control rosin showcase:
+    // Slow Bow -> Fast Bow -> Light Pressure -> Firm Pressure.
+    std::array<Scenario, 4> rosinPerformanceScenarios;
+    {
+        auto c = baseControls();
+        c.speed = 0.25f;
+        rosinPerformanceScenarios[0] = {
+            "rosin_slow_bow", c, 329.6276f, 0.85f
+        };
+    }
+    {
+        auto c = baseControls();
+        c.speed = 0.85f;
+        rosinPerformanceScenarios[1] = {
+            "rosin_fast_bow", c, 329.6276f, 0.85f
+        };
+    }
+    {
+        auto c = baseControls();
+        c.pressure = 0.25f;
+        rosinPerformanceScenarios[2] = {
+            "rosin_light_pressure", c, 329.6276f, 0.85f
+        };
+    }
+    {
+        auto c = baseControls();
+        c.pressure = 0.78f;
+        rosinPerformanceScenarios[3] = {
+            "rosin_firm_pressure", c, 329.6276f, 0.85f
+        };
+    }
+
+    std::vector<float> rosinPerformanceLeft;
+    std::vector<float> rosinPerformanceRight;
+    for (const auto& scenario : rosinPerformanceScenarios)
+    {
+        const auto render = renderScenario(scenario);
+        rosinPerformanceLeft.insert(
+            rosinPerformanceLeft.end(), render.left.begin(), render.left.end());
+        rosinPerformanceRight.insert(
+            rosinPerformanceRight.end(), render.right.begin(), render.right.end());
+        rosinPerformanceLeft.insert(
+            rosinPerformanceLeft.end(), silenceSamples, 0.0f);
+        rosinPerformanceRight.insert(
+            rosinPerformanceRight.end(), silenceSamples, 0.0f);
+    }
+
+    if (!writeStereoWav16(
+            outputDirectory / "13_rosin_performance_showcase.wav",
+            rosinPerformanceLeft,
+            rosinPerformanceRight))
+    {
+        std::cerr << "FAIL: cannot write rosin performance showcase WAV\n";
+        ok = false;
+    }
+
     const auto fastPassage = renderFastAlternatePassage();
     if (!writeStereoWav16(outputDirectory / "08_fast_alternate_passage.wav",
                           fastPassage.left, fastPassage.right))
