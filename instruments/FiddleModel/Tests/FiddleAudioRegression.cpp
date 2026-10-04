@@ -443,8 +443,12 @@ bool passesSanity(const Scenario& scenario, const Metrics& metrics)
     const bool releases = metrics.tailRms < metrics.sustainRms * 0.85 + 1.0e-8;
     const bool auditionHeadroom =
         metrics.peak * static_cast<double>(listeningGain) < 0.95;
+    const bool naturalStereo =
+        metrics.stereoSideRatio >= 0.006
+        && metrics.stereoSideRatio <= 0.050;
 
-    if (!(finiteAndBounded && audible && releases && auditionHeadroom))
+    if (!(finiteAndBounded && audible && releases
+          && auditionHeadroom && naturalStereo))
     {
         std::cerr << "FAIL " << scenario.name
                   << " finite=" << metrics.finite
@@ -453,6 +457,7 @@ bool passesSanity(const Scenario& scenario, const Metrics& metrics)
                   << " tail_rms=" << metrics.tailRms
                   << " audition_peak="
                   << metrics.peak * static_cast<double>(listeningGain)
+                  << " side_ratio=" << metrics.stereoSideRatio
                   << '\n';
         return false;
     }
