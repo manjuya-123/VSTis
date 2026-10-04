@@ -772,7 +772,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     contactMaterial_.addItem("High-grip rosin", 3);
     contactMaterial_.addItem("Synthetic hair", 4);
     contactMaterial_.setTooltip(
-        "Changes static grip, sliding friction and the contact-state relaxation. These are physical-model profiles rather than EQ presets.");
+        "Changes static grip, sliding friction, contact-state relaxation and microscopic hair/rosin roughness inside the bow-string contact. These are physical-model profiles rather than EQ/noise presets.");
     addAndMakeVisible(contactMaterial_);
 
     stringMaterialLabel_.setText("String Core", juce::dontSendNotification);
