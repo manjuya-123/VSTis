@@ -56,6 +56,7 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> allpassX1{};
     std::array<double, stringCount> allpassY1{};
     std::array<double, stringCount> filterPhaseDelay{};
+    std::array<double, stringCount> bridgeLoadPhaseDelay{};
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
@@ -241,6 +242,72 @@ struct FiddleEngine::Impl
         vibratoPace.setTarget(controlTargets.vibratoPace);
     }
 
+    [[nodiscard]] double bridgeReflectionPhaseDelaySamples(
+        std::size_t stringIndex,
+        double frequencyHz) const noexcept
+    {
+        const auto omega =
+            2.0 * pi * std::max(20.0, frequencyHz) / sampleRate;
+        const auto translation = body.responseAt(frequencyHz);
+        const auto rocking = bodyRocking.responseAt(frequencyHz);
+
+        constexpr double halfBridgeSpan = geSpacingMm * 0.5;
+        std::array<double, stringCount> lever {};
+        double impedanceSum = 0.0;
+        double impedanceLeverSum = 0.0;
+        double impedanceLeverSquaredSum = 0.0;
+
+        for (std::size_t i = 0; i < stringCount; ++i)
+        {
+            lever[i] = bridgeXmm[i] / halfBridgeSpan;
+            impedanceSum += stringImpedance[i];
+            impedanceLeverSum += stringImpedance[i] * lever[i];
+            impedanceLeverSquaredSum +=
+                stringImpedance[i] * lever[i] * lever[i];
+        }
+
+        const auto a00 = 1.0 + translation * impedanceSum;
+        const auto a01 = translation * impedanceLeverSum;
+        const auto a10 = rocking * impedanceLeverSum;
+        const auto a11 =
+            1.0 + rocking * impedanceLeverSquaredSum;
+        const auto incidentForce =
+            2.0 * stringImpedance[stringIndex];
+        const auto incidentRocking =
+            lever[stringIndex] * incidentForce;
+        const auto rhs0 = translation * incidentForce;
+        const auto rhs1 = rocking * incidentRocking;
+        const auto determinant = a00 * a11 - a01 * a10;
+
+        if (std::abs(determinant) < 1.0e-12)
+            return 0.0;
+
+        const auto bridgeVelocity =
+            (rhs0 * a11 - a01 * rhs1) / determinant;
+        const auto rockingVelocity =
+            (a00 * rhs1 - a10 * rhs0) / determinant;
+        const auto reflection =
+            bridgeVelocity
+            + lever[stringIndex] * rockingVelocity
+            - 1.0;
+
+        auto phaseOffset = std::arg(reflection) - pi;
+        while (phaseOffset <= -pi)
+            phaseOffset += 2.0 * pi;
+        while (phaseOffset > pi)
+            phaseOffset -= 2.0 * pi;
+
+        return std::clamp(-phaseOffset / omega, -0.25, 0.25);
+    }
+
+    void refreshBridgeLoadPhaseDelay(
+        std::size_t stringIndex,
+        double frequencyHz) noexcept
+    {
+        bridgeLoadPhaseDelay[stringIndex] =
+            bridgeReflectionPhaseDelaySamples(stringIndex, frequencyHz);
+    }
+
     void setMaterials(const MaterialSettings& materials) noexcept
     {
         const bool unchanged =
@@ -356,6 +423,12 @@ struct FiddleEngine::Impl
             filterPhaseDelay[i] = reflectionPhaseDelaySamples(
                 sampleRate, openFrequency[i],
                 runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
+
+            const auto currentTarget =
+                speakingFrequency[i].target > 20.0
+                    ? speakingFrequency[i].target
+                    : openFrequency[i];
+            refreshBridgeLoadPhaseDelay(i, currentTarget);
         }
     }
 
@@ -407,6 +480,7 @@ struct FiddleEngine::Impl
                 && std::abs(target - speakingFrequency[i].target) > 0.25;
 
             speakingFrequency[i].setTarget(target);
+            refreshBridgeLoadPhaseDelay(i, target);
             if (newlyStopped)
                 fingerTouch[i] = 1.0;
             else if (target <= openFrequency[i] * 1.0005)
@@ -440,6 +514,7 @@ struct FiddleEngine::Impl
         const auto requested = std::clamp(
             frequencyHz, openFrequency[primary], 2500.0);
         speakingFrequency[primary].setTarget(requested);
+        refreshBridgeLoadPhaseDelay(primary, requested);
     }
 
     void setStrokeBite(double amount, double durationSeconds) noexcept
@@ -817,7 +892,11 @@ struct FiddleEngine::Impl
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
-            auto oneWay = sampleRate / (2.0 * currentFrequency[i]) - 0.5 * filterPhaseDelay[i];
+            auto oneWay =
+                sampleRate / (2.0 * currentFrequency[i])
+                - 0.5 * (
+                    filterPhaseDelay[i]
+                    + bridgeLoadPhaseDelay[i]);
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
