@@ -392,7 +392,7 @@ bool writeComparisonWav(const std::filesystem::path& path,
     writeU16(out, 4u); writeU16(out, bits);
     out.write("data", 4); writeU32(out, dataBytes);
 
-    constexpr float gain = 0.18f;
+    constexpr float gain = 3.9810717f; // +12 dB audition level.
     for (const auto sample : combined)
     {
         const auto x = std::clamp(sample * gain, -1.0f, 1.0f);
