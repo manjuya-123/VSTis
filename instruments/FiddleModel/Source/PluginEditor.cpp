@@ -53,11 +53,13 @@ void InstrumentView::setState(FiddleVisualState state)
 
 void PlayKeyMap::setState(int playMode,
                           int bowAction,
-                          int fingeringMidiNote)
+                          int fingeringMidiNote,
+                          std::uint64_t fingeringMask)
 {
     playMode_ = playMode;
     bowAction_ = bowAction;
     fingeringMidiNote_ = fingeringMidiNote;
+    fingeringMask_ = fingeringMask;
     repaint();
 }
 
@@ -199,12 +201,17 @@ void PlayKeyMap::paint(juce::Graphics& g)
                     && action != fiddle::BowAction::None;
                 const bool fingeringActive =
                     fiddlePlay && !actionRange
-                    && note == fingeringMidiNote_;
+                    && (fingeringMask_
+                        & fiddle::fingeringMaskBit(note)) != 0;
+                const bool fingeringPrimary =
+                    fingeringActive && note == fingeringMidiNote_;
 
                 if (actionActive)
                     g.setColour(juce::Colour::fromRGB(80, 159, 180));
+                else if (fingeringPrimary)
+                    g.setColour(juce::Colour::fromRGB(246, 190, 82));
                 else if (fingeringActive)
-                    g.setColour(juce::Colour::fromRGB(236, 184, 86));
+                    g.setColour(juce::Colour::fromRGB(224, 157, 79));
                 else if (assigned && fiddlePlay)
                     g.setColour(actionRange
                         ? juce::Colour::fromRGB(205, 215, 220)
@@ -273,12 +280,17 @@ void PlayKeyMap::paint(juce::Graphics& g)
                     && action != fiddle::BowAction::None;
                 const bool fingeringActive =
                     fiddlePlay && !actionRange
-                    && note == fingeringMidiNote_;
+                    && (fingeringMask_
+                        & fiddle::fingeringMaskBit(note)) != 0;
+                const bool fingeringPrimary =
+                    fingeringActive && note == fingeringMidiNote_;
 
                 if (actionActive)
                     g.setColour(juce::Colour::fromRGB(69, 145, 166));
+                else if (fingeringPrimary)
+                    g.setColour(juce::Colour::fromRGB(225, 148, 57));
                 else if (fingeringActive)
-                    g.setColour(juce::Colour::fromRGB(217, 142, 67));
+                    g.setColour(juce::Colour::fromRGB(176, 104, 51));
                 else if (assigned && fiddlePlay)
                     g.setColour(actionRange
                         ? juce::Colour::fromRGB(53, 69, 78)
@@ -905,7 +917,11 @@ void FiddleModelAudioProcessorEditor::timerCallback()
 {
     const auto state = processor_.visualState();
     instrumentView_.setState(state);
-    playKeyMap_.setState(state.playMode, state.bowAction, state.midiNote);
+    playKeyMap_.setState(
+        state.playMode,
+        state.bowAction,
+        state.midiNote,
+        state.fingeringMask);
 
     const bool fiddlePlay =
         state.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay);
