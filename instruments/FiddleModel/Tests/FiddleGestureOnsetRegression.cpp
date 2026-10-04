@@ -99,7 +99,11 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
                 profile.liftForceCurve);
             break;
         case fiddle::BowAction::Chop:
-            engine.startChop(+1, profile.durationSeconds);
+            engine.startChop(
+                +1,
+                profile.durationSeconds,
+                profile.impactVelocityMps,
+                profile.impactDurationSeconds);
             break;
         default:
             engine.startBow(+1);
