@@ -137,7 +137,12 @@ struct RadiationFilter
         hpX1 = x;
         hpY1 = hp;
         lpY += lpAlpha * (hp - lpY);
-        return lpY;
+
+        // Preserve a small amount of bridge-side air above the body low-pass.
+        // This stays derived from bridge velocity, so it adds no synthetic
+        // excitation; it simply makes the radiation model less overly dark.
+        const auto air = hp - lpY;
+        return lpY + 0.22 * air;
     }
 };
 } // namespace fiddle::detail
