@@ -30,6 +30,7 @@ jobs:
         run: ctest --test-dir build/linux-core --output-on-failure
 
       - name: Print hair/rosin contact dynamics
+        if: always()
         run: ./build/linux-core/instruments/FiddleModel/FiddleModelMaterialRegression
 
       - name: Print portable audio regression metrics
