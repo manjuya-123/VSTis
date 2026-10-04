@@ -64,14 +64,14 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     // Above the strongest bridge/body regions, a real fiddle does not become
     // spectrally empty. Use a sparse, increasingly damped modal tail rather
     // than one bright shelf; these remain part of the mechanical admittance.
-    { 4050.0, 0.200, 0.0025 },
-    { 4550.0, 0.215, 0.0022 },
-    { 5100.0, 0.230, 0.0020 },
-    { 5700.0, 0.245, 0.0018 },
-    { 6350.0, 0.265, 0.0016 },
-    { 7050.0, 0.285, 0.0014 },
-    { 7800.0, 0.310, 0.00115 },
-    { 8650.0, 0.340, 0.00090 },
+    { 4050.0, 0.200, 0.00135 },
+    { 4550.0, 0.215, 0.00120 },
+    { 5100.0, 0.230, 0.00110 },
+    { 5700.0, 0.245, 0.00100 },
+    { 6350.0, 0.265, 0.00088 },
+    { 7050.0, 0.285, 0.00076 },
+    { 7800.0, 0.310, 0.00062 },
+    { 8650.0, 0.340, 0.00048 },
 }};
 
 inline constexpr double bodyDirectConductance = 0.0007;
