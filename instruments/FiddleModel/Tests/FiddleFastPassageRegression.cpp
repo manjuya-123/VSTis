@@ -7,7 +7,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 namespace
@@ -125,6 +127,15 @@ int main(int argc, char** argv)
     std::vector<float> right(left.size(), 0.0f);
 
     int expectedDirection = 1;
+    double earlyRmsSum = 0.0;
+    double earlyRmsMin = std::numeric_limits<double>::max();
+    double reversalCatchSumMs = 0.0;
+    double reversalCatchMaxMs = 0.0;
+    int measuredReversals = 0;
+
+    constexpr auto earlyWindowSamples =
+        static_cast<std::size_t>(0.024 * sampleRate);
+    constexpr double usefulReversalSpeedMps = 0.060;
 
     for (std::size_t noteIndex = 0; noteIndex < phrase.size(); ++noteIndex)
     {
@@ -132,16 +143,53 @@ int main(int argc, char** argv)
         engine.noteOn(phrase[noteIndex], 0.88f);
 
         const auto offset = noteIndex * samplesPerNote;
-        engine.process(left.data() + offset, right.data() + offset, samplesPerNote);
+        std::size_t reversalCatchSample = samplesPerNote;
+
+        for (std::size_t sample = 0; sample < samplesPerNote; ++sample)
+        {
+            engine.process(
+                left.data() + offset + sample,
+                right.data() + offset + sample,
+                1);
+
+            if (noteIndex > 0 && reversalCatchSample == samplesPerNote)
+            {
+                const auto state = engine.debugSnapshot();
+                if (state.bowSpeedMps
+                        * static_cast<float>(expectedDirection)
+                    >= usefulReversalSpeedMps)
+                    reversalCatchSample = sample;
+            }
+        }
 
         const auto debug = engine.debugSnapshot();
         if (debug.bowDirection != expectedDirection)
             return fail("alternate bow direction did not toggle on each new note");
 
+        const auto earlyEnd = offset
+            + std::min(earlyWindowSamples, samplesPerNote);
+        const auto earlySegmentRms = rms(left, offset, earlyEnd);
+        earlyRmsSum += earlySegmentRms;
+        earlyRmsMin = std::min(earlyRmsMin, earlySegmentRms);
+
+        if (noteIndex > 0)
+        {
+            const auto latencyMs =
+                reversalCatchSample < samplesPerNote
+                    ? 1000.0
+                        * static_cast<double>(reversalCatchSample + 1)
+                        / sampleRate
+                    : noteSeconds * 1000.0;
+            reversalCatchSumMs += latencyMs;
+            reversalCatchMaxMs = std::max(reversalCatchMaxMs, latencyMs);
+            ++measuredReversals;
+        }
+
         expectedDirection = -expectedDirection;
 
-        // Ignore the first 24 ms containing the physical direction reversal.
-        const auto segmentBegin = offset + static_cast<std::size_t>(0.024 * sampleRate);
+        // Keep the existing sustained-note guard while separately measuring
+        // the formerly ignored first 24 ms above.
+        const auto segmentBegin = offset + earlyWindowSamples;
         const auto segmentEnd = offset + samplesPerNote;
         const auto segmentRms = rms(left, segmentBegin, segmentEnd);
 
@@ -154,6 +202,13 @@ int main(int argc, char** argv)
         }
     }
 
+    const auto earlyRmsMean =
+        earlyRmsSum / static_cast<double>(phrase.size());
+    const auto reversalCatchMeanMs =
+        measuredReversals > 0
+            ? reversalCatchSumMs / static_cast<double>(measuredReversals)
+            : 0.0;
+
     for (const auto sample : left)
         if (!std::isfinite(sample) || std::abs(sample) > 8.0f)
             return fail("fast passage produced non-finite or runaway audio");
@@ -165,12 +220,33 @@ int main(int argc, char** argv)
         const std::filesystem::path wavPath(argv[1]);
         if (!writeStereoWav(wavPath, left, right))
             return fail("could not write fast-passage listening WAV");
-        std::cout << "wav=" << wavPath.string() << '\n';
+
+        const auto metricsPath =
+            wavPath.parent_path() / "fast_passage_metrics.csv";
+        std::ofstream metrics(metricsPath);
+        if (!metrics)
+            return fail("could not write fast-passage metrics CSV");
+
+        metrics
+            << "metric,value\n"
+            << std::setprecision(9)
+            << "early_24ms_rms_min," << earlyRmsMin << '\n'
+            << "early_24ms_rms_mean," << earlyRmsMean << '\n'
+            << "reversal_catch_max_ms," << reversalCatchMaxMs << '\n'
+            << "reversal_catch_mean_ms," << reversalCatchMeanMs << '\n';
+
+        std::cout << "wav=" << wavPath.string() << '\n'
+                  << "fast_passage_metrics="
+                  << metricsPath.string() << '\n';
     }
 
     std::cout << "PASS\n"
               << "notes=" << phrase.size() << '\n'
-              << "note_ms=" << noteSeconds * 1000.0 << '\n';
+              << "note_ms=" << noteSeconds * 1000.0 << '\n'
+              << "early_24ms_rms_min=" << earlyRmsMin << '\n'
+              << "early_24ms_rms_mean=" << earlyRmsMean << '\n'
+              << "reversal_catch_max_ms=" << reversalCatchMaxMs << '\n'
+              << "reversal_catch_mean_ms=" << reversalCatchMeanMs << '\n';
 
     return EXIT_SUCCESS;
 }
