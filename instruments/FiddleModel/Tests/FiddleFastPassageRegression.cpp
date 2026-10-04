@@ -129,6 +129,9 @@ int main(int argc, char** argv)
     int expectedDirection = 1;
     double earlyRmsSum = 0.0;
     double earlyRmsMin = std::numeric_limits<double>::max();
+    double initialEarlyRms = 0.0;
+    double reversalEarlyRmsSum = 0.0;
+    double reversalEarlyRmsMin = std::numeric_limits<double>::max();
     double reversalCatchSumMs = 0.0;
     double reversalCatchMaxMs = 0.0;
     int measuredReversals = 0;
@@ -172,8 +175,16 @@ int main(int argc, char** argv)
         earlyRmsSum += earlySegmentRms;
         earlyRmsMin = std::min(earlyRmsMin, earlySegmentRms);
 
-        if (noteIndex > 0)
+        if (noteIndex == 0)
         {
+            initialEarlyRms = earlySegmentRms;
+        }
+        else
+        {
+            reversalEarlyRmsSum += earlySegmentRms;
+            reversalEarlyRmsMin =
+                std::min(reversalEarlyRmsMin, earlySegmentRms);
+
             const auto latencyMs =
                 reversalCatchSample < samplesPerNote
                     ? 1000.0
@@ -204,6 +215,11 @@ int main(int argc, char** argv)
 
     const auto earlyRmsMean =
         earlyRmsSum / static_cast<double>(phrase.size());
+    const auto reversalEarlyRmsMean =
+        measuredReversals > 0
+            ? reversalEarlyRmsSum
+                / static_cast<double>(measuredReversals)
+            : 0.0;
     const auto reversalCatchMeanMs =
         measuredReversals > 0
             ? reversalCatchSumMs / static_cast<double>(measuredReversals)
@@ -232,6 +248,9 @@ int main(int argc, char** argv)
             << std::setprecision(9)
             << "early_24ms_rms_min," << earlyRmsMin << '\n'
             << "early_24ms_rms_mean," << earlyRmsMean << '\n'
+            << "initial_24ms_rms," << initialEarlyRms << '\n'
+            << "reversal_24ms_rms_min," << reversalEarlyRmsMin << '\n'
+            << "reversal_24ms_rms_mean," << reversalEarlyRmsMean << '\n'
             << "reversal_catch_max_ms," << reversalCatchMaxMs << '\n'
             << "reversal_catch_mean_ms," << reversalCatchMeanMs << '\n';
 
@@ -245,6 +264,9 @@ int main(int argc, char** argv)
               << "note_ms=" << noteSeconds * 1000.0 << '\n'
               << "early_24ms_rms_min=" << earlyRmsMin << '\n'
               << "early_24ms_rms_mean=" << earlyRmsMean << '\n'
+              << "initial_24ms_rms=" << initialEarlyRms << '\n'
+              << "reversal_24ms_rms_min=" << reversalEarlyRmsMin << '\n'
+              << "reversal_24ms_rms_mean=" << reversalEarlyRmsMean << '\n'
               << "reversal_catch_max_ms=" << reversalCatchMaxMs << '\n'
               << "reversal_catch_mean_ms=" << reversalCatchMeanMs << '\n';
 
