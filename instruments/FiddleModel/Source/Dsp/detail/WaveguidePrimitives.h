@@ -55,37 +55,13 @@ struct DelayRail
 
         const auto base = std::floor(pos);
         const auto i0 = static_cast<int>(base) % delaySize;
-        const auto wrap = [](int index) noexcept
-        {
-            while (index < 0)
-                index += delaySize;
-            while (index >= delaySize)
-                index -= delaySize;
-            return index;
-        };
+        auto i1 = i0 + 1;
+        if (i1 >= delaySize)
+            i1 = 0;
 
-        const auto im1 = wrap(i0 - 1);
-        const auto i1 = wrap(i0 + 1);
-        const auto i2 = wrap(i0 + 2);
         const auto frac = pos - base;
-
-        // Four-point third-order Lagrange fractional delay. The earlier
-        // two-point linear interpolation was cheap but introduced audible
-        // high-frequency loss and position-dependent phase error as the bow
-        // split the speaking length into two fractional rails.
-        const auto lm1 =
-            -frac * (frac - 1.0) * (frac - 2.0) / 6.0;
-        const auto l0 =
-            (frac + 1.0) * (frac - 1.0) * (frac - 2.0) / 2.0;
-        const auto l1 =
-            -(frac + 1.0) * frac * (frac - 2.0) / 2.0;
-        const auto l2 =
-            (frac + 1.0) * frac * (frac - 1.0) / 6.0;
-
-        return lm1 * data[static_cast<std::size_t>(im1)]
-             + l0 * data[static_cast<std::size_t>(i0)]
-             + l1 * data[static_cast<std::size_t>(i1)]
-             + l2 * data[static_cast<std::size_t>(i2)];
+        return (1.0 - frac) * data[static_cast<std::size_t>(i0)]
+             + frac * data[static_cast<std::size_t>(i1)];
     }
 
     void write(double x) noexcept
