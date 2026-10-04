@@ -153,7 +153,7 @@ They are connected to physical model quantities rather than post-EQ:
 
 - Body -> modal frequency, damping and admittance
 - Bow Stick -> effective acceleration/reversal response
-- Hair+Rosin -> static grip, sliding friction, contact-state relaxation, and microscopic roughness injected at the bow/string contact. Roughness follows grip utilization, slip speed, normal force, bow speed, contact temperature and Bow Contact position; it is not noise mixed into the output. Faster bow travel also shifts the temporal roughness brighter, while light under-gripped pressure retains audible instability instead of simply becoming quieter.
+- Hair+Rosin -> static grip, sliding friction, contact-state relaxation, and microscopic roughness injected at the bow/string contact. The roughness is now a deterministic spatial surface attached to the travelling bow hair: faster motion traverses the same micro-profile faster, and a bow reversal retraces that profile in the opposite direction. Its audible level still follows grip utilization, slip speed, normal force, contact temperature and Bow Contact position; it is not noise mixed into the output. Light under-gripped pressure therefore retains audible instability instead of simply becoming quieter.
 
 Experimental profiles are labelled as such; they are not presented as calibrated
 measurements of real commercial materials.
