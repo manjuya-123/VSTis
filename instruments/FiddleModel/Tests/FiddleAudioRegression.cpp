@@ -43,6 +43,7 @@ struct Metrics
     double periodicity = 0.0;
     double spectralCentroidHz = 0.0;
     double highBandRatio = 0.0;
+    double stereoSideRatio = 0.0;
     bool finite = true;
 };
 
@@ -228,6 +229,22 @@ Metrics measure(const Render& render, double fundamentalHz)
     m.sustainRms = rms(x, sustainBegin, sustainEnd);
     m.tailRms = rms(x, tailBegin, tailEnd);
     m.periodicity = periodicityAtFrequency(x, sustainBegin, sustainEnd, fundamentalHz);
+
+    double midEnergy = 0.0;
+    double sideEnergy = 0.0;
+    for (std::size_t i = sustainBegin; i < sustainEnd; ++i)
+    {
+        const auto mid = 0.5 * (
+            static_cast<double>(render.left[i])
+            + static_cast<double>(render.right[i]));
+        const auto side = 0.5 * (
+            static_cast<double>(render.left[i])
+            - static_cast<double>(render.right[i]));
+        midEnergy += mid * mid;
+        sideEnergy += side * side;
+    }
+    m.stereoSideRatio =
+        std::sqrt(sideEnergy / (midEnergy + 1.0e-30));
 
     for (const auto value : x)
     {
@@ -468,7 +485,7 @@ int main(int argc, char** argv)
     }
 
     csv << "scenario,sustain_rms,tail_rms,peak,periodicity_at_note,"
-           "spectral_centroid_hz,high_band_ratio\n";
+           "spectral_centroid_hz,high_band_ratio,stereo_side_ratio\n";
     csv << std::setprecision(9);
 
     std::vector<float> comparisonLeft;
@@ -489,7 +506,8 @@ int main(int argc, char** argv)
             << metrics.peak << ','
             << metrics.periodicity << ','
             << metrics.spectralCentroidHz << ','
-            << metrics.highBandRatio << '\n';
+            << metrics.highBandRatio << ','
+            << metrics.stereoSideRatio << '\n';
 
         std::cout << scenario.name
                   << " rms=" << metrics.sustainRms
@@ -497,7 +515,8 @@ int main(int argc, char** argv)
                   << " peak=" << metrics.peak
                   << " periodicity=" << metrics.periodicity
                   << " centroid_hz=" << metrics.spectralCentroidHz
-                  << " hf_ratio=" << metrics.highBandRatio << '\n';
+                  << " hf_ratio=" << metrics.highBandRatio
+                  << " side_ratio=" << metrics.stereoSideRatio << '\n';
 
         ok = passesSanity(scenario, metrics) && ok;
         measured.push_back(metrics);
