@@ -477,7 +477,11 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(
-                playBowDirection_, gesture.durationSeconds);
+                playBowDirection_,
+                gesture.durationSeconds,
+                gesture.liftDurationSeconds,
+                gesture.liftBrake,
+                gesture.liftForceCurve);
             activeBowActionNote_ = -1;
             break;
 
@@ -516,7 +520,11 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startShortStroke(
-                playBowDirection_, gesture.durationSeconds);
+                playBowDirection_,
+                gesture.durationSeconds,
+                gesture.liftDurationSeconds,
+                gesture.liftBrake,
+                gesture.liftForceCurve);
             activeBowActionNote_ = midiNote;
             break;
 
