@@ -250,12 +250,14 @@ int main(int argc, char** argv)
     // Physical Chop: low travel/high force plus a contact-point collision.
     const auto chopProfile =
         applyGesture(fiddle::BowAction::Chop, 0.90f);
+    const auto chopBegin = left.size();
     engine.startChop(
         +1,
         chopProfile.durationSeconds,
         chopProfile.impactVelocityMps,
         chopProfile.impactDurationSeconds);
     render(engine, left, right, 0.10);
+    const auto chopEnd = left.size();
     const auto afterChop = engine.debugSnapshot();
     const auto chopForce =
         afterChop.contactNormalForceN[1] + afterChop.contactNormalForceN[2];
@@ -362,6 +364,7 @@ int main(int argc, char** argv)
 
         appendRange(shortBegin, shortEnd);
         appendRange(accentBegin, accentEnd);
+        appendRange(chopBegin, chopEnd);
         appendRange(tremoloBegin, tremoloEnd);
         appendRange(shuffleBegin, shuffleEnd);
 
