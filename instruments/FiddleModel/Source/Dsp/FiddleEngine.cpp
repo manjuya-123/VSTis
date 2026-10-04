@@ -15,6 +15,69 @@ namespace fiddle
 {
 using namespace detail;
 
+struct ReducedTorsionalResonator
+{
+    double y1 = 0.0;
+    double y2 = 0.0;
+    double poleA1 = 0.0;
+    double poleA2 = 0.0;
+    double driveGain = 0.0;
+    double lastFrequencyHz = 0.0;
+
+    void reset() noexcept
+    {
+        y1 = 0.0;
+        y2 = 0.0;
+        lastFrequencyHz = 0.0;
+    }
+
+    void tune(double transverseFrequencyHz,
+              double waveSpeedRatio,
+              double q,
+              double sampleRate) noexcept
+    {
+        const auto targetFrequency = std::clamp(
+            transverseFrequencyHz * waveSpeedRatio,
+            450.0,
+            sampleRate * 0.42);
+
+        if (lastFrequencyHz > 0.0
+            && std::abs(targetFrequency - lastFrequencyHz)
+                < std::max(2.0, 0.004 * lastFrequencyHz))
+            return;
+
+        lastFrequencyHz = targetFrequency;
+        const auto safeQ = std::clamp(q, 8.0, 40.0);
+        const auto radius = std::exp(
+            -pi * targetFrequency / (safeQ * sampleRate));
+        const auto omega =
+            2.0 * pi * targetFrequency / sampleRate;
+
+        poleA1 = 2.0 * radius * std::cos(omega);
+        poleA2 = -radius * radius;
+
+        // Torsion changes the velocity seen by the bow but should remain much
+        // smaller than the transverse string velocity in normal playing.
+        driveGain = 0.12 * (1.0 - radius);
+    }
+
+    [[nodiscard]] double surfaceVelocity() const noexcept
+    {
+        return y1;
+    }
+
+    void drive(double frictionVelocity) noexcept
+    {
+        auto y =
+            poleA1 * y1
+            + poleA2 * y2
+            + driveGain * frictionVelocity;
+        y = std::clamp(y, -0.08, 0.08);
+        y2 = y1;
+        y1 = y;
+    }
+};
+
 struct FiddleEngine::Impl
 {
     double sampleRate = 48000.0;
