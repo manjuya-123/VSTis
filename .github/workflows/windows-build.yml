@@ -12,6 +12,37 @@ on:
   workflow_dispatch:
 
 jobs:
+  core-regressions:
+    # Keep physical-DSP verification independent from Windows hosted-runner availability.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure portable physical core
+        run: cmake --preset linux-core
+
+      - name: Build portable physical core regressions
+        run: cmake --build --preset linux-core-release
+
+      - name: Run portable physical core regressions
+        run: ctest --test-dir build/linux-core --output-on-failure
+
+      - name: Print portable audio regression metrics
+        run: |
+          cat build/linux-core/instruments/FiddleModel/regression-audio/metrics.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_release_metrics.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_reversal_metrics.csv
+
+      - name: Upload portable listening artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: FiddleModel-core-regression-audio
+          if-no-files-found: error
+          path: build/linux-core/instruments/FiddleModel/regression-audio/**
+
   build:
     # Match the actual development environment instead of following windows-latest.
     runs-on: windows-2022
