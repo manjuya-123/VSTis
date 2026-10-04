@@ -875,7 +875,6 @@ struct FiddleEngine::Impl
                 -filtered * fingerTerminationGain * chopTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
-
             double injection = 0.0;
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
@@ -911,14 +910,8 @@ struct FiddleEngine::Impl
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity,
-                    bowSpeed,
-                    bowForce[i],
-                    stringImpedance[i],
-                    sampleRate,
-                    localStaticGrip,
-                    localSlidingGrip,
-                    contactStateRateScale);
+                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
+                    localStaticGrip, localSlidingGrip, contactStateRateScale);
                 injection = stringVelocity - incomingVelocity;
 
                 const auto transitioned =
