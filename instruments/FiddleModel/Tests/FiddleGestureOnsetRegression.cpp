@@ -21,6 +21,7 @@ struct GestureRender
     std::vector<float> audio;
     double onsetMs = 0.0;
     double peakRms = 0.0;
+    double earlyRms = 0.0;
 };
 
 struct ReversalMetrics
@@ -121,6 +122,11 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
 
     for (std::size_t i = 0; i + window <= analysisEnd; i += hop)
         result.peakRms = std::max(result.peakRms, windowRms(result.audio, i, window));
+
+    result.earlyRms = windowRms(
+        result.audio,
+        0,
+        static_cast<std::size_t>(0.020 * sampleRate));
 
     const auto threshold = result.peakRms * 0.22;
     result.onsetMs = 80.0;
@@ -424,9 +430,11 @@ int main(int argc, char** argv)
     std::cout << "down_onset_ms=" << down.onsetMs
               << " down_peak_rms=" << down.peakRms << '\n'
               << "accent_onset_ms=" << accent.onsetMs
-              << " accent_peak_rms=" << accent.peakRms << '\n'
+              << " accent_peak_rms=" << accent.peakRms
+              << " accent_early_rms=" << accent.earlyRms << '\n'
               << "short_onset_ms=" << shortStroke.onsetMs
-              << " short_peak_rms=" << shortStroke.peakRms << '\n'
+              << " short_peak_rms=" << shortStroke.peakRms
+              << " short_early_rms=" << shortStroke.earlyRms << '\n'
               << "chop_onset_ms=" << chop.onsetMs
               << " chop_peak_rms=" << chop.peakRms << '\n'
               << "tremolo_reversal_max_ms=" << tremoloCatch.maxLatencyMs
@@ -455,6 +463,9 @@ int main(int argc, char** argv)
 
     if (!(shortStroke.onsetMs + 4.0 < down.onsetMs))
         return fail("Short Stroke did not catch the string clearly earlier than ordinary Down Bow");
+
+    if (!(accent.earlyRms >= 3.0 * shortStroke.earlyRms))
+        return fail("Accent did not produce a clearly stronger first-20-ms bow catch than Short Stroke");
 
     if (!(chop.peakRms > 1.0e-5 && chop.onsetMs <= down.onsetMs + 2.0))
         return fail("Chop did not produce a prompt physical contact transient");
@@ -493,11 +504,16 @@ int main(int argc, char** argv)
         if (!csv)
             return fail("Could not write gesture onset metrics CSV");
 
-        csv << "gesture,onset_ms,peak_rms\n" << std::setprecision(9)
-            << "Down," << down.onsetMs << ',' << down.peakRms << '\n'
-            << "Short," << shortStroke.onsetMs << ',' << shortStroke.peakRms << '\n'
-            << "Accent," << accent.onsetMs << ',' << accent.peakRms << '\n'
-            << "Chop," << chop.onsetMs << ',' << chop.peakRms << '\n';
+        csv << "gesture,onset_ms,peak_rms,early_20ms_rms\n"
+            << std::setprecision(9)
+            << "Down," << down.onsetMs << ',' << down.peakRms << ','
+            << down.earlyRms << '\n'
+            << "Short," << shortStroke.onsetMs << ',' << shortStroke.peakRms << ','
+            << shortStroke.earlyRms << '\n'
+            << "Accent," << accent.onsetMs << ',' << accent.peakRms << ','
+            << accent.earlyRms << '\n'
+            << "Chop," << chop.onsetMs << ',' << chop.peakRms << ','
+            << chop.earlyRms << '\n';
 
         std::ofstream releaseCsv(
             outputDirectory / "gesture_release_metrics.csv");
