@@ -39,7 +39,8 @@ struct FiddleEngine::Impl
     double rosinNoiseScale = 1.0;
 
     ModalBank body{};
-    RadiationFilter radiation{};
+    RadiationFilter radiationLeft{};
+    RadiationFilter radiationRight{};
     BowGeometryMapper bowGeometry{};
 
     Smoother pressure{};
@@ -95,7 +96,10 @@ struct FiddleEngine::Impl
     {
         sampleRate = std::clamp(newSampleRate, 32000.0, 192000.0);
         body.prepare(sampleRate);
-        radiation.prepare(sampleRate);
+        // Two nearby radiation angles: left keeps slightly more body, right
+        // slightly more bridge air. The mechanical body itself remains shared.
+        radiationLeft.prepare(sampleRate, 6900.0, 0.19);
+        radiationRight.prepare(sampleRate, 7700.0, 0.25);
         bowGeometry.prepare();
         materialConfigured = false;
         setMaterials(materialSettings);
@@ -135,7 +139,8 @@ struct FiddleEngine::Impl
         };
         rosinNoisePrevious.fill(0.0);
         body.reset();
-        radiation.reset();
+        radiationLeft.reset();
+        radiationRight.reset();
 
         pressure.reset(controlTargets.pressure);
         speed.reset(controlTargets.speed);
@@ -567,7 +572,7 @@ struct FiddleEngine::Impl
         return geometry.normalForceN;
     }
 
-    double processSample() noexcept
+    std::array<double, 2> processSample() noexcept
     {
         if (shortStrokeSamplesRemaining > 0)
         {
@@ -956,7 +961,12 @@ struct FiddleEngine::Impl
         debug.primaryString = primaryString;
 
         // Listening/output calibration only; not part of the mechanical closure.
-        return 18.0 * radiation.process(bridgeVelocity);
+        // Directional radiation creates a small natural stereo side signal
+        // without duplicating or detuning the string/body mechanics.
+        return {
+            18.0 * radiationLeft.process(bridgeVelocity),
+            18.0 * radiationRight.process(bridgeVelocity)
+        };
     }
 };
 
@@ -1022,9 +1032,9 @@ void FiddleEngine::process(float* left, float* right, std::size_t numSamples) no
     constexpr float centerGain = 0.70710678f;
     for (std::size_t i = 0; i < numSamples; ++i)
     {
-        const auto sample = static_cast<float>(impl_->processSample());
-        left[i] += centerGain * sample;
-        right[i] += centerGain * sample;
+        const auto sample = impl_->processSample();
+        left[i] += centerGain * static_cast<float>(sample[0]);
+        right[i] += centerGain * static_cast<float>(sample[1]);
     }
 }
 
