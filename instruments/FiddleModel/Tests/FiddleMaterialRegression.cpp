@@ -239,6 +239,54 @@ ContactTextureMetrics contactTexture(
     return result;
 }
 
+struct RosinSurfaceTravel
+{
+    double forwardDelta = 0.0;
+    double reverseDelta = 0.0;
+};
+
+RosinSurfaceTravel rosinSurfaceTravel()
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+    engine.setControls(controls());
+    engine.beginBowStroke(false);
+    engine.noteOn(329.6276f, 0.86f);
+
+    std::array<float, 2> sample {};
+    for (std::size_t i = 0; i < static_cast<std::size_t>(0.12 * sampleRate); ++i)
+        engine.process(&sample[0], &sample[1], 1);
+
+    const auto stable = engine.debugSnapshot();
+    std::size_t activeString = 0;
+    for (std::size_t i = 1; i < stable.contactNormalForceN.size(); ++i)
+    {
+        if (stable.contactNormalForceN[i]
+            > stable.contactNormalForceN[activeString])
+            activeString = i;
+    }
+
+    const auto start =
+        static_cast<double>(stable.rosinSurfaceCoordinate[activeString]);
+
+    for (std::size_t i = 0; i < static_cast<std::size_t>(0.030 * sampleRate); ++i)
+        engine.process(&sample[0], &sample[1], 1);
+
+    const auto forward =
+        static_cast<double>(
+            engine.debugSnapshot().rosinSurfaceCoordinate[activeString]);
+
+    engine.beginBowStroke(true);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(0.060 * sampleRate); ++i)
+        engine.process(&sample[0], &sample[1], 1);
+
+    const auto reversed =
+        static_cast<double>(
+            engine.debugSnapshot().rosinSurfaceCoordinate[activeString]);
+
+    return { forward - start, reversed - forward };
+}
+
 double reversalSpeed(fiddle::BowStickPreset preset)
 {
     fiddle::FiddleEngine engine;
@@ -313,6 +361,11 @@ int main()
           && dryRosinNoise > 1.0e-8
           && dryRosinNoise > highGripRosinNoise))
         return fail("Microscopic rosin roughness is missing or ignores contact material");
+
+    const auto surfaceTravel = rosinSurfaceTravel();
+    if (!(surfaceTravel.forwardDelta > 5.0
+          && surfaceTravel.reverseDelta < -5.0))
+        return fail("Rosin roughness no longer follows signed physical bow travel");
 
     const auto mediumTexture = contactTexture(
         fiddle::ContactMaterialPreset::HorsehairMediumRosin);
@@ -406,6 +459,10 @@ int main()
     std::cout << "PASS\n"
               << "body_difference_rms=" << bodyDifference << '\n'
               << "contact_difference_rms=" << contactDifference << '\n'
+              << "rosin_surface_forward_delta="
+              << surfaceTravel.forwardDelta << '\n'
+              << "rosin_surface_reverse_delta="
+              << surfaceTravel.reverseDelta << '\n'
               << "medium_rosin_noise_velocity=" << mediumRosinNoise << '\n'
               << "dry_rosin_noise_velocity=" << dryRosinNoise << '\n'
               << "high_grip_rosin_noise_velocity=" << highGripRosinNoise << '\n'
