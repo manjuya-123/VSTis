@@ -333,8 +333,9 @@ int main()
 
     if (!(mediumTexture.stickSlipTransitions > 0
           && mediumTexture.transitionEnvelopePeak >= 0.50
-          && mediumTexture.transitionEnvelopeSamples > 100))
-        return fail("Stick-slip transitions no longer create a short rosin roughness burst");
+          && mediumTexture.transitionEnvelopeSamples > 1000
+          && mediumTexture.transitionEnvelopeSamples < 16000))
+        return fail("Stick-slip rosin burst is missing or has become effectively continuous");
 
     const auto fingerboardTexture = contactTexture(
         fiddle::ContactMaterialPreset::HorsehairMediumRosin,
