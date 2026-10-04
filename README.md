@@ -40,6 +40,7 @@ green run. Its **Artifacts** section contains:
 
 - `FiddleModel-windows-release` — the Windows VST3 bundle and Standalone EXE.
 - `FiddleModel-core-regression-audio` — listening WAVs and CSV regression metrics.
+  Listening WAVs are rendered at the plugin's current default Output level (+18 dB).
   For a quick articulation check, start with `11_fiddle_gesture_showcase.wav`.
 
 The same two ZIP files are also attached directly in ChatGPT whenever a build is
