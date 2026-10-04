@@ -430,6 +430,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
     {
         engine_.stopBow();
         activeBowActionNote_ = -1;
+        playModeOneShotLatched_ = false;
         playModeFocusOverride_ = false;
         playModePressureBoost_ = 0.0f;
         playModeSpeedScale_ = 1.0f;
@@ -444,6 +445,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
     const auto gestureStrength = std::clamp(velocity, 0.0f, 1.0f);
     playModeGestureStrength_ = gestureStrength;
     const auto gesture = fiddle::makeBowGestureProfile(action, gestureStrength);
+    playModeOneShotLatched_ = false;
     playModeResponseBoost_ = gesture.responseBoost;
     engine_.setStrokeBite(
         gesture.biteBoost, gesture.biteDurationSeconds);
@@ -482,6 +484,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
                 gesture.liftDurationSeconds,
                 gesture.liftBrake,
                 gesture.liftForceCurve);
+            playModeOneShotLatched_ = true;
             activeBowActionNote_ = -1;
             break;
 
@@ -525,6 +528,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
                 gesture.liftDurationSeconds,
                 gesture.liftBrake,
                 gesture.liftForceCurve);
+            playModeOneShotLatched_ = true;
             activeBowActionNote_ = midiNote;
             break;
 
@@ -538,6 +542,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playBowDirection_ = -playBowDirection_;
             engine_.startChop(
                 playBowDirection_, gesture.durationSeconds);
+            playModeOneShotLatched_ = true;
             activeBowActionNote_ = midiNote;
             break;
 
@@ -563,16 +568,9 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
         || action == fiddle::BowAction::AccentStroke
         || action == fiddle::BowAction::Chop)
     {
-        playModePressureBoost_ = 0.0f;
-        playModeSpeedScale_ = 1.0f;
-        applyPerformanceControls();
-
-        if (activeBowActionNote_ == midiNote)
-            activeBowActionNote_ = -1;
-
-        visualBowAction_.store(
-            static_cast<int>(fiddle::BowAction::None),
-            std::memory_order_relaxed);
+        // One-shot gestures own their complete physical lifetime. Releasing the
+        // controller key must not change pressure/speed/response halfway through
+        // the stroke; the end-of-block engine state clears these after bow lift.
         return;
     }
 
@@ -615,6 +613,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
     playModeResponseBoost_ = 0.0f;
+    playModeOneShotLatched_ = false;
     playModeGestureStrength_ = 0.5f;
     playModePreferredPrimaryString_ = -1;
 
