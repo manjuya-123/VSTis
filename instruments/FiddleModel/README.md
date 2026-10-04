@@ -17,6 +17,7 @@ contains:
 - bridge curvature + compliant bow-hair contact geometry
 - total bow-force conservation through geometric contact solving
 - a shared passive 20-mode bridge/body admittance with a damped high-order modal tail
+- a two-coordinate bridge closure: common vertical translation plus weaker left/right rocking, with each string coupled by its physical bridge position
 - sympathetic excitation through the shared bridge
 - continuous speaking-length changes when MIDI pitch changes strings/fingering
 - sample-accurate MIDI Pitch Bend retuning without resetting waveguide state
@@ -127,8 +128,10 @@ into bow/string/body mechanics.
 
 The body model now uses a denser, increasingly damped high-order modal tail above 3.5 kHz.
 Stereo output is not chorus or doubled strings: both channels share the same string/body
-mechanics, then use two nearby directional radiation responses. The side signal is kept
-deliberately subtle so mono sum retains the instrument's center image.
+mechanics. The bridge now has both vertical translation and a weaker rocking coordinate,
+so outer and inner strings load the body differently before two nearby directional
+radiation responses form the stereo output. The side signal is kept deliberately subtle
+so mono sum retains the instrument's center image.
 
 The editor uses the four-string instrument view as its primary performance display.
 A compact piano-style Play Key Map is also shown as a controller legend so Fiddle Play's
