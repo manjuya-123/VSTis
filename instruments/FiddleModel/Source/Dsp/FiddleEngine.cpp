@@ -814,6 +814,9 @@ struct FiddleEngine::Impl
             static_cast<float>(reversalAccelerationGain);
         debug.oneShotLiftGain =
             static_cast<float>(oneShotLiftGain);
+        debug.oneShotActive =
+            shortStrokeSamplesRemaining > 0
+            || oneShotReleaseSamplesRemaining > 0;
         debug.bowDirection = bowDirection;
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;
