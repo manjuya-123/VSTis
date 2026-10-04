@@ -4,6 +4,8 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -118,7 +120,7 @@ struct PitchMatrixResult
     double meanAbsCents = 0.0;
 };
 
-PitchMatrixResult measurePitchMatrix()
+PitchMatrixResult measurePitchMatrix(std::ofstream* csv = nullptr)
 {
     constexpr std::array<double, 4> openHz {
         195.9977, 293.6648, 440.0, 659.2551
@@ -130,6 +132,11 @@ PitchMatrixResult measurePitchMatrix()
     std::size_t count = 0;
 
     std::cout << std::setprecision(9);
+    if (csv != nullptr)
+    {
+        *csv << "string,position,target_hz,estimated_hz,cents\n"
+             << std::setprecision(9);
+    }
 
     for (std::size_t stringIndex = 0; stringIndex < openHz.size(); ++stringIndex)
     {
@@ -181,6 +188,15 @@ PitchMatrixResult measurePitchMatrix()
                       << " target=" << target
                       << " estimated=" << estimated
                       << " cents=" << cents << '\n';
+
+            if (csv != nullptr)
+            {
+                *csv << stringIndex << ','
+                     << position << ','
+                     << target << ','
+                     << estimated << ','
+                     << cents << '\n';
+            }
         }
     }
 
@@ -247,7 +263,7 @@ bool testContinuousRetune()
         && std::abs(debug.speakingFrequencyHz[1] - 391.9954f) < 0.5f;
 }
 
-int main()
+int main(int argc, char** argv)
 {
     constexpr std::array<double, 3> targets {
         329.6276, // E4 on D
@@ -276,7 +292,28 @@ int main()
         return EXIT_FAILURE;
     }
 
-    const auto pitchMatrix = measurePitchMatrix();
+    std::ofstream pitchCsv;
+    if (argc >= 2)
+    {
+        const std::filesystem::path outputDirectory(argv[1]);
+        std::error_code ec;
+        std::filesystem::create_directories(outputDirectory, ec);
+        if (ec)
+        {
+            std::cerr << "FAIL: cannot create pitch regression directory\n";
+            return EXIT_FAILURE;
+        }
+
+        pitchCsv.open(outputDirectory / "pitch_matrix.csv");
+        if (!pitchCsv)
+        {
+            std::cerr << "FAIL: cannot write pitch_matrix.csv\n";
+            return EXIT_FAILURE;
+        }
+    }
+
+    const auto pitchMatrix = measurePitchMatrix(
+        pitchCsv.is_open() ? &pitchCsv : nullptr);
     std::cout << "pitch_matrix_max_abs_cents="
               << pitchMatrix.maxAbsCents << '\n'
               << "pitch_matrix_mean_abs_cents="
