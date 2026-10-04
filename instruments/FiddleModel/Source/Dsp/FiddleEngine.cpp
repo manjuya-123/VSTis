@@ -68,6 +68,9 @@ struct FiddleEngine::Impl
     double oneShotLiftBrake = 2.0;
     double oneShotLiftForceCurve = 1.0;
     std::int64_t chopDampingSamplesRemaining = 0;
+    std::int64_t chopImpactSamplesRemaining = 0;
+    std::int64_t chopImpactTotalSamples = 0;
+    double chopImpactVelocityPeakMps = 0.0;
     std::int64_t tremoloSamplesUntilFlip = 0;
     double tremoloReversalsPerSecond = 0.0;
     std::int64_t shuffleSamplesUntilFlip = 0;
@@ -148,6 +151,9 @@ struct FiddleEngine::Impl
         oneShotLiftBrake = 2.0;
         oneShotLiftForceCurve = 1.0;
         chopDampingSamplesRemaining = 0;
+        chopImpactSamplesRemaining = 0;
+        chopImpactTotalSamples = 0;
+        chopImpactVelocityPeakMps = 0.0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
         shuffleSamplesUntilFlip = 0;
