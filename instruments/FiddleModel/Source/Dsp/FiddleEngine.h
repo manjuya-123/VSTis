@@ -69,6 +69,7 @@ struct DebugState
     float strokeBiteGain = 1.0f;
     float reversalAccelerationGain = 1.0f;
     float oneShotLiftGain = 1.0f;
+    bool oneShotActive = false;
     int bowDirection = 1;
     int bowPairLowerString = 1;
     int primaryString = 1;
