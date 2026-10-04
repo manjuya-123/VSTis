@@ -121,6 +121,10 @@ sources.
 
 ## Dedicated fiddle view
 
+The plugin's final **Output** control is a post-model listening level: the current default
+is +18 dB and the range extends to +30 dB. It changes loudness only and does not feed back
+into bow/string/body mechanics.
+
 The editor uses the four-string instrument view as its primary performance display.
 A compact piano-style Play Key Map is also shown as a controller legend so Fiddle Play's
 two keyboard regions are immediately visible. The instrument view shows:
