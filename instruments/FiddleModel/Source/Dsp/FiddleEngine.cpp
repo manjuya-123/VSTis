@@ -940,8 +940,19 @@ struct FiddleEngine::Impl
                     : (0.28 + 0.72 * slipActivity)
                         * std::clamp(gripUtilization / 1.2, 0.55, 1.20);
 
+                // Microscopic surface noise should not simply become
+                // quieter with less normal force. A lightly loaded contact can
+                // be less stable and audibly rougher because the available
+                // friction reserve is small. Keep a sub-linear force term, then
+                // explicitly expose that under-gripped sliding instability.
                 const auto forceScale = std::clamp(
-                    std::sqrt(bowForce[i] / 0.30), 0.0, 1.35);
+                    std::pow(std::max(bowForce[i], 1.0e-9) / 0.30, 0.34),
+                    0.0, 1.25);
+                const auto underGrip = std::clamp(
+                    (gripUtilization - 0.82) / 0.95, 0.0, 1.0);
+                const auto instabilityScale = contacts[i].sticking
+                    ? 1.0
+                    : 1.0 + 0.48 * underGrip;
                 const auto bowSpeedScale = std::clamp(
                     std::sqrt(std::abs(bowSpeed) / 0.45), 0.22, 1.25);
                 const auto temperatureScale = std::clamp(
@@ -955,6 +966,7 @@ struct FiddleEngine::Impl
                     rosinNoiseScale
                     * contactActivity
                     * forceScale
+                    * instabilityScale
                     * bowSpeedScale
                     * temperatureScale
                     * positionLevel;
