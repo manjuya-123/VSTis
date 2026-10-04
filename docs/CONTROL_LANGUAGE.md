@@ -133,9 +133,11 @@ Fiddle Play is a two-hand performance workflow:
 - Slur is not a hidden articulation switch: keep the bow moving and change the fingers.
 - Drone Bow means physically bow the selected adjacent pair with balanced focus.
 - Short / Accent / Chop are gestures built from bow force, speed and contact duration,
-  not alternate rendered samples. Short uses a rounded wrist lift from the string;
-  Accent uses a harder initial catch followed by a faster, more strongly braked bow lift,
-  while the string/body resonance is allowed to ring naturally.
+  not alternate rendered samples. They are one-shot right-hand gestures: releasing the
+  action key does not truncate or re-parameterize the stroke halfway through. Short uses
+  a rounded wrist lift from the string; Accent uses a harder initial catch followed by a
+  faster, more strongly braked bow lift, while the string/body resonance is allowed to
+  ring naturally.
 
 
 The dedicated Fiddle Play Key Map is interactive on the bow-action octave. Mouse
