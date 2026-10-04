@@ -63,6 +63,10 @@ struct FiddleEngine::Impl
     int bowDirection = 1;
     bool bowStrokeStarted = false;
     std::int64_t shortStrokeSamplesRemaining = 0;
+    std::int64_t oneShotReleaseSamplesRemaining = 0;
+    std::int64_t oneShotReleaseTotalSamples = 0;
+    double oneShotLiftBrake = 2.0;
+    double oneShotLiftForceCurve = 1.0;
     std::int64_t chopDampingSamplesRemaining = 0;
     std::int64_t tremoloSamplesUntilFlip = 0;
     double tremoloReversalsPerSecond = 0.0;
@@ -139,6 +143,10 @@ struct FiddleEngine::Impl
         bowDirection = 1;
         bowStrokeStarted = false;
         shortStrokeSamplesRemaining = 0;
+        oneShotReleaseSamplesRemaining = 0;
+        oneShotReleaseTotalSamples = 0;
+        oneShotLiftBrake = 2.0;
+        oneShotLiftForceCurve = 1.0;
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
@@ -394,6 +402,8 @@ struct FiddleEngine::Impl
         if (reversingMovingBow)
             triggerBowReversalAssist(2.6, 0.008);
         shortStrokeSamplesRemaining = 0;
+        oneShotReleaseSamplesRemaining = 0;
+        oneShotReleaseTotalSamples = 0;
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
@@ -404,16 +414,26 @@ struct FiddleEngine::Impl
         gate.setTarget(1.0);
     }
 
-    void startShortStroke(int direction, double durationSeconds) noexcept
+    void startShortStroke(int direction,
+                          double durationSeconds,
+                          double liftDurationSeconds,
+                          double liftBrake,
+                          double liftForceCurve) noexcept
     {
         startBow(direction);
         shortStrokeSamplesRemaining = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(durationSeconds * sampleRate));
+        oneShotReleaseTotalSamples = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                std::clamp(liftDurationSeconds, 0.002, 0.030) * sampleRate));
+        oneShotReleaseSamplesRemaining = 0;
+        oneShotLiftBrake = std::clamp(liftBrake, 0.0, 8.0);
+        oneShotLiftForceCurve = std::clamp(liftForceCurve, 0.35, 3.0);
     }
 
     void startChop(int direction, double durationSeconds) noexcept
     {
-        startShortStroke(direction, durationSeconds);
+        startShortStroke(direction, durationSeconds, 0.0045, 6.0, 2.4);
         chopDampingSamplesRemaining = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(
                 std::max(0.020, durationSeconds + 0.012) * sampleRate));
@@ -426,6 +446,8 @@ struct FiddleEngine::Impl
             bowDirection = 1;
 
         shortStrokeSamplesRemaining = 0;
+        oneShotReleaseSamplesRemaining = 0;
+        oneShotReleaseTotalSamples = 0;
         chopDampingSamplesRemaining = 0;
         shuffleSamplesUntilFlip = 0;
         shuffleSubdivisionsPerSecond = 0.0;
@@ -445,6 +467,8 @@ struct FiddleEngine::Impl
             bowDirection = 1;
 
         shortStrokeSamplesRemaining = 0;
+        oneShotReleaseSamplesRemaining = 0;
+        oneShotReleaseTotalSamples = 0;
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
@@ -464,6 +488,8 @@ struct FiddleEngine::Impl
     void stopBow() noexcept
     {
         shortStrokeSamplesRemaining = 0;
+        oneShotReleaseSamplesRemaining = 0;
+        oneShotReleaseTotalSamples = 0;
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
@@ -496,7 +522,34 @@ struct FiddleEngine::Impl
         {
             --shortStrokeSamplesRemaining;
             if (shortStrokeSamplesRemaining == 0)
-                gate.setTarget(0.0);
+                oneShotReleaseSamplesRemaining =
+                    oneShotReleaseTotalSamples;
+        }
+
+        double oneShotLiftGain = 1.0;
+        double oneShotReleaseAccelerationGain = 1.0;
+        if (oneShotReleaseSamplesRemaining > 0
+            && oneShotReleaseTotalSamples > 0)
+        {
+            const auto phase = std::clamp(
+                static_cast<double>(oneShotReleaseSamplesRemaining)
+                    / static_cast<double>(oneShotReleaseTotalSamples),
+                0.0, 1.0);
+
+            // Mechanical bow lift only: normal force and commanded bow travel
+            // disappear while the string/body waveguide is left free to ring.
+            oneShotLiftGain =
+                std::pow(phase, oneShotLiftForceCurve);
+            oneShotReleaseAccelerationGain =
+                1.0 + oneShotLiftBrake
+                    * (1.0 - 0.45 * oneShotLiftGain);
+
+            --oneShotReleaseSamplesRemaining;
+            if (oneShotReleaseSamplesRemaining == 0)
+            {
+                oneShotLiftGain = 0.0;
+                gate.reset(0.0);
+            }
         }
 
         const bool chopDampingActive = chopDampingSamplesRemaining > 0;
@@ -577,7 +630,9 @@ struct FiddleEngine::Impl
             --reversalAssistSamplesRemaining;
         }
         const auto bowAcceleration =
-            baseBowAcceleration * reversalAccelerationGain;
+            baseBowAcceleration
+            * reversalAccelerationGain
+            * oneShotReleaseAccelerationGain;
         // A player's "same pressure" gesture does not produce the same usable
         // string-normal force everywhere along the speaking length. Close to the
         // bridge the string is mechanically stiffer and stable Helmholtz motion
@@ -608,11 +663,15 @@ struct FiddleEngine::Impl
             * velocityScale
             * shuffleEnergyScale
             * strokeBiteGain
-            * gateValue;
+            * gateValue
+            * oneShotLiftGain;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
-            static_cast<double>(bowDirection) * bowTargetSpeed * gateValue;
+            static_cast<double>(bowDirection)
+            * bowTargetSpeed
+            * gateValue
+            * oneShotLiftGain;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
@@ -753,6 +812,8 @@ struct FiddleEngine::Impl
         debug.strokeBiteGain = static_cast<float>(strokeBiteGain);
         debug.reversalAccelerationGain =
             static_cast<float>(reversalAccelerationGain);
+        debug.oneShotLiftGain =
+            static_cast<float>(oneShotLiftGain);
         debug.bowDirection = bowDirection;
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;
@@ -782,9 +843,18 @@ void FiddleEngine::setStrokeBite(float amount, float durationSeconds) noexcept
     impl_->setStrokeBite(amount, durationSeconds);
 }
 void FiddleEngine::startBow(int direction) noexcept { impl_->startBow(direction); }
-void FiddleEngine::startShortStroke(int direction, float durationSeconds) noexcept
+void FiddleEngine::startShortStroke(int direction,
+                                    float durationSeconds,
+                                    float liftDurationSeconds,
+                                    float liftBrake,
+                                    float liftForceCurve) noexcept
 {
-    impl_->startShortStroke(direction, durationSeconds);
+    impl_->startShortStroke(
+        direction,
+        durationSeconds,
+        liftDurationSeconds,
+        liftBrake,
+        liftForceCurve);
 }
 void FiddleEngine::startChop(int direction, float durationSeconds) noexcept
 {
