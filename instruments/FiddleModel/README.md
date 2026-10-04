@@ -16,7 +16,7 @@ contains:
 - Pressure-aware Performance Balance calibrated to physical bow angle
 - bridge curvature + compliant bow-hair contact geometry
 - total bow-force conservation through geometric contact solving
-- a shared passive 12-mode bridge/body admittance
+- a shared passive 20-mode bridge/body admittance with a damped high-order modal tail
 - sympathetic excitation through the shared bridge
 - continuous speaking-length changes when MIDI pitch changes strings/fingering
 - sample-accurate MIDI Pitch Bend retuning without resetting waveguide state
@@ -153,7 +153,7 @@ They are connected to physical model quantities rather than post-EQ:
 
 - Body -> modal frequency, damping and admittance
 - Bow Stick -> effective acceleration/reversal response
-- Hair+Rosin -> static grip, sliding friction and contact-state relaxation
+- Hair+Rosin -> static grip, sliding friction, contact-state relaxation, and microscopic roughness injected at the bow/string contact. Roughness follows grip utilization, slip speed, normal force, bow speed, contact temperature and Bow Contact position; it is not noise mixed into the output.
 
 Experimental profiles are labelled as such; they are not presented as calibrated
 measurements of real commercial materials.
@@ -339,6 +339,10 @@ The dedicated string view also visualizes the reduced rosin contact state. The n
 performance UI does not expose contact temperature in degrees; instead the bow colour
 and status text move through **Rosin Cool / Working / Hot** according to the hottest
 contact in the active string pair.
+
+The regression artifact also includes `12_rosin_texture_showcase.wav`, ordered
+**Medium Rosin -> Dry Light Grip -> High Grip Rosin**, so the contact-material texture
+can be auditioned without searching through the full comparison render.
 
 This is a visualization of the same state used by the bow/string friction model, not a
 separate cosmetic meter.
