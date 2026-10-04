@@ -1,6 +1,7 @@
 #include "Dsp/FiddleEngine.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -24,6 +25,7 @@ struct ContactTextureMetrics
     double maxGripUtilization = 0.0;
     double slidingFraction = 0.0;
     std::size_t nearYieldStickSamples = 0;
+    std::size_t stickSlipTransitions = 0;
 };
 
 fiddle::Controls controls()
@@ -129,6 +131,8 @@ ContactTextureMetrics contactTexture(
     std::size_t stickingNoiseSamples = 0;
     std::size_t slidingSamples = 0;
     bool havePreviousAggregateNoise = false;
+    std::array<bool, 4> previousSticking {};
+    std::array<bool, 4> havePreviousSticking {};
 
     ContactTextureMetrics result;
     const auto samples = static_cast<std::size_t>(0.55 * sampleRate);
@@ -159,6 +163,12 @@ ContactTextureMetrics contactTexture(
             const auto grip =
                 static_cast<double>(debug.contactGripUtilization[i]);
             noiseEnergy += noise * noise;
+
+            if (havePreviousSticking[i]
+                && previousSticking[i] != debug.sticking[i])
+                ++result.stickSlipTransitions;
+            previousSticking[i] = debug.sticking[i];
+            havePreviousSticking[i] = true;
             result.maxGripUtilization =
                 std::max(result.maxGripUtilization, grip);
 
@@ -362,6 +372,8 @@ int main()
               << "medium_max_grip_utilization=" << mediumTexture.maxGripUtilization << '\n'
               << "medium_near_yield_stick_samples=" << mediumTexture.nearYieldStickSamples << '\n'
               << "medium_sliding_fraction=" << mediumTexture.slidingFraction << '\n'
+              << "medium_stick_slip_transitions="
+              << mediumTexture.stickSlipTransitions << '\n'
               << "fingerboard_texture_brightness="
               << fingerboardTexture.brightnessRatio << '\n'
               << "bridge_texture_brightness="
