@@ -45,28 +45,14 @@ jobs:
 
   build:
     # Match the actual development environment instead of following windows-latest.
+    # Portable DSP regressions run first so Windows minutes are spent only after
+    # the physical core is known-good.
+    needs: core-regressions
     runs-on: windows-2022
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Configure physical core (no JUCE)
-        run: cmake --preset vs2022-core
-
-      - name: Build physical core regressions
-        run: cmake --build --preset core-release
-
-      - name: Run physical core regressions
-        run: ctest --test-dir build/vs2022-core -C Release --output-on-failure
-
-      - name: Print audio regression metrics
-        shell: pwsh
-        run: |
-          Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/metrics.csv
-          Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
-          Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/gesture_release_metrics.csv
-          Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/gesture_reversal_metrics.csv
 
       - name: Configure plugin (Visual Studio 2022 x64)
         run: cmake --preset vs2022-x64
@@ -76,7 +62,7 @@ jobs:
           cmake --build --preset release
           --target FiddleModel_VST3 FiddleModel_Standalone
 
-      - name: Upload VST3, Standalone and listening artifacts
+      - name: Upload VST3 and Standalone
         uses: actions/upload-artifact@v4
         with:
           name: FiddleModel-windows-release
@@ -84,4 +70,3 @@ jobs:
           path: |
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/VST3/**
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/Standalone/**
-            build/vs2022-core/instruments/FiddleModel/regression-audio/**
