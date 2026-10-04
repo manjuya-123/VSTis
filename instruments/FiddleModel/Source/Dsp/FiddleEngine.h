@@ -65,7 +65,6 @@ struct DebugState
     std::array<float, 4> contactGripUtilization{};
     std::array<float, 4> rosinNoiseVelocityMps{};
     std::array<float, 4> rosinTransitionEnvelope{};
-    std::array<float, 4> torsionalSurfaceVelocityMps{};
     float bowSpeedMps = 0.0f;
     float bridgeVelocity = 0.0f;
     float bowAngleDeg = 0.0f;
