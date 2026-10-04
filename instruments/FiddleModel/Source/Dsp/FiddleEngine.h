@@ -68,6 +68,7 @@ struct DebugState
     std::array<float, 4> rosinSurfaceCoordinate{};
     float bowSpeedMps = 0.0f;
     float bridgeVelocity = 0.0f;
+    float bridgeRockingVelocity = 0.0f;
     float bowAngleDeg = 0.0f;
     float vibratoOffsetCents = 0.0f;
     float strokeBiteGain = 1.0f;
