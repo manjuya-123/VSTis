@@ -543,7 +543,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
                 gesture.liftBrake,
                 gesture.liftForceCurve);
             playModeOneShotLatched_ = true;
-            activeBowActionNote_ = midiNote;
+            activeBowActionNote_ = -1;
             break;
 
         case fiddle::BowAction::Chop:
@@ -557,7 +557,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             engine_.startChop(
                 playBowDirection_, gesture.durationSeconds);
             playModeOneShotLatched_ = true;
-            activeBowActionNote_ = midiNote;
+            activeBowActionNote_ = -1;
             break;
 
         case fiddle::BowAction::None:
