@@ -689,12 +689,20 @@ int main(int argc, char** argv)
     const auto identityEnd = static_cast<std::size_t>(1.55 * sampleRate);
     const auto stringIdentityDifference = differenceRms(
         a4OnD.left, openA.left, identityBegin, identityEnd);
+    const auto a4OnDMetrics = measure(a4OnD, 440.0);
+    const auto openAMetrics = measure(openA, 440.0);
+    const auto rockingWidthDifference = std::abs(
+        a4OnDMetrics.stereoSideRatio - openAMetrics.stereoSideRatio);
 
     if (!std::isfinite(stringIdentityDifference)
-        || stringIdentityDifference < 1.0e-5)
+        || stringIdentityDifference < 0.005
+        || rockingWidthDifference < 0.003)
     {
         std::cerr << "FAIL: same-pitch notes lost physical string identity"
-                  << " difference_rms=" << stringIdentityDifference << '\n';
+                  << " difference_rms=" << stringIdentityDifference
+                  << " D_side_ratio=" << a4OnDMetrics.stereoSideRatio
+                  << " A_side_ratio=" << openAMetrics.stereoSideRatio
+                  << '\n';
         ok = false;
     }
 
@@ -723,7 +731,11 @@ int main(int argc, char** argv)
     }
 
     std::cout << "string_identity_A4_D_vs_A_difference_rms="
-              << stringIdentityDifference << '\n';
+              << stringIdentityDifference << '\n'
+              << "string_identity_A4_on_D_side_ratio="
+              << a4OnDMetrics.stereoSideRatio << '\n'
+              << "string_identity_open_A_side_ratio="
+              << openAMetrics.stereoSideRatio << '\n';
 
     const auto fastPassage = renderFastAlternatePassage();
     if (!writeStereoWav16(outputDirectory / "08_fast_alternate_passage.wav",
