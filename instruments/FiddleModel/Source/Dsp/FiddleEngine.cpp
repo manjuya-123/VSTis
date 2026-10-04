@@ -970,8 +970,8 @@ struct FiddleEngine::Impl
                 rosinTransitionEnvelope[i] *= transitionDecay;
 
                 const auto transitionTexture =
-                    0.45 * colouredNoise
-                    + 0.55 * differentiated;
+                    (1.0 - brightness) * 0.52 * rawNoise
+                    + brightness * 0.62 * differentiated;
                 const auto transitionVelocity =
                     0.0000045
                     * rosinNoiseScale
@@ -980,7 +980,7 @@ struct FiddleEngine::Impl
                     * std::clamp(
                         0.55 + 0.65 * bowSpeedScale,
                         0.55, 1.35)
-                    * (0.88 + 0.20 * pos)
+                    * (0.84 + 0.28 * pos)
                     * transitionTexture;
 
                 rosinNoiseVelocity =
