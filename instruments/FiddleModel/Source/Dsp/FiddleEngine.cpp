@@ -32,6 +32,11 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
     std::array<BowContact, stringCount> contacts{};
+    std::array<std::uint32_t, stringCount> rosinNoiseState {
+        0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
+    };
+    std::array<double, stringCount> rosinNoisePrevious{};
+    double rosinNoiseScale = 1.0;
 
     ModalBank body{};
     RadiationFilter radiation{};
@@ -125,6 +130,10 @@ struct FiddleEngine::Impl
         allpassX1.fill(0.0);
         fingerTouch.fill(0.0);
         allpassY1.fill(0.0);
+        rosinNoiseState = {
+            0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
+        };
+        rosinNoisePrevious.fill(0.0);
         body.reset();
         radiation.reset();
 
@@ -243,21 +252,25 @@ struct FiddleEngine::Impl
                 staticGripScale = 1.00;
                 slidingGripScale = 1.00;
                 contactStateRateScale = 1.00;
+                rosinNoiseScale = 1.00;
                 break;
             case ContactMaterialPreset::DryLightGrip:
                 staticGripScale = 0.86;
                 slidingGripScale = 0.90;
                 contactStateRateScale = 1.16;
+                rosinNoiseScale = 1.30;
                 break;
             case ContactMaterialPreset::HighGripRosin:
                 staticGripScale = 1.18;
                 slidingGripScale = 1.08;
                 contactStateRateScale = 0.84;
+                rosinNoiseScale = 0.72;
                 break;
             case ContactMaterialPreset::SyntheticHair:
                 staticGripScale = 0.93;
                 slidingGripScale = 0.95;
                 contactStateRateScale = 1.05;
+                rosinNoiseScale = 0.88;
                 break;
         }
 
@@ -807,6 +820,7 @@ struct FiddleEngine::Impl
 
         debug.contactNormalForceN.fill(0.0f);
         debug.sticking.fill(false);
+        debug.rosinNoiseVelocityMps.fill(0.0f);
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
@@ -849,16 +863,53 @@ struct FiddleEngine::Impl
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
+            double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
             {
                 const auto stringVelocity = contacts[i].solve(
                     incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
                     staticGripScale, slidingGripScale, contactStateRateScale);
                 injection = stringVelocity - incomingVelocity;
+
+                const auto slipSpeed = std::abs(contacts[i].slipSpeedMps());
+                if (!contacts[i].sticking && slipSpeed > 1.0e-5)
+                {
+                    // Deterministic microscopic hair/rosin roughness. This
+                    // perturbs contact velocity inside the waveguide; it is not
+                    // broadband noise mixed into the plugin output.
+                    auto& noiseState = rosinNoiseState[i];
+                    noiseState = noiseState * 1664525u + 1013904223u;
+                    const auto rawNoise =
+                        static_cast<double>(noiseState >> 8u)
+                            / 8388608.0 - 1.0;
+                    const auto highPassed =
+                        rawNoise - rosinNoisePrevious[i];
+                    rosinNoisePrevious[i] = rawNoise;
+
+                    const auto slipScale =
+                        std::clamp(slipSpeed / 0.30, 0.0, 1.0);
+                    const auto forceScale = std::clamp(
+                        std::sqrt(bowForce[i] / 0.30), 0.0, 1.35);
+                    const auto temperatureScale = std::clamp(
+                        0.78
+                            + 0.007
+                                * (contacts[i].contactTemperatureC() - 20.0),
+                        0.72, 1.20);
+
+                    rosinNoiseVelocity =
+                        0.000045
+                        * rosinNoiseScale
+                        * slipScale
+                        * forceScale
+                        * temperatureScale
+                        * highPassed;
+                    injection += rosinNoiseVelocity;
+                }
             }
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
+                rosinNoisePrevious[i] *= 0.98;
             }
 
             injection += chopImpactInjection[i];
@@ -873,6 +924,8 @@ struct FiddleEngine::Impl
             debug.sticking[i] = contacts[i].sticking;
             debug.contactTemperatureC[i] =
                 static_cast<float>(contacts[i].contactTemperatureC());
+            debug.rosinNoiseVelocityMps[i] =
+                static_cast<float>(rosinNoiseVelocity);
         }
 
         for (std::size_t i = 0; i < stringCount; ++i)
