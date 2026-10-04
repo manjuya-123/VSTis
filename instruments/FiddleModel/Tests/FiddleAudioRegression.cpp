@@ -18,7 +18,7 @@ namespace
 constexpr double sampleRate = 48000.0;
 constexpr double sustainSeconds = 1.8;
 constexpr double releaseSeconds = 0.7;
-constexpr float listeningGain = 0.15f;
+constexpr float listeningGain = 3.9810717f; // +12 dB, matches plugin default Output Level.
 
 struct Scenario
 {
