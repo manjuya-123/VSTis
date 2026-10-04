@@ -876,18 +876,9 @@ struct FiddleEngine::Impl
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
             {
-                const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
-                    staticGripScale, slidingGripScale, contactStateRateScale);
-                injection = stringVelocity - incomingVelocity;
-
-                const auto slipSpeed = std::abs(contacts[i].slipSpeedMps());
-                const auto gripUtilization = contacts[i].gripUtilization();
-
-                // Deterministic microscopic hair/rosin roughness. The noise
-                // source stays inside the contact velocity path, but its level
-                // now follows the actual stick/slip state instead of being a
-                // binary "sliding = noise" switch.
+                // Deterministic microscopic hair/rosin roughness. One physical
+                // roughness sample drives both a tiny friction-coefficient
+                // variation and the residual contact-velocity texture.
                 auto& noiseState = rosinNoiseState[i];
                 noiseState = noiseState * 1664525u + 1013904223u;
                 const auto rawNoise =
@@ -897,6 +888,30 @@ struct FiddleEngine::Impl
                     rawNoise - rosinNoisePrevious[i];
                 rosinNoisePrevious[i] = rawNoise;
 
+                // Fingerboard-side roughness keeps more broad-band body, while
+                // bridge-side roughness becomes more differentiated/bright.
+                const auto brightness = std::clamp(
+                    0.18 + 0.70 * pos, 0.0, 1.0);
+                const auto colouredNoise =
+                    (1.0 - brightness) * 0.58 * rawNoise
+                    + brightness * 0.34 * differentiated;
+
+                const auto roughnessDepth =
+                    0.025 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                const auto gripPerturbation = std::clamp(
+                    roughnessDepth * colouredNoise, -0.06, 0.06);
+                const auto localStaticGrip =
+                    staticGripScale * (1.0 + 0.35 * gripPerturbation);
+                const auto localSlidingGrip =
+                    slidingGripScale * (1.0 + gripPerturbation);
+
+                const auto stringVelocity = contacts[i].solve(
+                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
+                    localStaticGrip, localSlidingGrip, contactStateRateScale);
+                injection = stringVelocity - incomingVelocity;
+
+                const auto slipSpeed = std::abs(contacts[i].slipSpeedMps());
+                const auto gripUtilization = contacts[i].gripUtilization();
                 const auto nearYield = std::clamp(
                     (gripUtilization - 0.68) / 0.32, 0.0, 1.0);
                 const auto slipActivity =
@@ -930,14 +945,6 @@ struct FiddleEngine::Impl
                     1.0 - std::exp(-1.0 / (sampleRate * envelopeTime));
                 rosinNoiseEnvelope[i] += envelopeAlpha
                     * (targetEnvelope - rosinNoiseEnvelope[i]);
-
-                // Fingerboard-side roughness keeps more broad-band body, while
-                // bridge-side roughness becomes more differentiated/bright.
-                const auto brightness = std::clamp(
-                    0.18 + 0.70 * pos, 0.0, 1.0);
-                const auto colouredNoise =
-                    (1.0 - brightness) * 0.58 * rawNoise
-                    + brightness * 0.34 * differentiated;
 
                 rosinNoiseVelocity =
                     0.0000032
