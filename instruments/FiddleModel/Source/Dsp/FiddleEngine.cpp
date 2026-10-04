@@ -440,12 +440,23 @@ struct FiddleEngine::Impl
         oneShotLiftForceCurve = std::clamp(liftForceCurve, 0.35, 3.0);
     }
 
-    void startChop(int direction, double durationSeconds) noexcept
+    void startChop(int direction,
+                   double durationSeconds,
+                   double impactVelocityMps,
+                   double impactDurationSeconds) noexcept
     {
         startShortStroke(direction, durationSeconds, 0.0045, 6.0, 2.4);
         chopDampingSamplesRemaining = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(
                 std::max(0.020, durationSeconds + 0.012) * sampleRate));
+
+        chopImpactVelocityPeakMps =
+            std::clamp(impactVelocityMps, 0.0, 0.040);
+        chopImpactTotalSamples = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                std::clamp(impactDurationSeconds, 0.0008, 0.0050)
+                * sampleRate));
+        chopImpactSamplesRemaining = chopImpactTotalSamples;
     }
 
     void startTremolo(double reversalsPerSecond) noexcept
