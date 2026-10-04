@@ -22,12 +22,14 @@ struct BowContact
 
     double temperatureC = ambientTemperatureC;
     double lastSlipSpeedMps = 0.0;
+    double lastGripUtilization = 0.0;
     bool sticking = false;
 
     void reset() noexcept
     {
         temperatureC = ambientTemperatureC;
         lastSlipSpeedMps = 0.0;
+        lastGripUtilization = 0.0;
         sticking = false;
     }
 
@@ -82,6 +84,11 @@ struct BowContact
         return lastSlipSpeedMps;
     }
 
+    [[nodiscard]] double gripUtilization() const noexcept
+    {
+        return lastGripUtilization;
+    }
+
     void updateTemperature(double slip,
                            double frictionPower,
                            double sampleRate,
@@ -117,6 +124,7 @@ struct BowContact
     {
         sticking = false;
         lastSlipSpeedMps = 0.0;
+        lastGripUtilization = 0.0;
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
     }
 
@@ -139,6 +147,9 @@ struct BowContact
             0.85 + 0.15 * strength, 0.78, 1.08);
         const auto staticLimit =
             1.2 * staticGripScale * normalForce * staticStateScale;
+        lastGripUtilization = std::clamp(
+            std::abs(requiredForce) / (staticLimit + 1.0e-12),
+            0.0, 3.0);
 
         if (std::abs(requiredForce) <= staticLimit)
         {
