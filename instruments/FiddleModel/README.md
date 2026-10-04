@@ -91,7 +91,7 @@ The first dedicated editor presents actions and audible consequences in player l
 | Bow Contact | move toward fingerboard/bridge | physical bow position on the speaking length |
 | String Focus | lean toward one string of the pair | pressure-aware physical bow-angle calibration |
 | Pitch Bend Range | choose usable wheel travel | speaking-length retune range |
-| Output Level | make the instrument sit at a practical DAW level | post-model gain only; default +12 dB |
+| Output Level | make the instrument sit at a practical DAW level | post-model gain only; default +18 dB |
 
 The UI hides normalized 0..1 values and displays player words such as Light, Natural,
 Firm, Near bridge, and Upper-biased. Numerical values remain only where the unit itself
@@ -153,7 +153,7 @@ They are connected to physical model quantities rather than post-EQ:
 
 - Body -> modal frequency, damping and admittance
 - Bow Stick -> effective acceleration/reversal response
-- Hair+Rosin -> static grip, sliding friction, contact-state relaxation, and microscopic roughness injected at the bow/string contact. Roughness follows grip utilization, slip speed, normal force, bow speed, contact temperature and Bow Contact position; it is not noise mixed into the output.
+- Hair+Rosin -> static grip, sliding friction, contact-state relaxation, and microscopic roughness injected at the bow/string contact. Roughness follows grip utilization, slip speed, normal force, bow speed, contact temperature and Bow Contact position; it is not noise mixed into the output. Faster bow travel also shifts the temporal roughness brighter, while light under-gripped pressure retains audible instability instead of simply becoming quieter.
 
 Experimental profiles are labelled as such; they are not presented as calibrated
 measurements of real commercial materials.
@@ -342,7 +342,10 @@ contact in the active string pair.
 
 The regression artifact also includes `12_rosin_texture_showcase.wav`, ordered
 **Medium Rosin -> Dry Light Grip -> High Grip Rosin**, so the contact-material texture
-can be auditioned without searching through the full comparison render.
+can be auditioned without searching through the full comparison render. A second file,
+`13_rosin_performance_showcase.wav`, is ordered **Slow Bow -> Fast Bow -> Light Pressure
+-> Firm Pressure** and isolates how player gestures change the same microscopic contact
+texture.
 
 This is a visualization of the same state used by the bow/string friction model, not a
 separate cosmetic meter.
