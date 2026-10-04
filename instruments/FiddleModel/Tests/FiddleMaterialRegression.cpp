@@ -365,6 +365,17 @@ int main()
         fiddle::ContactMaterialPreset::HorsehairMediumRosin,
         0.78f, 0.60f, 0.48f);
 
+    if (!(fastTexture.noiseRms >= 2.20 * slowTexture.noiseRms
+          && fastTexture.brightnessRatio
+             >= 1.015 * slowTexture.brightnessRatio))
+        return fail("Bow Speed no longer raises rosin texture activity and temporal brightness");
+
+    if (!(lightPressureTexture.slidingFraction
+              >= 1.20 * firmPressureTexture.slidingFraction
+          && lightPressureTexture.noiseRms
+              >= 0.85 * firmPressureTexture.noiseRms))
+        return fail("Light bow pressure no longer exposes unstable under-gripped rosin texture");
+
     auto steel = traditional;
     steel.strings = fiddle::StringCorePreset::SteelCore;
     auto gut = traditional;
