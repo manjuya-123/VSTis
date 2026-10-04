@@ -39,6 +39,8 @@ struct ReleaseMetrics
     double tenPercentLiftMs = 1000.0;
     double endLiftMs = 1000.0;
     double bowSpeedAtEndMps = 0.0;
+    bool sawActive = false;
+    bool endedInactive = false;
 };
 
 double windowRms(const std::vector<float>& x,
@@ -185,6 +187,8 @@ ReleaseMetrics measureOneShotRelease(fiddle::BowAction action,
         engine.process(&left, &right, 1);
 
         const auto state = engine.debugSnapshot();
+        result.sawActive = result.sawActive || state.oneShotActive;
+
         if (!releaseStarted && state.oneShotLiftGain < 0.999f)
         {
             releaseStarted = true;
@@ -210,6 +214,7 @@ ReleaseMetrics measureOneShotRelease(fiddle::BowAction action,
         {
             result.endLiftMs = elapsedMs;
             result.bowSpeedAtEndMps = std::abs(state.bowSpeedMps);
+            result.endedInactive = !state.oneShotActive;
             break;
         }
     }
@@ -465,6 +470,10 @@ int main(int argc, char** argv)
     if (!(tremoloCatch.intervalRatio <= 1.10
           && shuffleCatch.intervalRatio >= 1.65))
         return fail("Tremolo and Shuffle reversal timing is not musically distinct");
+
+    if (!(shortRelease.sawActive && accentRelease.sawActive
+          && shortRelease.endedInactive && accentRelease.endedInactive))
+        return fail("One-shot bow lifetime flag did not track the physical release");
 
     if (!(accentRelease.halfLiftMs + 2.0 < shortRelease.halfLiftMs
           && accentRelease.tenPercentLiftMs + 4.0
