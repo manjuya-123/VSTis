@@ -33,6 +33,14 @@ struct ReversalMetrics
     double intervalRatio = 1.0;
 };
 
+struct ReleaseMetrics
+{
+    double halfLiftMs = 1000.0;
+    double tenPercentLiftMs = 1000.0;
+    double endLiftMs = 1000.0;
+    double bowSpeedAtEndMps = 0.0;
+};
+
 double windowRms(const std::vector<float>& x,
                  std::size_t begin,
                  std::size_t length)
@@ -79,10 +87,13 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
     switch (action)
     {
         case fiddle::BowAction::AccentStroke:
-            engine.startShortStroke(+1, profile.durationSeconds);
-            break;
         case fiddle::BowAction::ShortStroke:
-            engine.startShortStroke(+1, profile.durationSeconds);
+            engine.startShortStroke(
+                +1,
+                profile.durationSeconds,
+                profile.liftDurationSeconds,
+                profile.liftBrake,
+                profile.liftForceCurve);
             break;
         case fiddle::BowAction::Chop:
             engine.startChop(+1, profile.durationSeconds);
@@ -118,6 +129,87 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
         {
             result.onsetMs =
                 1000.0 * static_cast<double>(i) / sampleRate;
+            break;
+        }
+    }
+
+    return result;
+}
+
+ReleaseMetrics measureOneShotRelease(fiddle::BowAction action,
+                                      float velocity)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.52f;
+    controls.speed = 0.60f;
+    controls.attack = 0.52f;
+    controls.position = 0.45f;
+    controls.balance = -0.90f;
+    controls.vibratoWidth = 0.0f;
+
+    const auto profile = fiddle::makeBowGestureProfile(action, velocity);
+    controls.pressure = std::clamp(
+        controls.pressure + profile.pressureBoost, 0.0f, 1.0f);
+    controls.speed = std::clamp(
+        controls.speed * profile.speedScale, 0.0f, 1.0f);
+    controls.attack = std::clamp(
+        controls.attack + profile.responseBoost, 0.0f, 1.0f);
+    engine.setControls(controls);
+    engine.setStrokeBite(
+        profile.biteBoost, profile.biteDurationSeconds);
+
+    std::array<float, 4> fingering {};
+    fingering[1] = 329.6276f;
+    engine.setFingeringLayout(fingering, 1, 1, velocity);
+    engine.startShortStroke(
+        +1,
+        profile.durationSeconds,
+        profile.liftDurationSeconds,
+        profile.liftBrake,
+        profile.liftForceCurve);
+
+    ReleaseMetrics result;
+    bool releaseStarted = false;
+    std::int64_t releaseStartSample = -1;
+    const auto maxSamples = static_cast<std::int64_t>(
+        (profile.durationSeconds + profile.liftDurationSeconds + 0.040f)
+        * sampleRate);
+
+    for (std::int64_t sample = 0; sample < maxSamples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+
+        const auto state = engine.debugSnapshot();
+        if (!releaseStarted && state.oneShotLiftGain < 0.999f)
+        {
+            releaseStarted = true;
+            releaseStartSample = sample;
+        }
+
+        if (!releaseStarted)
+            continue;
+
+        const auto elapsedMs =
+            1000.0 * static_cast<double>(sample - releaseStartSample + 1)
+            / sampleRate;
+
+        if (result.halfLiftMs >= 999.0
+            && state.oneShotLiftGain <= 0.5f)
+            result.halfLiftMs = elapsedMs;
+
+        if (result.tenPercentLiftMs >= 999.0
+            && state.oneShotLiftGain <= 0.1f)
+            result.tenPercentLiftMs = elapsedMs;
+
+        if (state.oneShotLiftGain <= 0.0f)
+        {
+            result.endLiftMs = elapsedMs;
+            result.bowSpeedAtEndMps = std::abs(state.bowSpeedMps);
             break;
         }
     }
@@ -319,6 +411,10 @@ int main(int argc, char** argv)
         measureReversalCatch(fiddle::BowAction::Tremolo, 0.82f);
     const auto shuffleCatch =
         measureReversalCatch(fiddle::BowAction::Shuffle, 0.82f);
+    const auto shortRelease =
+        measureOneShotRelease(fiddle::BowAction::ShortStroke, 0.82f);
+    const auto accentRelease =
+        measureOneShotRelease(fiddle::BowAction::AccentStroke, 0.82f);
 
     std::cout << "down_onset_ms=" << down.onsetMs
               << " down_peak_rms=" << down.peakRms << '\n'
@@ -335,7 +431,13 @@ int main(int argc, char** argv)
               << "shuffle_reversal_max_ms=" << shuffleCatch.maxLatencyMs
               << " shuffle_reversal_mean_ms=" << shuffleCatch.meanLatencyMs
               << " shuffle_interval_ratio=" << shuffleCatch.intervalRatio
-              << " shuffle_reversals=" << shuffleCatch.reversals << '\n';
+              << " shuffle_reversals=" << shuffleCatch.reversals << '\n'
+              << "short_release_half_ms=" << shortRelease.halfLiftMs
+              << " short_release_10pct_ms=" << shortRelease.tenPercentLiftMs
+              << " short_release_end_ms=" << shortRelease.endLiftMs << '\n'
+              << "accent_release_half_ms=" << accentRelease.halfLiftMs
+              << " accent_release_10pct_ms=" << accentRelease.tenPercentLiftMs
+              << " accent_release_end_ms=" << accentRelease.endLiftMs << '\n';
 
     if (!(std::isfinite(down.onsetMs)
           && std::isfinite(accent.onsetMs)
@@ -364,6 +466,12 @@ int main(int argc, char** argv)
           && shuffleCatch.intervalRatio >= 1.65))
         return fail("Tremolo and Shuffle reversal timing is not musically distinct");
 
+    if (!(accentRelease.halfLiftMs + 2.0 < shortRelease.halfLiftMs
+          && accentRelease.tenPercentLiftMs + 4.0
+             < shortRelease.tenPercentLiftMs
+          && accentRelease.endLiftMs + 4.0 < shortRelease.endLiftMs))
+        return fail("Accent bow lift is not clearly quicker than Short Stroke");
+
     if (argc >= 2)
     {
         const std::filesystem::path outputDirectory(argv[1]);
@@ -381,6 +489,23 @@ int main(int argc, char** argv)
             << "Short," << shortStroke.onsetMs << ',' << shortStroke.peakRms << '\n'
             << "Accent," << accent.onsetMs << ',' << accent.peakRms << '\n'
             << "Chop," << chop.onsetMs << ',' << chop.peakRms << '\n';
+
+        std::ofstream releaseCsv(
+            outputDirectory / "gesture_release_metrics.csv");
+        if (!releaseCsv)
+            return fail("Could not write gesture release metrics CSV");
+
+        releaseCsv
+            << "gesture,half_lift_ms,ten_percent_lift_ms,end_lift_ms,bow_speed_at_end_mps\n"
+            << std::setprecision(9)
+            << "Short," << shortRelease.halfLiftMs << ','
+            << shortRelease.tenPercentLiftMs << ','
+            << shortRelease.endLiftMs << ','
+            << shortRelease.bowSpeedAtEndMps << '\n'
+            << "Accent," << accentRelease.halfLiftMs << ','
+            << accentRelease.tenPercentLiftMs << ','
+            << accentRelease.endLiftMs << ','
+            << accentRelease.bowSpeedAtEndMps << '\n';
 
         std::ofstream reversalCsv(
             outputDirectory / "gesture_reversal_metrics.csv");
