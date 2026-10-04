@@ -349,6 +349,22 @@ int main()
              > fingerboardTexture.brightnessRatio * 1.08))
         return fail("Bow Contact no longer makes microscopic rosin texture brighter toward bridge");
 
+    // Keep player controls connected to the microscopic contact texture.
+    // These are diagnostic first; the exact ratios are printed below so the
+    // physical scaling can be tightened from measured behaviour.
+    const auto slowTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin,
+        0.44f, 0.25f, 0.48f);
+    const auto fastTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin,
+        0.44f, 0.85f, 0.48f);
+    const auto lightPressureTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin,
+        0.25f, 0.60f, 0.48f);
+    const auto firmPressureTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin,
+        0.78f, 0.60f, 0.48f);
+
     auto steel = traditional;
     steel.strings = fiddle::StringCorePreset::SteelCore;
     auto gut = traditional;
@@ -397,6 +413,14 @@ int main()
               << fingerboardTexture.brightnessRatio << '\n'
               << "bridge_texture_brightness="
               << bridgeTexture.brightnessRatio << '\n'
+              << "slow_texture_rms=" << slowTexture.noiseRms << '\n'
+              << "fast_texture_rms=" << fastTexture.noiseRms << '\n'
+              << "slow_texture_brightness=" << slowTexture.brightnessRatio << '\n'
+              << "fast_texture_brightness=" << fastTexture.brightnessRatio << '\n'
+              << "light_pressure_texture_rms=" << lightPressureTexture.noiseRms << '\n'
+              << "firm_pressure_texture_rms=" << firmPressureTexture.noiseRms << '\n'
+              << "light_pressure_sliding_fraction=" << lightPressureTexture.slidingFraction << '\n'
+              << "firm_pressure_sliding_fraction=" << firmPressureTexture.slidingFraction << '\n'
               << "dry_texture_rms=" << dryTexture.noiseRms << '\n'
               << "high_grip_texture_rms=" << highGripTexture.noiseRms << '\n'
               << "string_difference_rms=" << stringDifference << '\n'
