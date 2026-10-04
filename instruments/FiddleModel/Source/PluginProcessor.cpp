@@ -547,15 +547,18 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             break;
 
         case fiddle::BowAction::Chop:
-            // Reduced-order fiddle-chop gesture: high normal force, low travel,
-            // very short contact. A future collision model can replace this.
+            // Physical chop: low bow travel/high normal force plus a short
+            // transverse collision injected at the bowing point.
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesture.pressureBoost;
             playModeSpeedScale_ = gesture.speedScale;
             applyPerformanceControls();
             playBowDirection_ = -playBowDirection_;
             engine_.startChop(
-                playBowDirection_, gesture.durationSeconds);
+                playBowDirection_,
+                gesture.durationSeconds,
+                gesture.impactVelocityMps,
+                gesture.impactDurationSeconds);
             playModeOneShotLatched_ = true;
             activeBowActionNote_ = -1;
             break;
