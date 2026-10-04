@@ -37,7 +37,13 @@ struct ModalBiquad
 
 struct ModalBank
 {
+    explicit ModalBank(bool useRockingModes = false) noexcept
+        : rockingSpectrum(useRockingModes)
+    {
+    }
+
     std::array<ModalBiquad, bodyModeCount> modes{};
+    bool rockingSpectrum = false;
     double sampleRate = 48000.0;
     double frequencyScale = 1.0;
     double dampingScale = 1.0;
@@ -62,9 +68,11 @@ struct ModalBank
     void updateCoefficients(bool resetState) noexcept
     {
         const auto c = 2.0 * sampleRate;
+        const auto& definitions =
+            rockingSpectrum ? rockingBodyModes : bodyModes;
         for (std::size_t i = 0; i < modes.size(); ++i)
         {
-            const auto& def = bodyModes[i];
+            const auto& def = definitions[i];
             const auto w = 2.0 * pi * def.frequencyHz * frequencyScale;
             const auto zeta = std::max(0.002, def.zeta * dampingScale);
             const auto peak = def.peakAdmittance * admittanceScale;
