@@ -53,6 +53,9 @@ The primary visual metaphor remains the bowed instrument itself. A compact piano
 **Play Key Map** is allowed as a controller legend because Fiddle Play divides the MIDI
 keyboard by hand role. It must remain secondary to the four-string instrument view and
 must clearly show C2-B2 as bow actions, C3-F#3 as unused, and G3-C8 as fingering.
+When a double stop or chord is held, all effective fingering keys light together; the
+current fingering is emphasized. Fingering Hold keeps the latched shape lit after the
+physical keys are released.
 Show the player which string is active, where it is stopped, where the bow contacts
 the string pair, and the bow direction.
 
