@@ -244,6 +244,20 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     renderUntil(numBlockSamples);
 
     const auto debug = engine_.debugSnapshot();
+
+    if (playModeOneShotLatched_ && !debug.oneShotActive)
+    {
+        playModeOneShotLatched_ = false;
+        playModePressureBoost_ = 0.0f;
+        playModeSpeedScale_ = 1.0f;
+        playModeResponseBoost_ = 0.0f;
+        activeBowActionNote_ = -1;
+        visualBowAction_.store(
+            static_cast<int>(fiddle::BowAction::None),
+            std::memory_order_relaxed);
+        applyPerformanceControls();
+    }
+
     visualPrimaryString_.store(debug.primaryString, std::memory_order_relaxed);
     visualBowDirection_.store(debug.bowDirection, std::memory_order_relaxed);
     activePairLowerString_.store(debug.bowPairLowerString, std::memory_order_relaxed);
