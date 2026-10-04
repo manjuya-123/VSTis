@@ -303,6 +303,15 @@ struct FiddleEngine::Impl
         {
             bowStrokeStarted = true;
             bowDirection = 1;
+
+            // Starting from a stationary bow needs a small physical preload:
+            // hair is already resting lightly on the string before the player
+            // drives the first stroke. This avoids making the first fiddle note
+            // much weaker than subsequent bow changes while keeping the full
+            // pressure/speed ramp in the contact model.
+            gate.reset(std::max(gate.current, 0.12));
+            retriggerBowCatch(0.10, 0.006);
+            triggerBowReversalAssist(1.8, 0.008);
             return;
         }
 
