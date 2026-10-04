@@ -891,10 +891,15 @@ struct FiddleEngine::Impl
                     rawNoise - rosinNoisePrevious[i];
                 rosinNoisePrevious[i] = rawNoise;
 
-                // Fingerboard-side roughness keeps more broad-band body, while
-                // bridge-side roughness becomes more differentiated/bright.
+                // Hair/rosin roughness is spatial. Moving the bow faster
+                // traverses the same microscopic irregularities more quickly,
+                // shifting their temporal texture upward as well as increasing
+                // activity. Bow Contact still provides the larger spectral tilt.
+                const auto speedColour = std::clamp(
+                    std::abs(bowSpeed) / 0.65, 0.0, 1.0);
                 const auto brightness = std::clamp(
-                    0.18 + 0.70 * pos, 0.0, 1.0);
+                    0.14 + 0.56 * pos + 0.24 * speedColour,
+                    0.0, 0.95);
                 const auto colouredNoise =
                     (1.0 - brightness) * 0.58 * rawNoise
                     + brightness * 0.34 * differentiated;
