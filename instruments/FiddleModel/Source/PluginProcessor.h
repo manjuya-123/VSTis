@@ -17,6 +17,7 @@ struct FiddleVisualState
     int playMode = 0;
     int bowAction = 0;
     bool fingeringHold = false;
+    std::uint64_t fingeringMask = 0;
     std::array<float, 4> speakingFrequencyHz {
         195.9977f, 293.6648f, 440.0f, 659.2551f
     };
@@ -94,6 +95,7 @@ private:
     std::atomic<int> visualPlayMode_ { 0 };
     std::atomic<int> visualBowAction_ { 0 };
     std::atomic<bool> visualFingeringHold_ { false };
+    std::atomic<std::uint64_t> visualFingeringMask_ { 0 };
     std::atomic<int> pendingUiActionPress_ { -1 };
     std::atomic<int> pendingUiActionRelease_ { -1 };
     std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
