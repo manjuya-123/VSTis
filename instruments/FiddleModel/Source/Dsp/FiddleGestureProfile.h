@@ -53,19 +53,25 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             break;
 
         case BowAction::Tremolo:
-            result.pressureBoost = gesturePressure;
-            result.speedScale = gestureSpeed;
-            result.responseBoost = 0.16f + 0.08f * strength;
-            result.tremoloReversalsPerSecond = 10.0f + 10.0f * strength;
+            // Tremolo is a light, fast, even wrist gesture. Keep normal force
+            // relatively modest while raising bow speed/response and reversal rate.
+            result.pressureBoost = 0.05f * strength;
+            result.speedScale = 1.02f + 0.48f * strength;
+            result.responseBoost = 0.22f + 0.10f * strength;
+            result.biteBoost = 0.06f + 0.06f * strength;
+            result.biteDurationSeconds = 0.0045f;
+            result.tremoloReversalsPerSecond = 11.0f + 11.0f * strength;
             break;
 
         case BowAction::Shuffle:
-            result.pressureBoost = 0.04f + 0.08f * strength;
-            result.speedScale = 0.90f + 0.30f * strength;
-            result.responseBoost = 0.10f + 0.08f * strength;
-            result.biteBoost = 0.07f + 0.08f * strength;
-            result.biteDurationSeconds = 0.006f;
-            result.shuffleSubdivisionsPerSecond = 9.0f + 7.0f * strength;
+            // Shuffle needs a stronger grounded catch and more pulse contrast
+            // than Tremolo. Rhythm comes from the physical long-short-short cell.
+            result.pressureBoost = 0.08f + 0.11f * strength;
+            result.speedScale = 0.80f + 0.30f * strength;
+            result.responseBoost = 0.12f + 0.08f * strength;
+            result.biteBoost = 0.12f + 0.12f * strength;
+            result.biteDurationSeconds = 0.0065f;
+            result.shuffleSubdivisionsPerSecond = 8.5f + 6.5f * strength;
             break;
 
         case BowAction::DroneBow:
