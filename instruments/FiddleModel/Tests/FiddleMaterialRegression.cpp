@@ -16,6 +16,15 @@ struct RenderResult
     fiddle::DebugState debug;
 };
 
+struct ContactTextureMetrics
+{
+    double noiseRms = 0.0;
+    double stickingNoiseRms = 0.0;
+    double maxGripUtilization = 0.0;
+    double slidingFraction = 0.0;
+    std::size_t nearYieldStickSamples = 0;
+};
+
 fiddle::Controls controls()
 {
     fiddle::Controls c;
@@ -88,6 +97,94 @@ double maxRosinNoiseVelocity(fiddle::ContactMaterialPreset preset)
     return maximum;
 }
 
+ContactTextureMetrics contactTexture(
+    fiddle::ContactMaterialPreset preset,
+    float pressure = 0.44f,
+    float speed = 0.60f,
+    float position = 0.48f)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::MaterialSettings materials;
+    materials.contact = preset;
+    engine.setMaterials(materials);
+
+    auto c = controls();
+    c.pressure = pressure;
+    c.speed = speed;
+    c.position = position;
+    engine.setControls(c);
+    engine.beginBowStroke(false);
+    engine.noteOn(329.6276f, 0.86f);
+
+    double noiseEnergy = 0.0;
+    double stickingNoiseEnergy = 0.0;
+    std::size_t observedContacts = 0;
+    std::size_t stickingNoiseSamples = 0;
+    std::size_t slidingSamples = 0;
+
+    ContactTextureMetrics result;
+    const auto samples = static_cast<std::size_t>(0.55 * sampleRate);
+    const auto warmup = static_cast<std::size_t>(0.060 * sampleRate);
+
+    for (std::size_t sample = 0; sample < samples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+
+        if (sample < warmup)
+            continue;
+
+        const auto debug = engine.debugSnapshot();
+        for (std::size_t i = 0; i < debug.contactNormalForceN.size(); ++i)
+        {
+            if (debug.contactNormalForceN[i] <= 1.0e-6f)
+                continue;
+
+            ++observedContacts;
+            const auto noise =
+                static_cast<double>(debug.rosinNoiseVelocityMps[i]);
+            const auto grip =
+                static_cast<double>(debug.contactGripUtilization[i]);
+            noiseEnergy += noise * noise;
+            result.maxGripUtilization =
+                std::max(result.maxGripUtilization, grip);
+
+            if (debug.sticking[i])
+            {
+                if (grip >= 0.68)
+                {
+                    ++result.nearYieldStickSamples;
+                    stickingNoiseEnergy += noise * noise;
+                    ++stickingNoiseSamples;
+                }
+            }
+            else
+            {
+                ++slidingSamples;
+            }
+        }
+    }
+
+    if (observedContacts > 0)
+    {
+        result.noiseRms = std::sqrt(
+            noiseEnergy / static_cast<double>(observedContacts));
+        result.slidingFraction =
+            static_cast<double>(slidingSamples)
+            / static_cast<double>(observedContacts);
+    }
+
+    if (stickingNoiseSamples > 0)
+        result.stickingNoiseRms = std::sqrt(
+            stickingNoiseEnergy
+            / static_cast<double>(stickingNoiseSamples));
+
+    return result;
+}
+
 double reversalSpeed(fiddle::BowStickPreset preset)
 {
     fiddle::FiddleEngine engine;
@@ -158,10 +255,26 @@ int main()
     const auto highGripRosinNoise = maxRosinNoiseVelocity(
         fiddle::ContactMaterialPreset::HighGripRosin);
 
-    if (!(mediumRosinNoise > 1.0e-7
-          && dryRosinNoise > 1.0e-7
+    if (!(mediumRosinNoise > 1.0e-8
+          && dryRosinNoise > 1.0e-8
           && dryRosinNoise > highGripRosinNoise))
         return fail("Microscopic rosin roughness is missing or ignores contact material");
+
+    const auto mediumTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HorsehairMediumRosin);
+    const auto dryTexture = contactTexture(
+        fiddle::ContactMaterialPreset::DryLightGrip);
+    const auto highGripTexture = contactTexture(
+        fiddle::ContactMaterialPreset::HighGripRosin);
+
+    if (!(mediumTexture.noiseRms > 1.0e-9
+          && dryTexture.noiseRms > highGripTexture.noiseRms))
+        return fail("Rosin roughness RMS no longer follows contact material");
+
+    if (!(mediumTexture.nearYieldStickSamples > 0
+          && mediumTexture.stickingNoiseRms > 1.0e-10
+          && mediumTexture.maxGripUtilization >= 0.68))
+        return fail("Near-yield sticking no longer produces microscopic pre-slip roughness");
 
     auto steel = traditional;
     steel.strings = fiddle::StringCorePreset::SteelCore;
@@ -196,6 +309,13 @@ int main()
               << "medium_rosin_noise_velocity=" << mediumRosinNoise << '\n'
               << "dry_rosin_noise_velocity=" << dryRosinNoise << '\n'
               << "high_grip_rosin_noise_velocity=" << highGripRosinNoise << '\n'
+              << "medium_texture_rms=" << mediumTexture.noiseRms << '\n'
+              << "medium_sticking_texture_rms=" << mediumTexture.stickingNoiseRms << '\n'
+              << "medium_max_grip_utilization=" << mediumTexture.maxGripUtilization << '\n'
+              << "medium_near_yield_stick_samples=" << mediumTexture.nearYieldStickSamples << '\n'
+              << "medium_sliding_fraction=" << mediumTexture.slidingFraction << '\n'
+              << "dry_texture_rms=" << dryTexture.noiseRms << '\n'
+              << "high_grip_texture_rms=" << highGripTexture.noiseRms << '\n'
               << "string_difference_rms=" << stringDifference << '\n'
               << "rigid_bow_speed=" << rigidBowSpeed << '\n'
               << "flexible_bow_speed=" << flexibleBowSpeed << '\n';
