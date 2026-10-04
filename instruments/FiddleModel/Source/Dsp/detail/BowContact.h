@@ -151,19 +151,7 @@ struct BowContact
             std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
 
-        // Breakaway uses the full static limit, but after macroscopic slip the
-        // hair bundle must unload farther before it can lock again. This small
-        // hysteresis prevents sample-by-sample stick/slip chatter without
-        // making the first bow catch artificially harder.
-        const auto recoveringFromSlip =
-            !sticking && std::abs(lastSlipSpeedMps) > 1.0e-6;
-        const auto slipMemory = recoveringFromSlip
-            ? std::clamp(std::abs(lastSlipSpeedMps) / 0.25, 0.0, 1.0)
-            : 0.0;
-        const auto captureLimit =
-            staticLimit * (1.0 - 0.10 * slipMemory);
-
-        if (std::abs(requiredForce) <= captureLimit)
+        if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
             lastSlipSpeedMps = 0.0;
