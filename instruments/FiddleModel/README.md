@@ -254,7 +254,7 @@ Current action map:
 | F2 / 41 | Tremolo |
 | G2 / 43 | Drone Bow |
 | A2 / 45 | Accent Stroke |
-| A#2 / 46 | Chop (reduced-order experimental gesture) |
+| A#2 / 46 | Chop / physical bow-string collision |
 | B2 / 47 | Release |
 
 This is intentionally closer to a playable instrument controller than to detailed DAW
