@@ -29,6 +29,9 @@ jobs:
       - name: Run portable physical core regressions
         run: ctest --test-dir build/linux-core --output-on-failure
 
+      - name: Print hair/rosin contact dynamics
+        run: ./build/linux-core/instruments/FiddleModel/FiddleModelMaterialRegression
+
       - name: Print portable audio regression metrics
         run: |
           cat build/linux-core/instruments/FiddleModel/regression-audio/metrics.csv
