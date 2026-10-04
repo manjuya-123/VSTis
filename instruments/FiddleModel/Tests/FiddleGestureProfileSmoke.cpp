@@ -69,12 +69,16 @@ int main()
     if (!drone.balancedPair)
         return fail("Drone Bow should request a balanced adjacent-string pair");
 
+    const auto softChop = makeBowGestureProfile(BowAction::Chop, 0.2f);
     const auto chop = makeBowGestureProfile(BowAction::Chop, 0.9f);
     if (!(chop.oneShot && chop.durationSeconds < 0.04f
           && chop.pressureBoost > hardDown.pressureBoost
           && chop.speedScale < softDown.speedScale
-          && chop.biteBoost > accent.biteBoost))
-        return fail("Chop should be short, high-force, high-bite and low-travel");
+          && chop.biteBoost > accent.biteBoost
+          && chop.impactVelocityMps > softChop.impactVelocityMps
+          && chop.impactVelocityMps > 0.0f
+          && chop.impactDurationSeconds > 0.0f))
+        return fail("Chop should be short, high-force, low-travel, and collision-driven");
 
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
