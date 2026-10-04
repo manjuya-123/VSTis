@@ -87,6 +87,7 @@ private:
     float playModePressureBoost_ = 0.0f;
     float playModeSpeedScale_ = 1.0f;
     float playModeResponseBoost_ = 0.0f;
+    bool playModeOneShotLatched_ = false;
     float playModeGestureStrength_ = 0.5f;
     int playModePreferredPrimaryString_ = -1;
     std::atomic<int> activePairLowerString_ { 1 };
