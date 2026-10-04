@@ -213,7 +213,12 @@ int main(int argc, char** argv)
     const auto shortProfile =
         applyGesture(fiddle::BowAction::ShortStroke, 0.82f);
     const auto shortBegin = left.size();
-    engine.startShortStroke(+1, shortProfile.durationSeconds);
+    engine.startShortStroke(
+        +1,
+        shortProfile.durationSeconds,
+        shortProfile.liftDurationSeconds,
+        shortProfile.liftBrake,
+        shortProfile.liftForceCurve);
     render(engine, left, right, 0.18);
     const auto shortEnd = left.size();
     const auto afterShort = engine.debugSnapshot();
@@ -227,7 +232,12 @@ int main(int argc, char** argv)
     const auto accentProfile =
         applyGesture(fiddle::BowAction::AccentStroke, 0.82f);
     const auto accentBegin = left.size();
-    engine.startShortStroke(-1, accentProfile.durationSeconds);
+    engine.startShortStroke(
+        -1,
+        accentProfile.durationSeconds,
+        accentProfile.liftDurationSeconds,
+        accentProfile.liftBrake,
+        accentProfile.liftForceCurve);
     render(engine, left, right, 0.15);
     const auto accentEnd = left.size();
     const auto afterAccent = engine.debugSnapshot();
