@@ -74,6 +74,34 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     { 8650.0, 0.340, 0.00048 },
 }};
 
+
+// Bridge-rocking/lateral mobility is not just the vertical body spectrum shifted
+// wholesale. Keep the same modal count for a cheap real-time solve, but use a
+// distinct, more irregular distribution with relatively dense upper modes.
+// These are representative regions rather than a fit to one specific violin.
+inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes {{
+    { 315.0,  0.080, 0.0020 },
+    { 390.0,  0.072, 0.0018 },
+    { 515.0,  0.060, 0.0038 },
+    { 625.0,  0.058, 0.0046 },
+    { 805.0,  0.068, 0.0033 },
+    { 1035.0, 0.078, 0.0032 },
+    { 1325.0, 0.090, 0.0034 },
+    { 1660.0, 0.105, 0.0038 },
+    { 2075.0, 0.120, 0.0044 },
+    { 2525.0, 0.135, 0.0050 },
+    { 3075.0, 0.155, 0.0044 },
+    { 3790.0, 0.185, 0.0036 },
+    { 4310.0, 0.205, 0.00155 },
+    { 4860.0, 0.220, 0.00138 },
+    { 5480.0, 0.238, 0.00120 },
+    { 6140.0, 0.255, 0.00105 },
+    { 6820.0, 0.278, 0.00090 },
+    { 7560.0, 0.300, 0.00076 },
+    { 8380.0, 0.325, 0.00062 },
+    { 9250.0, 0.355, 0.00048 },
+}};
+
 inline constexpr double bodyDirectConductance = 0.0007;
 
 // Representative bridge cross-section used by the v0.4b/v0.4c geometry model.
