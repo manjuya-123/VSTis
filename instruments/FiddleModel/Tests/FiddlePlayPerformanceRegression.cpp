@@ -212,8 +212,10 @@ int main(int argc, char** argv)
     // Short stroke: compact, articulate, but not as forceful as Accent.
     const auto shortProfile =
         applyGesture(fiddle::BowAction::ShortStroke, 0.82f);
+    const auto shortBegin = left.size();
     engine.startShortStroke(+1, shortProfile.durationSeconds);
     render(engine, left, right, 0.18);
+    const auto shortEnd = left.size();
     const auto afterShort = engine.debugSnapshot();
     const auto shortForce =
         afterShort.contactNormalForceN[1] + afterShort.contactNormalForceN[2];
@@ -224,8 +226,10 @@ int main(int argc, char** argv)
     // Accent: stronger first bite and shorter, more forceful one-shot.
     const auto accentProfile =
         applyGesture(fiddle::BowAction::AccentStroke, 0.82f);
+    const auto accentBegin = left.size();
     engine.startShortStroke(-1, accentProfile.durationSeconds);
     render(engine, left, right, 0.15);
+    const auto accentEnd = left.size();
     const auto afterAccent = engine.debugSnapshot();
     const auto accentForce =
         afterAccent.contactNormalForceN[1] + afterAccent.contactNormalForceN[2];
@@ -248,6 +252,7 @@ int main(int argc, char** argv)
     // Tremolo: light, even high-rate reversals.
     const auto tremoloProfile =
         applyGesture(fiddle::BowAction::Tremolo, 0.82f);
+    const auto tremoloBegin = left.size();
     engine.startTremolo(tremoloProfile.tremoloReversalsPerSecond);
     auto tremoloDirection = engine.debugSnapshot().bowDirection;
     int tremoloReversals = 0;
@@ -267,12 +272,14 @@ int main(int argc, char** argv)
         return fail("Tremolo did not produce repeated physical bow reversals");
     if (tremoloMaxReCatch < 1.02f)
         return fail("Tremolo reversals did not re-catch the string");
+    const auto tremoloEnd = left.size();
     engine.stopBow();
     render(engine, left, right, 0.08);
 
     // Fiddle shuffle: stronger long-short-short pulse with slower subdivisions.
     const auto shuffleProfile =
         applyGesture(fiddle::BowAction::Shuffle, 0.82f);
+    const auto shuffleBegin = left.size();
     engine.startShuffle(shuffleProfile.shuffleSubdivisionsPerSecond);
     auto shuffleDirection = engine.debugSnapshot().bowDirection;
     int shuffleReversals = 0;
@@ -292,6 +299,7 @@ int main(int argc, char** argv)
         return fail("Shuffle did not advance through repeated long-short-short bow reversals");
     if (shuffleMaxReCatch < 1.02f)
         return fail("Shuffle reversals did not re-catch the string");
+    const auto shuffleEnd = left.size();
     engine.stopBow();
     render(engine, left, right, 0.08);
 
@@ -325,7 +333,31 @@ int main(int argc, char** argv)
         const std::filesystem::path output(argv[1]);
         if (!writeWav(output, left, right))
             return fail("Could not write Fiddle Play demo WAV");
-        std::cout << "wav=" << output.string() << '\n';
+
+        std::vector<float> gestureLeft;
+        std::vector<float> gestureRight;
+        const auto appendRange =
+            [&](std::size_t begin, std::size_t end)
+            {
+                gestureLeft.insert(
+                    gestureLeft.end(), left.begin() + begin, left.begin() + end);
+                gestureRight.insert(
+                    gestureRight.end(), right.begin() + begin, right.begin() + end);
+                appendSilence(gestureLeft, gestureRight, 0.14);
+            };
+
+        appendRange(shortBegin, shortEnd);
+        appendRange(accentBegin, accentEnd);
+        appendRange(tremoloBegin, tremoloEnd);
+        appendRange(shuffleBegin, shuffleEnd);
+
+        const auto gestureOutput =
+            output.parent_path() / "11_fiddle_gesture_showcase.wav";
+        if (!writeWav(gestureOutput, gestureLeft, gestureRight))
+            return fail("Could not write Fiddle gesture showcase WAV");
+
+        std::cout << "wav=" << output.string() << '\n'
+                  << "gesture_wav=" << gestureOutput.string() << '\n';
     }
 
     std::cout << "PASS\n";
