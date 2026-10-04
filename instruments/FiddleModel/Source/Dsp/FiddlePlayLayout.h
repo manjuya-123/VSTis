@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace fiddle
 {
 enum class PlayMode
@@ -22,8 +24,11 @@ enum class BowAction
     Shuffle
 };
 
-inline constexpr int fiddleLowestNote = 55;  // G3
+inline constexpr int fiddleLowestNote = 55;   // G3
 inline constexpr int fiddleHighestNote = 108; // C8
+inline constexpr int fiddleFingeringKeyCount =
+    fiddleHighestNote - fiddleLowestNote + 1;
+static_assert(fiddleFingeringKeyCount <= 64);
 
 inline BowAction bowActionForMidiNote(int midiNote) noexcept
 {
@@ -51,5 +56,13 @@ inline bool isBowActionKey(int midiNote) noexcept
 inline bool isFingeringKey(int midiNote) noexcept
 {
     return midiNote >= fiddleLowestNote && midiNote <= fiddleHighestNote;
+}
+
+inline constexpr std::uint64_t fingeringMaskBit(int midiNote) noexcept
+{
+    return midiNote >= fiddleLowestNote && midiNote <= fiddleHighestNote
+        ? (std::uint64_t { 1 }
+           << static_cast<unsigned>(midiNote - fiddleLowestNote))
+        : std::uint64_t { 0 };
 }
 } // namespace fiddle
