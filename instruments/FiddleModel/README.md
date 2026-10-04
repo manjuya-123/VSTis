@@ -298,6 +298,8 @@ Fiddle Play can now be driven without a second MIDI controller:
 - The bow-action octave in the piano-style Play Key Map is clickable.
 - Clicking a sustained gesture (Down / Up / Tremolo / Shuffle / Drone) holds it until mouse-up.
 - The same map shows the unused C3-F#3 gap and the G3-C8 fingering region.
+- Double stops and chords light all effective fingering keys at once; the current note
+  is brighter, and Fingering Hold keeps the latched left-hand shape visible.
 - Short / Accent / Chop still use the physical one-shot timing in the engine.
 
 GUI commands are queued to the audio thread through atomics; the editor never calls the
