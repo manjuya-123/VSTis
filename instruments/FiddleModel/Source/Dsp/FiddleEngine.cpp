@@ -37,6 +37,7 @@ struct FiddleEngine::Impl
     };
     std::array<double, stringCount> rosinNoisePrevious{};
     std::array<double, stringCount> rosinNoiseEnvelope{};
+    std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
 
     ModalBank body{};
@@ -140,6 +141,7 @@ struct FiddleEngine::Impl
         };
         rosinNoisePrevious.fill(0.0);
         rosinNoiseEnvelope.fill(0.0);
+        rosinTransitionEnvelope.fill(0.0);
         body.reset();
         radiationLeft.reset();
         radiationRight.reset();
@@ -831,6 +833,7 @@ struct FiddleEngine::Impl
         debug.contactNormalForceN.fill(0.0f);
         debug.sticking.fill(false);
         debug.rosinNoiseVelocityMps.fill(0.0f);
+        debug.rosinTransitionEnvelope.fill(0.0f);
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
@@ -905,10 +908,26 @@ struct FiddleEngine::Impl
                 const auto localSlidingGrip =
                     slidingGripScale * (1.0 + gripPerturbation);
 
+                const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
                     incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
                     localStaticGrip, localSlidingGrip, contactStateRateScale);
                 injection = stringVelocity - incomingVelocity;
+
+                const auto transitioned =
+                    wasSticking != contacts[i].sticking;
+                if (transitioned)
+                {
+                    // Hair/rosin texture is most audible during the brief
+                    // catch/release event itself. Slip onset is stronger than
+                    // the return to sticking, but both decay within a few ms.
+                    const auto transitionStrength =
+                        contacts[i].sticking ? 0.58 : 1.0;
+                    rosinTransitionEnvelope[i] =
+                        std::max(
+                            rosinTransitionEnvelope[i],
+                            transitionStrength);
+                }
 
                 const auto slipSpeed = std::abs(contacts[i].slipSpeedMps());
                 const auto gripUtilization = contacts[i].gripUtilization();
@@ -946,10 +965,29 @@ struct FiddleEngine::Impl
                 rosinNoiseEnvelope[i] += envelopeAlpha
                     * (targetEnvelope - rosinNoiseEnvelope[i]);
 
+                const auto transitionDecay =
+                    std::exp(-1.0 / (sampleRate * 0.00135));
+                rosinTransitionEnvelope[i] *= transitionDecay;
+
+                const auto transitionTexture =
+                    0.45 * colouredNoise
+                    + 0.55 * differentiated;
+                const auto transitionVelocity =
+                    0.0000045
+                    * rosinNoiseScale
+                    * rosinTransitionEnvelope[i]
+                    * forceScale
+                    * std::clamp(
+                        0.55 + 0.65 * bowSpeedScale,
+                        0.55, 1.35)
+                    * (0.88 + 0.20 * pos)
+                    * transitionTexture;
+
                 rosinNoiseVelocity =
                     0.0000032
                     * rosinNoiseEnvelope[i]
-                    * colouredNoise;
+                    * colouredNoise
+                    + transitionVelocity;
                 injection += rosinNoiseVelocity;
             }
             else
@@ -958,6 +996,8 @@ struct FiddleEngine::Impl
                 rosinNoisePrevious[i] *= 0.98;
                 rosinNoiseEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.004));
+                rosinTransitionEnvelope[i] *= std::exp(
+                    -1.0 / (sampleRate * 0.00135));
             }
 
             injection += chopImpactInjection[i];
@@ -976,6 +1016,8 @@ struct FiddleEngine::Impl
                 static_cast<float>(contacts[i].gripUtilization());
             debug.rosinNoiseVelocityMps[i] =
                 static_cast<float>(rosinNoiseVelocity);
+            debug.rosinTransitionEnvelope[i] =
+                static_cast<float>(rosinTransitionEnvelope[i]);
         }
 
         for (std::size_t i = 0; i < stringCount; ++i)
