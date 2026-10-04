@@ -265,7 +265,10 @@ struct FiddleEngine::Impl
                 staticGripScale = 0.86;
                 slidingGripScale = 0.90;
                 contactStateRateScale = 1.16;
-                rosinNoiseScale = 1.30;
+                // Dry/light grip should retain a clearly granular, airy
+                // microscopic contact texture after the new smoothed
+                // stick/slip roughness model.
+                rosinNoiseScale = 2.00;
                 break;
             case ContactMaterialPreset::HighGripRosin:
                 staticGripScale = 1.18;
