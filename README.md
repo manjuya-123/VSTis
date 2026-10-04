@@ -33,6 +33,18 @@ Visual Studio 2022 / CMake / JUCE based VST3 instrument monorepo.
 
 The plugin runtime is native C++; .NET is not required. Existing .NET 7 tooling can remain unchanged.
 
+## Download the latest Fiddle Model build
+
+Open the GitHub **Actions** tab, choose **Windows VST3 build**, then open the newest
+green run. Its **Artifacts** section contains:
+
+- `FiddleModel-windows-release` — the Windows VST3 bundle and Standalone EXE.
+- `FiddleModel-core-regression-audio` — listening WAVs and CSV regression metrics.
+  For a quick articulation check, start with `11_fiddle_gesture_showcase.wav`.
+
+The same two ZIP files are also attached directly in ChatGPT whenever a build is
+reported as verified, so listening/testing does not require navigating Actions.
+
 ## Local verification
 
 On the Windows/Visual Studio 2022 development machine, run:
