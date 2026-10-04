@@ -1,4 +1,5 @@
 #include "Dsp/FiddleEngine.h"
+#include "Dsp/FiddleGestureProfile.h"
 
 #include <algorithm>
 #include <array>
@@ -180,11 +181,38 @@ int main(int argc, char** argv)
 
     // Restore the original D/A fingering for the remaining gestures.
     controls.balance = -0.45f;
+    controls.pressure = 0.56f;
+    controls.speed = 0.66f;
+    controls.attack = 0.78f;
     engine.setControls(controls);
     engine.setFingeringLayout(fingering, 1, 1, 0.88f);
 
-    // Short stroke.
-    engine.startShortStroke(+1, 0.075f);
+    const auto gestureBaseControls = controls;
+    const auto applyGesture =
+        [&](fiddle::BowAction action, float velocity)
+        {
+            const auto profile =
+                fiddle::makeBowGestureProfile(action, velocity);
+            auto gestureControls = gestureBaseControls;
+            gestureControls.pressure = std::clamp(
+                gestureControls.pressure + profile.pressureBoost,
+                0.0f, 1.0f);
+            gestureControls.speed = std::clamp(
+                gestureControls.speed * profile.speedScale,
+                0.0f, 1.0f);
+            gestureControls.attack = std::clamp(
+                gestureControls.attack + profile.responseBoost,
+                0.0f, 1.0f);
+            engine.setControls(gestureControls);
+            engine.setStrokeBite(
+                profile.biteBoost, profile.biteDurationSeconds);
+            return profile;
+        };
+
+    // Short stroke: compact, articulate, but not as forceful as Accent.
+    const auto shortProfile =
+        applyGesture(fiddle::BowAction::ShortStroke, 0.82f);
+    engine.startShortStroke(+1, shortProfile.durationSeconds);
     render(engine, left, right, 0.18);
     const auto afterShort = engine.debugSnapshot();
     const auto shortForce =
@@ -193,11 +221,22 @@ int main(int argc, char** argv)
         return fail("Short Stroke did not release the bow automatically");
     render(engine, left, right, 0.06);
 
+    // Accent: stronger first bite and shorter, more forceful one-shot.
+    const auto accentProfile =
+        applyGesture(fiddle::BowAction::AccentStroke, 0.82f);
+    engine.startShortStroke(-1, accentProfile.durationSeconds);
+    render(engine, left, right, 0.15);
+    const auto afterAccent = engine.debugSnapshot();
+    const auto accentForce =
+        afterAccent.contactNormalForceN[1] + afterAccent.contactNormalForceN[2];
+    if (accentForce > 0.015f)
+        return fail("Accent Stroke did not release the bow automatically");
+    render(engine, left, right, 0.06);
+
     // Short percussive Chop surrogate.
-    controls.pressure = 0.90f;
-    controls.speed = 0.22f;
-    engine.setControls(controls);
-    engine.startChop(-1, 0.032f);
+    const auto chopProfile =
+        applyGesture(fiddle::BowAction::Chop, 0.90f);
+    engine.startChop(+1, chopProfile.durationSeconds);
     render(engine, left, right, 0.10);
     const auto afterChop = engine.debugSnapshot();
     const auto chopForce =
@@ -206,13 +245,10 @@ int main(int argc, char** argv)
         return fail("Chop surrogate did not release quickly");
     render(engine, left, right, 0.05);
 
-    controls.pressure = 0.56f;
-    controls.speed = 0.66f;
-    engine.setControls(controls);
-
-    // Tremolo on the same stopped notes. Count actual physical reversals,
-    // rather than only comparing the first and final direction.
-    engine.startTremolo(14.0f);
+    // Tremolo: light, even high-rate reversals.
+    const auto tremoloProfile =
+        applyGesture(fiddle::BowAction::Tremolo, 0.82f);
+    engine.startTremolo(tremoloProfile.tremoloReversalsPerSecond);
     auto tremoloDirection = engine.debugSnapshot().bowDirection;
     int tremoloReversals = 0;
     float tremoloMaxReCatch = 1.0f;
@@ -234,9 +270,10 @@ int main(int argc, char** argv)
     engine.stopBow();
     render(engine, left, right, 0.08);
 
-    // Fiddle shuffle: long-short-short bow cells must produce several physical
-    // direction changes while preserving the same stopped-string state.
-    engine.startShuffle(13.0f);
+    // Fiddle shuffle: stronger long-short-short pulse with slower subdivisions.
+    const auto shuffleProfile =
+        applyGesture(fiddle::BowAction::Shuffle, 0.82f);
+    engine.startShuffle(shuffleProfile.shuffleSubdivisionsPerSecond);
     auto shuffleDirection = engine.debugSnapshot().bowDirection;
     int shuffleReversals = 0;
     float shuffleMaxReCatch = 1.0f;
@@ -259,6 +296,7 @@ int main(int argc, char** argv)
     render(engine, left, right, 0.08);
 
     // Drone/double-stop gesture: same fingering, even focus across D/A.
+    controls = gestureBaseControls;
     controls.balance = 0.0f;
     engine.setControls(controls);
     engine.startBow(+1);
