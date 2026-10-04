@@ -70,6 +70,7 @@ struct FiddleEngine::Impl
     double rosinNoiseScale = 1.0;
 
     ModalBank body{};
+    ModalBank bodyRocking{};
     RadiationFilter radiationLeft{};
     RadiationFilter radiationRight{};
     BowGeometryMapper bowGeometry{};
@@ -127,6 +128,7 @@ struct FiddleEngine::Impl
     {
         sampleRate = std::clamp(newSampleRate, 32000.0, 192000.0);
         body.prepare(sampleRate);
+        bodyRocking.prepare(sampleRate);
         // Two nearby radiation angles: left keeps slightly more body, right
         // slightly more bridge air. The mechanical body itself remains shared.
         radiationLeft.prepare(sampleRate, 6900.0, 0.19);
@@ -173,6 +175,7 @@ struct FiddleEngine::Impl
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
         body.reset();
+        bodyRocking.reset();
         radiationLeft.reset();
         radiationRight.reset();
 
@@ -257,15 +260,19 @@ struct FiddleEngine::Impl
         {
             case BodyMaterialPreset::Traditional:
                 body.setMaterialScales(1.00, 1.00, 1.00);
+                bodyRocking.setMaterialScales(1.13, 1.18, 0.17);
                 break;
             case BodyMaterialPreset::LightStiffComposite:
                 body.setMaterialScales(1.04, 0.82, 1.05);
+                bodyRocking.setMaterialScales(1.17, 0.97, 0.18);
                 break;
             case BodyMaterialPreset::DenseExperimental:
                 body.setMaterialScales(0.97, 1.28, 0.90);
+                bodyRocking.setMaterialScales(1.10, 1.50, 0.15);
                 break;
             case BodyMaterialPreset::RigidComposite:
                 body.setMaterialScales(1.08, 0.68, 0.96);
+                bodyRocking.setMaterialScales(1.22, 0.80, 0.16);
                 break;
         }
 
@@ -821,22 +828,75 @@ struct FiddleEngine::Impl
         std::array<double, stringCount> incomingBridge{};
         std::array<double, stringCount> incomingNut{};
 
+        std::array<double, stringCount> bridgeLever {};
         double incidentForce = 0.0;
+        double incidentRocking = 0.0;
         double impedanceSum = 0.0;
+        double impedanceLeverSum = 0.0;
+        double impedanceLeverSquaredSum = 0.0;
+        constexpr double halfBridgeSpan = geSpacingMm * 0.5;
+
         for (std::size_t i = 0; i < stringCount; ++i)
         {
             incidentBridge[i] = toBridge[i].read(bridgeDelay[i]);
             incidentNut[i] = toNut[i].read(nutDelay[i]);
             incomingBridge[i] = fromBridge[i].read(bridgeDelay[i]);
             incomingNut[i] = fromNut[i].read(nutDelay[i]);
-            incidentForce += 2.0 * stringImpedance[i] * incidentBridge[i];
+
+            bridgeLever[i] = bridgeXmm[i] / halfBridgeSpan;
+            const auto incident =
+                2.0 * stringImpedance[i] * incidentBridge[i];
+
+            incidentForce += incident;
+            incidentRocking += bridgeLever[i] * incident;
             impedanceSum += stringImpedance[i];
+            impedanceLeverSum +=
+                stringImpedance[i] * bridgeLever[i];
+            impedanceLeverSquaredSum +=
+                stringImpedance[i] * bridgeLever[i] * bridgeLever[i];
         }
 
-        const auto direct = body.direct();
-        const auto bridgeVelocity = (body.knownPart() + direct * incidentForce)
-                                  / (1.0 + direct * impedanceSum);
-        body.push(incidentForce - impedanceSum * bridgeVelocity);
+        // Two coupled generalized bridge coordinates:
+        // vertical translation and left/right rocking. Each string sees
+        // v_i = translation + lever_i * rocking, so outer strings couple
+        // more strongly to the rocking coordinate than inner strings.
+        const auto directTranslation = body.direct();
+        const auto directRocking = bodyRocking.direct();
+        const auto a00 = 1.0 + directTranslation * impedanceSum;
+        const auto a01 = directTranslation * impedanceLeverSum;
+        const auto a10 = directRocking * impedanceLeverSum;
+        const auto a11 =
+            1.0 + directRocking * impedanceLeverSquaredSum;
+        const auto rhs0 =
+            body.knownPart() + directTranslation * incidentForce;
+        const auto rhs1 =
+            bodyRocking.knownPart()
+            + directRocking * incidentRocking;
+        const auto determinant =
+            std::max(1.0e-12, a00 * a11 - a01 * a10);
+
+        const auto bridgeVelocity =
+            (rhs0 * a11 - a01 * rhs1) / determinant;
+        const auto bridgeRockingVelocity =
+            (a00 * rhs1 - a10 * rhs0) / determinant;
+
+        const auto bodyForce =
+            incidentForce
+            - impedanceSum * bridgeVelocity
+            - impedanceLeverSum * bridgeRockingVelocity;
+        const auto bodyRockingForce =
+            incidentRocking
+            - impedanceLeverSum * bridgeVelocity
+            - impedanceLeverSquaredSum * bridgeRockingVelocity;
+
+        body.push(bodyForce);
+        bodyRocking.push(bodyRockingForce);
+
+        std::array<double, stringCount> bridgeStringVelocity {};
+        for (std::size_t i = 0; i < stringCount; ++i)
+            bridgeStringVelocity[i] =
+                bridgeVelocity
+                + bridgeLever[i] * bridgeRockingVelocity;
 
         const auto bowForce = makeBowForces(totalForce, bal);
 
@@ -867,7 +927,8 @@ struct FiddleEngine::Impl
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
-            const auto reflectedBridge = bridgeVelocity - incidentBridge[i];
+            const auto reflectedBridge =
+                bridgeStringVelocity[i] - incidentBridge[i];
             const auto lossFiltered = runtimeLossGain[i]
                 * ((1.0 - lossAlpha[i]) * incidentNut[i] + lossAlpha[i] * lossX1[i]);
             lossX1[i] = incidentNut[i];
@@ -1082,6 +1143,8 @@ struct FiddleEngine::Impl
 
         debug.bowSpeedMps = static_cast<float>(bowSpeed);
         debug.bridgeVelocity = static_cast<float>(bridgeVelocity);
+        debug.bridgeRockingVelocity =
+            static_cast<float>(bridgeRockingVelocity);
         debug.vibratoOffsetCents = static_cast<float>(appliedVibratoCents);
         debug.strokeBiteGain = static_cast<float>(strokeBiteGain);
         debug.reversalAccelerationGain =
@@ -1102,9 +1165,14 @@ struct FiddleEngine::Impl
         // Listening/output calibration only; not part of the mechanical closure.
         // Directional radiation creates a small natural stereo side signal
         // without duplicating or detuning the string/body mechanics.
+        constexpr double rockingRadiationMix = 0.20;
         return {
-            18.0 * radiationLeft.process(bridgeVelocity),
-            18.0 * radiationRight.process(bridgeVelocity)
+            18.0 * radiationLeft.process(
+                bridgeVelocity
+                + rockingRadiationMix * bridgeRockingVelocity),
+            18.0 * radiationRight.process(
+                bridgeVelocity
+                - rockingRadiationMix * bridgeRockingVelocity)
         };
     }
 };
