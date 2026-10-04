@@ -314,8 +314,9 @@ int main()
         fiddle::ContactMaterialPreset::HighGripRosin);
 
     if (!(mediumTexture.noiseRms > 1.0e-9
-          && dryTexture.noiseRms > highGripTexture.noiseRms))
-        return fail("Rosin roughness RMS no longer follows contact material");
+          && dryTexture.noiseRms >= 1.70 * mediumTexture.noiseRms
+          && highGripTexture.noiseRms <= 0.85 * mediumTexture.noiseRms))
+        return fail("Rosin roughness RMS no longer follows Dry / Medium / High-Grip material intent");
 
     if (!(mediumTexture.nearYieldStickSamples > 0
           && mediumTexture.stickingNoiseRms > 1.0e-10
