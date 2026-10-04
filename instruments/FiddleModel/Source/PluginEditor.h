@@ -90,6 +90,8 @@ private:
 
     juce::Label title_;
     juce::Label subtitle_;
+    juce::Label outputLevelLabel_;
+    juce::Slider outputLevel_;
     InstrumentView instrumentView_;
     PlayKeyMap playKeyMap_;
     juce::GroupComponent bowGroup_ { "bow", "Bow" };
@@ -152,6 +154,7 @@ private:
     std::unique_ptr<Attachment> vibratoWidthAttachment_;
     std::unique_ptr<Attachment> vibratoPaceAttachment_;
     std::unique_ptr<Attachment> bendRangeAttachment_;
+    std::unique_ptr<Attachment> outputLevelAttachment_;
     std::unique_ptr<ComboAttachment> playModeAttachment_;
     std::unique_ptr<ButtonAttachment> fingeringHoldAttachment_;
     std::unique_ptr<ComboAttachment> strokeModeAttachment_;
