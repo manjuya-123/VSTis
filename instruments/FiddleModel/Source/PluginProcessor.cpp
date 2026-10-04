@@ -371,7 +371,7 @@ FiddleModelAudioProcessor::createParameterLayout()
         juce::NormalisableRange<float>(1.0f, 24.0f, 1.0f), 2.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "outputLevelDb", "Output Level",
-        juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 12.0f));
+        juce::NormalisableRange<float>(-24.0f, 30.0f, 0.1f), 18.0f));
 
     return { params.begin(), params.end() };
 }
