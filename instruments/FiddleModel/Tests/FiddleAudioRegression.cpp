@@ -495,6 +495,8 @@ int main(int argc, char** argv)
 
     std::vector<float> comparisonLeft;
     std::vector<float> comparisonRight;
+    std::vector<float> rosinShowcaseLeft;
+    std::vector<float> rosinShowcaseRight;
     const auto silenceSamples = static_cast<std::size_t>(0.25 * sampleRate);
     bool ok = true;
     std::vector<Metrics> measured;
@@ -537,6 +539,29 @@ int main(int argc, char** argv)
         comparisonRight.insert(comparisonRight.end(), render.right.begin(), render.right.end());
         comparisonLeft.insert(comparisonLeft.end(), silenceSamples, 0.0f);
         comparisonRight.insert(comparisonRight.end(), silenceSamples, 0.0f);
+
+        if (scenario.name == "01_reference_E4_on_D"
+            || scenario.name == "11_hair_rosin_dry_light_grip"
+            || scenario.name == "12_hair_rosin_high_grip")
+        {
+            rosinShowcaseLeft.insert(
+                rosinShowcaseLeft.end(), render.left.begin(), render.left.end());
+            rosinShowcaseRight.insert(
+                rosinShowcaseRight.end(), render.right.begin(), render.right.end());
+            rosinShowcaseLeft.insert(
+                rosinShowcaseLeft.end(), silenceSamples, 0.0f);
+            rosinShowcaseRight.insert(
+                rosinShowcaseRight.end(), silenceSamples, 0.0f);
+        }
+    }
+
+    if (!writeStereoWav16(
+            outputDirectory / "12_rosin_texture_showcase.wav",
+            rosinShowcaseLeft,
+            rosinShowcaseRight))
+    {
+        std::cerr << "FAIL: cannot write rosin texture showcase WAV\n";
+        ok = false;
     }
 
     const auto fastPassage = renderFastAlternatePassage();
