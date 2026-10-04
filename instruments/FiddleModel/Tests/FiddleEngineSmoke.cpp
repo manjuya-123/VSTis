@@ -37,6 +37,40 @@ void render(fiddle::FiddleEngine& engine,
     engine.process(left.data() + offset, right.data() + offset, count);
 }
 
+double maxBridgeRocking(float noteHz, float balance)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.55f;
+    controls.speed = 0.60f;
+    controls.attack = 0.55f;
+    controls.position = 0.45f;
+    controls.balance = balance;
+    engine.setControls(controls);
+    engine.beginBowStroke(false);
+    engine.noteOn(noteHz, 0.85f);
+
+    double maximum = 0.0;
+    const auto samples = static_cast<std::size_t>(0.45 * sampleRate);
+    const auto warmup = static_cast<std::size_t>(0.06 * sampleRate);
+    for (std::size_t i = 0; i < samples; ++i)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+        if (i >= warmup)
+        {
+            maximum = std::max(
+                maximum,
+                std::abs(static_cast<double>(
+                    engine.debugSnapshot().bridgeRockingVelocity)));
+        }
+    }
+    return maximum;
+}
+
 int fail(const char* message)
 {
     std::cerr << "FAIL: " << message << '\n';
@@ -144,6 +178,11 @@ int main()
     if (!(aHeavy.contactNormalForceN[2] > aHeavy.contactNormalForceN[1]))
         return fail("positive Balance should favor upper/A string");
 
+    const auto gStringRocking = maxBridgeRocking(195.9977f, -0.95f);
+    const auto eStringRocking = maxBridgeRocking(659.2551f, +0.95f);
+    if (!(gStringRocking > 1.0e-6 && eStringRocking > 1.0e-6))
+        return fail("outer strings no longer excite bridge rocking mobility");
+
     engine.reset();
     controls.balance = 0.0f;
     controls.vibratoWidth = 1.0f;
@@ -175,7 +214,9 @@ int main()
               << "bow_speed_mps=" << debug.bowSpeedMps << '\n'
               << "bow_angle_deg=" << debug.bowAngleDeg << '\n'
               << "hot_contact_c=" << hotContact << '\n'
-              << "cooled_contact_c=" << cooledContact << '\n';
+              << "cooled_contact_c=" << cooledContact << '\n'
+              << "g_string_rocking_peak_mps=" << gStringRocking << '\n'
+              << "e_string_rocking_peak_mps=" << eStringRocking << '\n';
 
     return EXIT_SUCCESS;
 }
