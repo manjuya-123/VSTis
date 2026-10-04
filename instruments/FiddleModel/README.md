@@ -125,6 +125,11 @@ The plugin's final **Output** control is a post-model listening level: the curre
 is +18 dB and the range extends to +30 dB. It changes loudness only and does not feed back
 into bow/string/body mechanics.
 
+The body model now uses a denser, increasingly damped high-order modal tail above 3.5 kHz.
+Stereo output is not chorus or doubled strings: both channels share the same string/body
+mechanics, then use two nearby directional radiation responses. The side signal is kept
+deliberately subtle so mono sum retains the instrument's center image.
+
 The editor uses the four-string instrument view as its primary performance display.
 A compact piano-style Play Key Map is also shown as a controller legend so Fiddle Play's
 two keyboard regions are immediately visible. The instrument view shows:
