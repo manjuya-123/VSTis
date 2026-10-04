@@ -585,6 +585,22 @@ struct FiddleEngine::Impl
         if (chopDampingSamplesRemaining > 0)
             --chopDampingSamplesRemaining;
 
+        double chopImpactVelocity = 0.0;
+        if (chopImpactSamplesRemaining > 0
+            && chopImpactTotalSamples > 0)
+        {
+            const auto progress = 1.0
+                - static_cast<double>(chopImpactSamplesRemaining)
+                    / static_cast<double>(chopImpactTotalSamples);
+            // Half-sine transverse collision at the bowing point. This is an
+            // internal waveguide velocity impulse, not an output click/envelope.
+            chopImpactVelocity =
+                static_cast<double>(bowDirection)
+                * chopImpactVelocityPeakMps
+                * std::sin(pi * std::clamp(progress, 0.0, 1.0));
+            --chopImpactSamplesRemaining;
+        }
+
         if (tremoloSamplesUntilFlip > 0 && tremoloReversalsPerSecond > 0.0)
         {
             --tremoloSamplesUntilFlip;
@@ -759,6 +775,27 @@ struct FiddleEngine::Impl
         body.push(incidentForce - impedanceSum * bridgeVelocity);
 
         const auto bowForce = makeBowForces(totalForce, bal);
+
+        std::array<double, stringCount> chopImpactInjection {};
+        if (std::abs(chopImpactVelocity) > 1.0e-12)
+        {
+            // Reuse the bridge-curvature/String Focus geometry to distribute
+            // the collision over the active pair. Normalize it so the impact
+            // does not depend on the slower pressure/gate smoothers.
+            const auto impactForce =
+                bowGeometry.solve(pairLower, 0.25, bal).normalForceN;
+            double impactForceSum = 0.0;
+            for (const auto force : impactForce)
+                impactForceSum += force;
+
+            if (impactForceSum > 1.0e-12)
+            {
+                for (std::size_t i = 0; i < stringCount; ++i)
+                    chopImpactInjection[i] =
+                        chopImpactVelocity * impactForce[i] / impactForceSum;
+            }
+        }
+
         debug.contactNormalForceN.fill(0.0f);
         debug.sticking.fill(false);
 
@@ -815,6 +852,8 @@ struct FiddleEngine::Impl
                 contacts[i].relax(sampleRate, contactStateRateScale);
             }
 
+            injection += chopImpactInjection[i];
+
             toBridge[i].write(incomingNut[i] + injection);
             toNut[i].write(incomingBridge[i] + injection);
             fromBridge[i].write(reflectedBridge);
@@ -843,9 +882,13 @@ struct FiddleEngine::Impl
             static_cast<float>(reversalAccelerationGain);
         debug.oneShotLiftGain =
             static_cast<float>(oneShotLiftGain);
+        debug.chopImpactVelocityMps =
+            static_cast<float>(chopImpactVelocity);
         debug.oneShotActive =
             shortStrokeSamplesRemaining > 0
-            || oneShotReleaseSamplesRemaining > 0;
+            || oneShotReleaseSamplesRemaining > 0
+            || chopImpactSamplesRemaining > 0
+            || chopDampingSamplesRemaining > 0;
         debug.bowDirection = bowDirection;
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;
@@ -888,9 +931,16 @@ void FiddleEngine::startShortStroke(int direction,
         liftBrake,
         liftForceCurve);
 }
-void FiddleEngine::startChop(int direction, float durationSeconds) noexcept
+void FiddleEngine::startChop(int direction,
+                             float durationSeconds,
+                             float impactVelocityMps,
+                             float impactDurationSeconds) noexcept
 {
-    impl_->startChop(direction, durationSeconds);
+    impl_->startChop(
+        direction,
+        durationSeconds,
+        impactVelocityMps,
+        impactDurationSeconds);
 }
 void FiddleEngine::startTremolo(float reversalsPerSecond) noexcept
 {
