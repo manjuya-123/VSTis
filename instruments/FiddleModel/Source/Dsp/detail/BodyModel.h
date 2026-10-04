@@ -98,7 +98,9 @@ struct ModalBank
 
     double direct() const noexcept
     {
-        double sum = bodyDirectConductance;
+        // The non-resonant mobility belongs to the same generalized body
+        // coordinate as the modal admittance and therefore follows its scale.
+        double sum = bodyDirectConductance * admittanceScale;
         for (const auto& mode : modes)
             sum += mode.direct();
         return sum;
