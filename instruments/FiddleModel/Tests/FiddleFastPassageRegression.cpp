@@ -225,6 +225,15 @@ int main(int argc, char** argv)
             ? reversalCatchSumMs / static_cast<double>(measuredReversals)
             : 0.0;
 
+    if (initialEarlyRms < 8.0e-4)
+        return fail("first bow stroke is too weak during its first 24 ms");
+
+    if (reversalEarlyRmsMin < 6.0e-3)
+        return fail("alternate bow reversal has a weak first-24-ms transient");
+
+    if (reversalCatchMaxMs > 8.0)
+        return fail("alternate bow reversal did not re-catch useful speed within 8 ms");
+
     for (const auto sample : left)
         if (!std::isfinite(sample) || std::abs(sample) > 8.0f)
             return fail("fast passage produced non-finite or runaway audio");
