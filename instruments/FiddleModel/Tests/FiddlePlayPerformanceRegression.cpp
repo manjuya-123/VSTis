@@ -247,10 +247,14 @@ int main(int argc, char** argv)
         return fail("Accent Stroke did not complete its physical bow lift");
     render(engine, left, right, 0.06);
 
-    // Short percussive Chop surrogate.
+    // Physical Chop: low travel/high force plus a contact-point collision.
     const auto chopProfile =
         applyGesture(fiddle::BowAction::Chop, 0.90f);
-    engine.startChop(+1, chopProfile.durationSeconds);
+    engine.startChop(
+        +1,
+        chopProfile.durationSeconds,
+        chopProfile.impactVelocityMps,
+        chopProfile.impactDurationSeconds);
     render(engine, left, right, 0.10);
     const auto afterChop = engine.debugSnapshot();
     const auto chopForce =
