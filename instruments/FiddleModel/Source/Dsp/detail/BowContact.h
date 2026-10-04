@@ -21,11 +21,13 @@ struct BowContact
     static constexpr double crossingTemperatureC = 46.2;
 
     double temperatureC = ambientTemperatureC;
+    double lastSlipSpeedMps = 0.0;
     bool sticking = false;
 
     void reset() noexcept
     {
         temperatureC = ambientTemperatureC;
+        lastSlipSpeedMps = 0.0;
         sticking = false;
     }
 
@@ -75,6 +77,11 @@ struct BowContact
         return temperatureC;
     }
 
+    [[nodiscard]] double slipSpeedMps() const noexcept
+    {
+        return lastSlipSpeedMps;
+    }
+
     void updateTemperature(double slip,
                            double frictionPower,
                            double sampleRate,
@@ -109,6 +116,7 @@ struct BowContact
     void relax(double sampleRate, double stateRateScale = 1.0) noexcept
     {
         sticking = false;
+        lastSlipSpeedMps = 0.0;
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
     }
 
@@ -135,6 +143,7 @@ struct BowContact
         if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
+            lastSlipSpeedMps = 0.0;
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
             return bowVelocity;
         }
@@ -165,6 +174,7 @@ struct BowContact
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
             const auto slip = stringVelocity - bowVelocity;
+            lastSlipSpeedMps = slip;
             updateTemperature(
                 slip, std::abs(force * slip), sampleRate, stateRateScale);
             return stringVelocity;
@@ -188,6 +198,7 @@ struct BowContact
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
         const auto slip = stringVelocity - bowVelocity;
+        lastSlipSpeedMps = slip;
 
         updateTemperature(
             slip,
