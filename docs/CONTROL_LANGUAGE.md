@@ -23,6 +23,8 @@ The plug-in UI is written for a player, not for the DSP implementation.
 - Bow Contact — where the bow touches between fingerboard side and bridge side.
 - String Focus — which member of the currently active adjacent-string pair receives more bow.
 - Pitch Bend Range — musically meaningful wheel travel in semitones.
+- Output Level — final post-model listening level in dB. It must never feed back into
+  bow/string/body mechanics; it is a DAW/output calibration control, not an articulation control.
 
 The active String Focus pair is shown by string names (for example D ↔ A), not merely
 "lower" and "upper".
