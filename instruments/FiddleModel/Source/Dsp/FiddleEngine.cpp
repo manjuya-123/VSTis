@@ -59,6 +59,7 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
+    std::array<double, stringCount> fingerPadState{};
     std::array<BowContact, stringCount> contacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -166,6 +167,7 @@ struct FiddleEngine::Impl
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
         fingerTouch.fill(0.0);
+        fingerPadState.fill(0.0);
         allpassY1.fill(0.0);
         rosinNoiseState = {
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -943,14 +945,30 @@ struct FiddleEngine::Impl
                 speakingFrequency[i].target > openFrequency[i] * 1.0005;
 
             // A stopped string loses additional transverse energy into the
-            // fingertip. The short extra loss after Note On represents the
-            // finger settling onto the string; it is applied at the termination,
-            // not as an output amplitude envelope.
+            // fingertip. Beyond scalar loss, the finger pad is a slightly soft,
+            // frequency-dependent termination: high-frequency motion is
+            // absorbed more strongly than the fundamental region. This remains
+            // inside the string reflection path, not an output EQ.
             double fingerTerminationGain = 1.0;
+            double fingerReflectedVelocity = filtered;
             if (fingered)
             {
                 fingerTerminationGain =
                     0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
+
+                const auto padCutoffHz =
+                    7600.0 - 900.0 * fingerTouch[i];
+                const auto padAlpha =
+                    1.0 - std::exp(-2.0 * pi * padCutoffHz / sampleRate);
+                fingerPadState[i] +=
+                    padAlpha * (filtered - fingerPadState[i]);
+
+                const auto complianceMix =
+                    0.10 + 0.05 * fingerTouch[i];
+                fingerReflectedVelocity =
+                    (1.0 - complianceMix) * filtered
+                    + complianceMix * fingerPadState[i];
+
                 const auto touchDecay =
                     std::exp(-1.0 / (sampleRate * 0.005));
                 fingerTouch[i] *= touchDecay;
@@ -958,12 +976,15 @@ struct FiddleEngine::Impl
             else
             {
                 fingerTouch[i] = 0.0;
+                fingerPadState[i] = filtered;
             }
 
             const auto chopTerminationGain =
                 chopDampingActive ? 0.960 : 1.0;
             const auto reflectedNut =
-                -filtered * fingerTerminationGain * chopTerminationGain;
+                -fingerReflectedVelocity
+                * fingerTerminationGain
+                * chopTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
