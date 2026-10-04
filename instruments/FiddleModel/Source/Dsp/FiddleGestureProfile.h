@@ -14,6 +14,9 @@ struct BowGestureProfile
     float biteBoost = 0.0f;
     float biteDurationSeconds = 0.008f;
     float durationSeconds = 0.0f;
+    float liftDurationSeconds = 0.012f;
+    float liftBrake = 2.0f;
+    float liftForceCurve = 1.0f;
     float tremoloReversalsPerSecond = 0.0f;
     float shuffleSubdivisionsPerSecond = 0.0f;
     bool oneShot = false;
@@ -49,6 +52,11 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.biteBoost = 0.14f + 0.12f * strength;
             result.biteDurationSeconds = 0.007f;
             result.durationSeconds = 0.095f - 0.040f * strength;
+            // Short stroke leaves the string with a rounded wrist lift:
+            // contact pressure falls over ~12-14 ms and bow travel brakes gently.
+            result.liftDurationSeconds = 0.014f - 0.003f * strength;
+            result.liftBrake = 1.8f + 0.8f * strength;
+            result.liftForceCurve = 0.72f;
             result.oneShot = true;
             break;
 
@@ -87,6 +95,12 @@ inline BowGestureProfile makeBowGestureProfile(BowAction action,
             result.biteBoost = 0.18f + 0.20f * strength;
             result.biteDurationSeconds = 0.009f;
             result.durationSeconds = 0.070f - 0.025f * strength;
+            // Accent bites hard, then the hand gets out of the string quickly.
+            // A short, strongly braked lift preserves the string/body ring while
+            // making the bow-contact release audibly more abrupt than Short.
+            result.liftDurationSeconds = 0.0065f - 0.0015f * strength;
+            result.liftBrake = 4.0f + 1.5f * strength;
+            result.liftForceCurve = 1.85f;
             result.oneShot = true;
             break;
 
