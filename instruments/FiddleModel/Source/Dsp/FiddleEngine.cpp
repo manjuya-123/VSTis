@@ -1068,6 +1068,8 @@ struct FiddleEngine::Impl
                 static_cast<float>(rosinNoiseVelocity);
             debug.rosinTransitionEnvelope[i] =
                 static_cast<float>(rosinTransitionEnvelope[i]);
+            debug.rosinSurfaceCoordinate[i] =
+                static_cast<float>(rosinSurfaceCoordinate[i]);
         }
 
         for (std::size_t i = 0; i < stringCount; ++i)
