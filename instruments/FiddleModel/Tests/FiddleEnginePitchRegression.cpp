@@ -4,7 +4,9 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 namespace
@@ -109,6 +111,84 @@ bool testPitch(double target)
 
     return std::abs(cents) <= 7.0;
 }
+
+struct PitchMatrixResult
+{
+    double maxAbsCents = 0.0;
+    double meanAbsCents = 0.0;
+};
+
+PitchMatrixResult measurePitchMatrix()
+{
+    constexpr std::array<double, 4> openHz {
+        195.9977, 293.6648, 440.0, 659.2551
+    };
+    constexpr std::array<double, 3> positions { 0.10, 0.45, 0.90 };
+
+    PitchMatrixResult result;
+    double absCentsSum = 0.0;
+    std::size_t count = 0;
+
+    std::cout << std::setprecision(9);
+
+    for (std::size_t stringIndex = 0; stringIndex < openHz.size(); ++stringIndex)
+    {
+        const auto target = openHz[stringIndex] * 1.25;
+        const auto pairLower =
+            stringIndex == 0 ? 0
+            : stringIndex == 3 ? 2
+            : static_cast<int>(stringIndex - 1);
+        const auto balance =
+            static_cast<int>(stringIndex) == pairLower ? -1.0f : 1.0f;
+
+        for (const auto position : positions)
+        {
+            fiddle::FiddleEngine engine;
+            engine.prepare(sampleRate);
+
+            fiddle::Controls controls;
+            controls.pressure = 0.55f;
+            controls.speed = 0.60f;
+            controls.attack = 0.55f;
+            controls.position = static_cast<float>(position);
+            controls.balance = balance;
+            engine.setControls(controls);
+
+            std::array<float, 4> layout {};
+            layout[stringIndex] = static_cast<float>(target);
+            engine.setFingeringLayout(
+                layout,
+                static_cast<int>(stringIndex),
+                pairLower,
+                0.85f);
+            engine.startBow(+1);
+
+            std::vector<float> left(
+                static_cast<std::size_t>(1.65 * sampleRate), 0.0f);
+            std::vector<float> right(left.size(), 0.0f);
+            engine.process(left.data(), right.data(), left.size());
+
+            const auto estimated = estimateFrequency(left, target);
+            const auto cents = centsBetween(estimated, target);
+            const auto absCents = std::abs(cents);
+            result.maxAbsCents = std::max(result.maxAbsCents, absCents);
+            absCentsSum += absCents;
+            ++count;
+
+            std::cout << "pitch_matrix"
+                      << " string=" << stringIndex
+                      << " position=" << position
+                      << " target=" << target
+                      << " estimated=" << estimated
+                      << " cents=" << cents << '\n';
+        }
+    }
+
+    result.meanAbsCents =
+        count > 0 ? absCentsSum / static_cast<double>(count) : 0.0;
+    return result;
+}
+
 } // namespace
 
 bool testStringAssignmentSurvivesBend()
@@ -193,6 +273,18 @@ int main()
     if (!testStringAssignmentSurvivesBend())
     {
         std::cerr << "FAIL: pitch bend migrated the note to a different physical string\n";
+        return EXIT_FAILURE;
+    }
+
+    const auto pitchMatrix = measurePitchMatrix();
+    std::cout << "pitch_matrix_max_abs_cents="
+              << pitchMatrix.maxAbsCents << '\n'
+              << "pitch_matrix_mean_abs_cents="
+              << pitchMatrix.meanAbsCents << '\n';
+
+    if (pitchMatrix.maxAbsCents > 12.0)
+    {
+        std::cerr << "FAIL: bridge/body loaded pitch matrix exceeded 12 cents\n";
         return EXIT_FAILURE;
     }
 
