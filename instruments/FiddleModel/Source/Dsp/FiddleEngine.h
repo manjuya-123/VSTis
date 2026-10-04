@@ -68,6 +68,7 @@ struct DebugState
     float vibratoOffsetCents = 0.0f;
     float strokeBiteGain = 1.0f;
     float reversalAccelerationGain = 1.0f;
+    float oneShotLiftGain = 1.0f;
     int bowDirection = 1;
     int bowPairLowerString = 1;
     int primaryString = 1;
@@ -95,7 +96,11 @@ public:
 
     void setStrokeBite(float amount, float durationSeconds = 0.008f) noexcept;
     void startBow(int direction) noexcept;
-    void startShortStroke(int direction, float durationSeconds = 0.075f) noexcept;
+    void startShortStroke(int direction,
+                          float durationSeconds = 0.075f,
+                          float liftDurationSeconds = 0.012f,
+                          float liftBrake = 2.0f,
+                          float liftForceCurve = 1.0f) noexcept;
     void startChop(int direction, float durationSeconds = 0.032f) noexcept;
     void startTremolo(float reversalsPerSecond = 14.0f) noexcept;
     void startShuffle(float subdivisionsPerSecond = 12.0f) noexcept;
