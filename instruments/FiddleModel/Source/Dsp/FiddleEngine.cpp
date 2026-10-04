@@ -95,6 +95,7 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
     std::array<BowContact, stringCount> contacts{};
+    std::array<ReducedTorsionalResonator, stringCount> torsion{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
@@ -127,6 +128,8 @@ struct FiddleEngine::Impl
     double staticGripScale = 1.0;
     double slidingGripScale = 1.0;
     double contactStateRateScale = 1.0;
+    double torsionalRatioScale = 1.0;
+    double torsionalQ = 22.0;
 
     double velocityScale = 1.0;
     double bowSpeed = 0.0;
@@ -194,6 +197,7 @@ struct FiddleEngine::Impl
         for (auto& rail : toNut) rail.clear();
         for (auto& rail : fromNut) rail.clear();
         for (auto& contact : contacts) contact.reset();
+        for (auto& resonator : torsion) resonator.reset();
 
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
@@ -356,18 +360,24 @@ struct FiddleEngine::Impl
             case StringCorePreset::SyntheticCore:
                 lossAmountScale = 1.00;
                 dispersionScale = 1.00;
+                torsionalRatioScale = 1.00;
+                torsionalQ = 22.0;
                 break;
             case StringCorePreset::SteelCore:
                 // Quicker, more persistent response: reduce distributed loss and
                 // slightly reduce the phase-smearing allpass strength.
                 lossAmountScale = 0.72;
                 dispersionScale = 0.82;
+                torsionalRatioScale = 1.12;
+                torsionalQ = 26.0;
                 break;
             case StringCorePreset::GutLike:
                 // A deliberately broad profile for a softer, slower-response core.
                 // This is not a calibrated commercial string model.
                 lossAmountScale = 1.34;
                 dispersionScale = 1.12;
+                torsionalRatioScale = 0.58;
+                torsionalQ = 15.0;
                 break;
         }
 
