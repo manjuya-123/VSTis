@@ -922,7 +922,7 @@ struct FiddleEngine::Impl
                     // catch/release event itself. Slip onset is stronger than
                     // the return to sticking, but both decay within a few ms.
                     const auto transitionStrength =
-                        contacts[i].sticking ? 0.58 : 1.0;
+                        contacts[i].sticking ? 0.18 : 1.0;
                     rosinTransitionEnvelope[i] =
                         std::max(
                             rosinTransitionEnvelope[i],
@@ -966,14 +966,14 @@ struct FiddleEngine::Impl
                     * (targetEnvelope - rosinNoiseEnvelope[i]);
 
                 const auto transitionDecay =
-                    std::exp(-1.0 / (sampleRate * 0.00135));
+                    std::exp(-1.0 / (sampleRate * 0.00014));
                 rosinTransitionEnvelope[i] *= transitionDecay;
 
                 const auto transitionTexture =
                     (1.0 - brightness) * 0.52 * rawNoise
                     + brightness * 0.62 * differentiated;
                 const auto transitionVelocity =
-                    0.0000045
+                    0.0000060
                     * rosinNoiseScale
                     * rosinTransitionEnvelope[i]
                     * forceScale
@@ -997,7 +997,7 @@ struct FiddleEngine::Impl
                 rosinNoiseEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.004));
                 rosinTransitionEnvelope[i] *= std::exp(
-                    -1.0 / (sampleRate * 0.00135));
+                    -1.0 / (sampleRate * 0.00014));
             }
 
             injection += chopImpactInjection[i];
