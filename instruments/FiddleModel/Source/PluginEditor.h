@@ -4,6 +4,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 
@@ -46,7 +47,10 @@ class PlayKeyMap final : public juce::Component,
                          public juce::SettableTooltipClient
 {
 public:
-    void setState(int playMode, int bowAction, int fingeringMidiNote);
+    void setState(int playMode,
+                  int bowAction,
+                  int fingeringMidiNote,
+                  std::uint64_t fingeringMask);
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
@@ -59,6 +63,7 @@ private:
     int playMode_ = 0;
     int bowAction_ = 0;
     int fingeringMidiNote_ = -1;
+    std::uint64_t fingeringMask_ = 0;
     int mouseActionKey_ = -1;
 };
 
