@@ -128,6 +128,26 @@ double rms(const std::vector<float>& x, std::size_t begin, std::size_t end)
     return std::sqrt(sum / static_cast<double>(end - begin));
 }
 
+double differenceRms(const std::vector<float>& a,
+                     const std::vector<float>& b,
+                     std::size_t begin,
+                     std::size_t end)
+{
+    end = std::min({ end, a.size(), b.size() });
+    begin = std::min(begin, end);
+    if (end <= begin)
+        return 0.0;
+
+    double sum = 0.0;
+    for (std::size_t i = begin; i < end; ++i)
+    {
+        const auto d =
+            static_cast<double>(a[i]) - static_cast<double>(b[i]);
+        sum += d * d;
+    }
+    return std::sqrt(sum / static_cast<double>(end - begin));
+}
+
 double periodicityAtFrequency(const std::vector<float>& x,
                               std::size_t begin,
                               std::size_t end,
@@ -366,6 +386,46 @@ fiddle::Controls baseControls()
     c.vibratoWidth = 0.0f;
     c.vibratoPace = 0.5f;
     return c;
+}
+
+Render renderSamePitchOnString(int stringIndex,
+                              int pairLower,
+                              float balance,
+                              float targetHz)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    auto controls = baseControls();
+    controls.balance = balance;
+    engine.setControls(controls);
+
+    std::array<float, 4> layout {};
+    layout[static_cast<std::size_t>(stringIndex)] = targetHz;
+    engine.setFingeringLayout(
+        layout,
+        stringIndex,
+        pairLower,
+        0.85f);
+    engine.startBow(+1);
+
+    const auto sustainSamples =
+        static_cast<std::size_t>(sustainSeconds * sampleRate);
+    const auto releaseSamples =
+        static_cast<std::size_t>(releaseSeconds * sampleRate);
+
+    Render result;
+    result.left.assign(sustainSamples + releaseSamples, 0.0f);
+    result.right.assign(result.left.size(), 0.0f);
+
+    engine.process(
+        result.left.data(), result.right.data(), sustainSamples);
+    engine.noteOff();
+    engine.process(
+        result.left.data() + sustainSamples,
+        result.right.data() + sustainSamples,
+        releaseSamples);
+    return result;
 }
 
 std::vector<Scenario> makeScenarios()
@@ -619,6 +679,51 @@ int main(int argc, char** argv)
         std::cerr << "FAIL: cannot write rosin performance showcase WAV\n";
         ok = false;
     }
+
+    // Same pitch, two physical strings. This is deliberately not a
+    // sample-layer round robin: D-string A4 and open A4 should retain different
+    // string impedance, stopped-string termination and bridge-rocking colour.
+    const auto a4OnD = renderSamePitchOnString(1, 1, -0.95f, 440.0f);
+    const auto openA = renderSamePitchOnString(2, 1, +0.95f, 440.0f);
+    const auto identityBegin = static_cast<std::size_t>(0.85 * sampleRate);
+    const auto identityEnd = static_cast<std::size_t>(1.55 * sampleRate);
+    const auto stringIdentityDifference = differenceRms(
+        a4OnD.left, openA.left, identityBegin, identityEnd);
+
+    if (!std::isfinite(stringIdentityDifference)
+        || stringIdentityDifference < 1.0e-5)
+    {
+        std::cerr << "FAIL: same-pitch notes lost physical string identity"
+                  << " difference_rms=" << stringIdentityDifference << '\n';
+        ok = false;
+    }
+
+    std::vector<float> stringIdentityLeft;
+    std::vector<float> stringIdentityRight;
+    stringIdentityLeft.insert(
+        stringIdentityLeft.end(), a4OnD.left.begin(), a4OnD.left.end());
+    stringIdentityRight.insert(
+        stringIdentityRight.end(), a4OnD.right.begin(), a4OnD.right.end());
+    stringIdentityLeft.insert(
+        stringIdentityLeft.end(), silenceSamples, 0.0f);
+    stringIdentityRight.insert(
+        stringIdentityRight.end(), silenceSamples, 0.0f);
+    stringIdentityLeft.insert(
+        stringIdentityLeft.end(), openA.left.begin(), openA.left.end());
+    stringIdentityRight.insert(
+        stringIdentityRight.end(), openA.right.begin(), openA.right.end());
+
+    if (!writeStereoWav16(
+            outputDirectory / "14_string_identity_A4_D_vs_A.wav",
+            stringIdentityLeft,
+            stringIdentityRight))
+    {
+        std::cerr << "FAIL: cannot write same-pitch string identity WAV\n";
+        ok = false;
+    }
+
+    std::cout << "string_identity_A4_D_vs_A_difference_rms="
+              << stringIdentityDifference << '\n';
 
     const auto fastPassage = renderFastAlternatePassage();
     if (!writeStereoWav16(outputDirectory / "08_fast_alternate_passage.wav",
