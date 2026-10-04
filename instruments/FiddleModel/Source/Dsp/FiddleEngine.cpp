@@ -897,7 +897,7 @@ struct FiddleEngine::Impl
                         0.72, 1.20);
 
                     rosinNoiseVelocity =
-                        0.000016
+                        0.000004
                         * rosinNoiseScale
                         * slipScale
                         * forceScale
