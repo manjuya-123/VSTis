@@ -36,6 +36,7 @@ struct FiddleEngine::Impl
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
     std::array<double, stringCount> rosinNoisePrevious{};
+    std::array<double, stringCount> rosinNoiseEnvelope{};
     double rosinNoiseScale = 1.0;
 
     ModalBank body{};
@@ -138,6 +139,7 @@ struct FiddleEngine::Impl
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
         };
         rosinNoisePrevious.fill(0.0);
+        rosinNoiseEnvelope.fill(0.0);
         body.reset();
         radiationLeft.reset();
         radiationRight.reset();
@@ -877,44 +879,75 @@ struct FiddleEngine::Impl
                 injection = stringVelocity - incomingVelocity;
 
                 const auto slipSpeed = std::abs(contacts[i].slipSpeedMps());
-                if (!contacts[i].sticking && slipSpeed > 1.0e-5)
-                {
-                    // Deterministic microscopic hair/rosin roughness. This
-                    // perturbs contact velocity inside the waveguide; it is not
-                    // broadband noise mixed into the plugin output.
-                    auto& noiseState = rosinNoiseState[i];
-                    noiseState = noiseState * 1664525u + 1013904223u;
-                    const auto rawNoise =
-                        static_cast<double>(noiseState >> 8u)
-                            / 8388608.0 - 1.0;
-                    const auto highPassed =
-                        rawNoise - rosinNoisePrevious[i];
-                    rosinNoisePrevious[i] = rawNoise;
+                const auto gripUtilization = contacts[i].gripUtilization();
 
-                    const auto slipScale =
-                        std::clamp(slipSpeed / 0.30, 0.0, 1.0);
-                    const auto forceScale = std::clamp(
-                        std::sqrt(bowForce[i] / 0.30), 0.0, 1.35);
-                    const auto temperatureScale = std::clamp(
-                        0.78
-                            + 0.007
-                                * (contacts[i].contactTemperatureC() - 20.0),
-                        0.72, 1.20);
+                // Deterministic microscopic hair/rosin roughness. The noise
+                // source stays inside the contact velocity path, but its level
+                // now follows the actual stick/slip state instead of being a
+                // binary "sliding = noise" switch.
+                auto& noiseState = rosinNoiseState[i];
+                noiseState = noiseState * 1664525u + 1013904223u;
+                const auto rawNoise =
+                    static_cast<double>(noiseState >> 8u)
+                        / 8388608.0 - 1.0;
+                const auto differentiated =
+                    rawNoise - rosinNoisePrevious[i];
+                rosinNoisePrevious[i] = rawNoise;
 
-                    rosinNoiseVelocity =
-                        0.000004
-                        * rosinNoiseScale
-                        * slipScale
-                        * forceScale
-                        * temperatureScale
-                        * highPassed;
-                    injection += rosinNoiseVelocity;
-                }
+                const auto nearYield = std::clamp(
+                    (gripUtilization - 0.68) / 0.32, 0.0, 1.0);
+                const auto slipActivity =
+                    std::clamp(slipSpeed / 0.18, 0.0, 1.0);
+                const auto contactActivity = contacts[i].sticking
+                    ? 0.12 * nearYield * nearYield
+                    : (0.28 + 0.72 * slipActivity)
+                        * std::clamp(gripUtilization / 1.2, 0.55, 1.20);
+
+                const auto forceScale = std::clamp(
+                    std::sqrt(bowForce[i] / 0.30), 0.0, 1.35);
+                const auto bowSpeedScale = std::clamp(
+                    std::sqrt(std::abs(bowSpeed) / 0.45), 0.22, 1.25);
+                const auto temperatureScale = std::clamp(
+                    0.78
+                        + 0.007
+                            * (contacts[i].contactTemperatureC() - 20.0),
+                    0.72, 1.20);
+                const auto positionLevel = 0.86 + 0.18 * pos;
+
+                const auto targetEnvelope =
+                    rosinNoiseScale
+                    * contactActivity
+                    * forceScale
+                    * bowSpeedScale
+                    * temperatureScale
+                    * positionLevel;
+                const auto envelopeTime = targetEnvelope > rosinNoiseEnvelope[i]
+                    ? 0.00045 : 0.0030;
+                const auto envelopeAlpha =
+                    1.0 - std::exp(-1.0 / (sampleRate * envelopeTime));
+                rosinNoiseEnvelope[i] += envelopeAlpha
+                    * (targetEnvelope - rosinNoiseEnvelope[i]);
+
+                // Fingerboard-side roughness keeps more broad-band body, while
+                // bridge-side roughness becomes more differentiated/bright.
+                const auto brightness = std::clamp(
+                    0.18 + 0.70 * pos, 0.0, 1.0);
+                const auto colouredNoise =
+                    (1.0 - brightness) * 0.58 * rawNoise
+                    + brightness * 0.34 * differentiated;
+
+                rosinNoiseVelocity =
+                    0.0000032
+                    * rosinNoiseEnvelope[i]
+                    * colouredNoise;
+                injection += rosinNoiseVelocity;
             }
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
                 rosinNoisePrevious[i] *= 0.98;
+                rosinNoiseEnvelope[i] *= std::exp(
+                    -1.0 / (sampleRate * 0.004));
             }
 
             injection += chopImpactInjection[i];
@@ -929,6 +962,8 @@ struct FiddleEngine::Impl
             debug.sticking[i] = contacts[i].sticking;
             debug.contactTemperatureC[i] =
                 static_cast<float>(contacts[i].contactTemperatureC());
+            debug.contactGripUtilization[i] =
+                static_cast<float>(contacts[i].gripUtilization());
             debug.rosinNoiseVelocityMps[i] =
                 static_cast<float>(rosinNoiseVelocity);
         }
