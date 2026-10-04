@@ -157,8 +157,11 @@ struct BowContact
         // making the first bow catch artificially harder.
         const auto recoveringFromSlip =
             !sticking && std::abs(lastSlipSpeedMps) > 1.0e-6;
+        const auto slipMemory = recoveringFromSlip
+            ? std::clamp(std::abs(lastSlipSpeedMps) / 0.25, 0.0, 1.0)
+            : 0.0;
         const auto captureLimit =
-            staticLimit * (recoveringFromSlip ? 0.82 : 1.0);
+            staticLimit * (1.0 - 0.10 * slipMemory);
 
         if (std::abs(requiredForce) <= captureLimit)
         {
