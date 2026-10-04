@@ -30,6 +30,10 @@ void FiddleModelAudioProcessor::prepareToPlay(double sampleRate, int)
     channelPressureNormalized_ = 0.0f;
 
     engine_.prepare(sampleRate);
+    outputGainLinear_.reset(sampleRate, 0.020);
+    outputGainLinear_.setCurrentAndTargetValue(
+        juce::Decibels::decibelsToGain(
+            parameters_.getRawParameterValue("outputLevelDb")->load()));
     noteStack_.reset();
     lastPlayMode_ = -1;
     resetPerformanceModeState();
@@ -50,6 +54,9 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     baseControls_.vibratoPace = parameters_.getRawParameterValue("vibratoPace")->load();
     pitchBendRangeSemitones_ =
         parameters_.getRawParameterValue("bendRange")->load();
+    outputGainLinear_.setTargetValue(
+        juce::Decibels::decibelsToGain(
+            parameters_.getRawParameterValue("outputLevelDb")->load()));
 
     fiddle::MaterialSettings materials;
     materials.body = static_cast<fiddle::BodyMaterialPreset>(
@@ -243,6 +250,15 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     renderUntil(numBlockSamples);
 
+    // Post-model listening level only. This never feeds back into bow/string/body
+    // mechanics, so it can make the instrument DAW-friendly without changing tone.
+    for (int sample = 0; sample < numBlockSamples; ++sample)
+    {
+        const auto gain = outputGainLinear_.getNextValue();
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+            buffer.getWritePointer(channel)[sample] *= gain;
+    }
+
     const auto debug = engine_.debugSnapshot();
 
     if (playModeOneShotLatched_ && !debug.oneShotActive)
@@ -353,6 +369,9 @@ FiddleModelAudioProcessor::createParameterLayout()
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "bendRange", "Pitch Bend Range",
         juce::NormalisableRange<float>(1.0f, 24.0f, 1.0f), 2.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "outputLevelDb", "Output Level",
+        juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 12.0f));
 
     return { params.begin(), params.end() };
 }
