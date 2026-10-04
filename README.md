@@ -33,6 +33,16 @@ Visual Studio 2022 / CMake / JUCE based VST3 instrument monorepo.
 
 The plugin runtime is native C++; .NET is not required. Existing .NET 7 tooling can remain unchanged.
 
+## Local verification
+
+On the Windows/Visual Studio 2022 development machine, run:
+
+    powershell -ExecutionPolicy Bypass -File tools/test_core.ps1
+
+This configures the JUCE-independent physical core, builds and runs the regression suite,
+prints the audio/gesture metrics, and leaves the listening WAVs under
+`build/vs2022-core/instruments/FiddleModel/regression-audio`.
+
 ## Instruments
 
 ### FiddleModel
