@@ -46,6 +46,14 @@ int main()
           && shuffleHard.responseBoost > shuffleSoft.responseBoost))
         return fail("Shuffle velocity should increase bow subdivision rate and energy");
 
+    if (!(hardTremolo.speedScale > shuffleHard.speedScale
+          && hardTremolo.responseBoost > shuffleHard.responseBoost
+          && shuffleHard.pressureBoost > hardTremolo.pressureBoost
+          && shuffleHard.biteBoost > hardTremolo.biteBoost
+          && hardTremolo.tremoloReversalsPerSecond
+             > shuffleHard.shuffleSubdivisionsPerSecond))
+        return fail("Tremolo and Shuffle must keep distinct physical gesture profiles");
+
     const auto accent = makeBowGestureProfile(BowAction::AccentStroke, 0.8f);
     if (!(accent.responseBoost > hardDown.responseBoost
           && accent.pressureBoost > hardDown.pressureBoost
