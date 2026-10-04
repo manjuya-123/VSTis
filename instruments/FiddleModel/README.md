@@ -120,8 +120,9 @@ sources.
 
 ## Dedicated fiddle view
 
-The editor now visualises the instrument as four strings rather than as a piano keyboard.
-It shows:
+The editor uses the four-string instrument view as its primary performance display.
+A compact piano-style Play Key Map is also shown as a controller legend so Fiddle Play's
+two keyboard regions are immediately visible. The instrument view shows:
 
 - G / D / A / E strings
 - the currently selected physical string
@@ -202,19 +203,21 @@ selection, not a right-hand gesture.
 
 ### Bow Action Keys
 
-The white keys from C2 to B2 are the right-hand action row:
+C2-B2 is the right-hand action octave:
 
 - C2 — Down Bow
+- C#2 — Nashville Shuffle
 - D2 — Up Bow
 - E2 — Short Stroke
 - F2 — Tremolo
 - G2 — Drone Bow / balanced adjacent-string bow
 - A2 — Accent Stroke
+- A#2 — Chop
 - B2 — Release
 
-Bow Action velocity changes bow energy/pressure around the panel setting. The black keys
-in this octave are intentionally reserved for future fiddle-specific techniques so the
-initial white-key map can remain stable.
+C3-F#3 is intentionally unused in Fiddle Play, creating a visible gap before the
+left-hand fingering region begins at G3. Bow Action velocity changes bow energy/pressure
+around the panel setting.
 
 Unlike sample-library keyswitches, these keys do not choose prerecorded articulations.
 They change the state and motion of the physical bow/string model while the left-hand
@@ -245,6 +248,7 @@ Current action map:
 | MIDI note | Action |
 | --- | --- |
 | C2 / 36 | Down Bow |
+| C#2 / 37 | Nashville Shuffle |
 | D2 / 38 | Up Bow |
 | E2 / 40 | Short Stroke |
 | F2 / 41 | Tremolo |
@@ -272,6 +276,7 @@ Left hand:
 
 Right hand action row:
 - C2 / 36 — Down Bow
+- C#2 / 37 — Nashville Shuffle
 - D2 / 38 — Up Bow
 - E2 / 40 — Short Stroke
 - F2 / 41 — Tremolo
@@ -290,8 +295,9 @@ left-hand fingering.
 Fiddle Play can now be driven without a second MIDI controller:
 
 - **Fingering Hold** is available as an automatable GUI toggle as well as CC64.
-- The eight bow-action pads in the editor are clickable.
-- Clicking a sustained gesture (Down / Up / Tremolo / Drone) holds it until mouse-up.
+- The bow-action octave in the piano-style Play Key Map is clickable.
+- Clicking a sustained gesture (Down / Up / Tremolo / Shuffle / Drone) holds it until mouse-up.
+- The same map shows the unused C3-F#3 gap and the G3-C8 fingering region.
 - Short / Accent / Chop still use the physical one-shot timing in the engine.
 
 GUI commands are queued to the audio thread through atomics; the editor never calls the

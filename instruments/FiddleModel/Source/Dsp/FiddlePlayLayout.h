@@ -22,7 +22,8 @@ enum class BowAction
     Shuffle
 };
 
-inline constexpr int fiddleLowestNote = 55; // G3
+inline constexpr int fiddleLowestNote = 55;  // G3
+inline constexpr int fiddleHighestNote = 108; // C8
 
 inline BowAction bowActionForMidiNote(int midiNote) noexcept
 {
@@ -49,6 +50,6 @@ inline bool isBowActionKey(int midiNote) noexcept
 
 inline bool isFingeringKey(int midiNote) noexcept
 {
-    return midiNote >= fiddleLowestNote && midiNote <= 108;
+    return midiNote >= fiddleLowestNote && midiNote <= fiddleHighestNote;
 }
 } // namespace fiddle

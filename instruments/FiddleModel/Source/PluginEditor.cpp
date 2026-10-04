@@ -51,110 +51,350 @@ void InstrumentView::setState(FiddleVisualState state)
 }
 
 
-void BowActionStrip::setState(int playMode, int bowAction)
+void PlayKeyMap::setState(int playMode,
+                          int bowAction,
+                          int fingeringMidiNote)
 {
     playMode_ = playMode;
     bowAction_ = bowAction;
+    fingeringMidiNote_ = fingeringMidiNote;
     repaint();
 }
 
-void BowActionStrip::paint(juce::Graphics& g)
+void PlayKeyMap::paint(juce::Graphics& g)
 {
-    static constexpr std::array<const char*, 9> keys {
-        "C2 / 36", "C#2 / 37", "D2 / 38", "E2 / 40", "F2 / 41",
-        "G2 / 43", "A2 / 45", "A#2 / 46", "B2 / 47"
-    };
-    static constexpr std::array<const char*, 9> names {
-        "Down", "Shuffle", "Up", "Short", "Tremolo",
-        "Drone", "Accent", "Chop", "Release"
-    };
-    static constexpr std::array<fiddle::BowAction, 9> actions {
-        fiddle::BowAction::DownBow,
-        fiddle::BowAction::Shuffle,
-        fiddle::BowAction::UpBow,
-        fiddle::BowAction::ShortStroke,
-        fiddle::BowAction::Tremolo,
-        fiddle::BowAction::DroneBow,
-        fiddle::BowAction::AccentStroke,
-        fiddle::BowAction::Chop,
-        fiddle::BowAction::Release
-    };
-
-    auto area = getLocalBounds().toFloat().reduced(2.0f);
-    const auto gap = 5.0f;
-    const auto width =
-        (area.getWidth() - gap * 8.0f) / 9.0f;
+    auto outer = getLocalBounds().toFloat().reduced(2.0f);
+    g.setColour(juce::Colour::fromRGB(22, 24, 28));
+    g.fillRoundedRectangle(outer, 9.0f);
+    g.setColour(juce::Colours::white.withAlpha(0.10f));
+    g.drawRoundedRectangle(outer, 9.0f, 1.0f);
 
     const bool fiddlePlay =
         playMode_ == static_cast<int>(fiddle::PlayMode::FiddlePlay);
 
-    for (int i = 0; i < 9; ++i)
+    auto area = outer.reduced(7.0f);
+    auto titleArea = area.removeFromTop(20.0f);
+    g.setColour(juce::Colours::white.withAlpha(fiddlePlay ? 0.88f : 0.42f));
+    g.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
+    g.drawText(
+        "PLAY KEY MAP   |   low keys = bow hand   |   G3+ = left hand   |   CC64 = Fingering Hold",
+        titleArea.toNearestInt(), juce::Justification::centredLeft);
+
+    const auto actionWidth = area.getWidth() * 0.38f;
+    const auto unusedWidth = area.getWidth() * 0.13f;
+    const auto gap = 7.0f;
+
+    auto actionPanel = juce::Rectangle<float>(
+        area.getX(), area.getY(),
+        actionWidth - gap, area.getHeight());
+    auto unusedPanel = juce::Rectangle<float>(
+        actionPanel.getRight() + gap, area.getY(),
+        unusedWidth - gap, area.getHeight());
+    auto fingeringPanel = juce::Rectangle<float>(
+        unusedPanel.getRight() + gap, area.getY(),
+        area.getRight() - unusedPanel.getRight() - gap,
+        area.getHeight());
+
+    const auto drawPanelHeading =
+        [&g, fiddlePlay](juce::Rectangle<float> panel,
+                         const juce::String& text)
+        {
+            g.setColour(juce::Colours::white.withAlpha(
+                fiddlePlay ? 0.78f : 0.36f));
+            g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
+            g.drawText(text,
+                       panel.removeFromTop(18.0f).toNearestInt(),
+                       juce::Justification::centred);
+        };
+
+    drawPanelHeading(actionPanel, "C2-B2   BOW ACTIONS");
+    drawPanelHeading(unusedPanel, "UNUSED");
+    drawPanelHeading(fingeringPanel, "G3-C8   FINGERING");
+
+    auto actionKeyboard = actionPanel.withTrimmedTop(18.0f);
+    auto unusedBody = unusedPanel.withTrimmedTop(18.0f);
+    auto fingeringKeyboard = fingeringPanel.withTrimmedTop(18.0f);
+
+    g.setColour(juce::Colour::fromRGB(35, 38, 44));
+    g.fillRoundedRectangle(unusedBody, 4.0f);
+    g.setColour(juce::Colours::white.withAlpha(fiddlePlay ? 0.42f : 0.22f));
+    g.setFont(juce::FontOptions(10.0f));
+    g.drawFittedText(
+        "C3-F#3\nno Play-Mode role",
+        unusedBody.reduced(4.0f).toNearestInt(),
+        juce::Justification::centred, 2);
+
+    const auto isBlackKey = [](int note) noexcept
     {
-        auto pad = juce::Rectangle<float>(
-            area.getX() + (width + gap) * static_cast<float>(i),
-            area.getY(),
-            width,
-            area.getHeight());
+        const auto pitchClass = note % 12;
+        return pitchClass == 1 || pitchClass == 3
+            || pitchClass == 6 || pitchClass == 8
+            || pitchClass == 10;
+    };
 
-        const bool active =
-            fiddlePlay
-            && bowAction_
-                == static_cast<int>(actions[static_cast<std::size_t>(i)]);
+    const auto actionShortName = [](fiddle::BowAction action)
+    {
+        switch (action)
+        {
+            case fiddle::BowAction::DownBow: return juce::String("Down");
+            case fiddle::BowAction::Shuffle: return juce::String("Shuffle");
+            case fiddle::BowAction::UpBow: return juce::String("Up");
+            case fiddle::BowAction::ShortStroke: return juce::String("Short");
+            case fiddle::BowAction::Tremolo: return juce::String("Tremolo");
+            case fiddle::BowAction::DroneBow: return juce::String("Drone");
+            case fiddle::BowAction::AccentStroke: return juce::String("Accent");
+            case fiddle::BowAction::Chop: return juce::String("Chop");
+            case fiddle::BowAction::Release: return juce::String("Release");
+            case fiddle::BowAction::None: break;
+        }
+        return juce::String();
+    };
 
-        g.setColour(active
-            ? juce::Colour::fromRGB(82, 151, 170)
-            : juce::Colour::fromRGB(42, 45, 51));
-        g.fillRoundedRectangle(pad, 6.0f);
+    const auto drawKeyboard =
+        [&](juce::Rectangle<float> keyboard,
+            int firstNote,
+            int lastNote,
+            bool actionRange)
+        {
+            int whiteCount = 0;
+            for (int note = firstNote; note <= lastNote; ++note)
+                if (!isBlackKey(note))
+                    ++whiteCount;
 
-        g.setColour(juce::Colours::white.withAlpha(
-            fiddlePlay ? (active ? 0.95f : 0.72f) : 0.28f));
-        g.drawRoundedRectangle(pad, 6.0f, active ? 2.0f : 1.0f);
+            if (whiteCount <= 0)
+                return;
 
-        auto textArea = pad.toNearestInt().reduced(3);
-        g.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
-        g.drawText(keys[static_cast<std::size_t>(i)],
-                   textArea.removeFromTop(17),
-                   juce::Justification::centred);
-        g.setFont(juce::FontOptions(12.0f));
-        g.drawText(names[static_cast<std::size_t>(i)],
-                   textArea,
-                   juce::Justification::centred);
-    }
+            const auto whiteWidth =
+                keyboard.getWidth() / static_cast<float>(whiteCount);
+
+            const auto whitesBefore = [&](int note)
+            {
+                int count = 0;
+                for (int n = firstNote; n < note; ++n)
+                    if (!isBlackKey(n))
+                        ++count;
+                return count;
+            };
+
+            for (int note = firstNote; note <= lastNote; ++note)
+            {
+                if (isBlackKey(note))
+                    continue;
+
+                const auto whiteIndex = whitesBefore(note);
+                auto key = juce::Rectangle<float>(
+                    keyboard.getX()
+                        + whiteWidth * static_cast<float>(whiteIndex),
+                    keyboard.getY(),
+                    whiteWidth,
+                    keyboard.getHeight());
+
+                const auto action = fiddle::bowActionForMidiNote(note);
+                const bool assigned =
+                    actionRange ? action != fiddle::BowAction::None
+                                : fiddle::isFingeringKey(note);
+                const bool actionActive =
+                    fiddlePlay && actionRange
+                    && bowAction_ == static_cast<int>(action)
+                    && action != fiddle::BowAction::None;
+                const bool fingeringActive =
+                    fiddlePlay && !actionRange
+                    && note == fingeringMidiNote_;
+
+                if (actionActive)
+                    g.setColour(juce::Colour::fromRGB(80, 159, 180));
+                else if (fingeringActive)
+                    g.setColour(juce::Colour::fromRGB(236, 184, 86));
+                else if (assigned && fiddlePlay)
+                    g.setColour(actionRange
+                        ? juce::Colour::fromRGB(205, 215, 220)
+                        : juce::Colour::fromRGB(218, 207, 170));
+                else
+                    g.setColour(juce::Colour::fromRGB(174, 178, 184));
+
+                g.fillRect(key);
+                g.setColour(juce::Colours::black.withAlpha(0.48f));
+                g.drawRect(key, 0.8f);
+
+                if (actionRange && assigned)
+                {
+                    auto textArea = key.reduced(1.5f);
+                    auto noteArea = textArea.removeFromBottom(13.0f);
+                    g.setColour(juce::Colours::black.withAlpha(0.82f));
+                    g.setFont(juce::FontOptions(8.0f).withStyle("Bold"));
+                    g.drawText(
+                        midiNoteName(note),
+                        noteArea.toNearestInt(),
+                        juce::Justification::centred);
+                    g.setFont(juce::FontOptions(8.5f));
+                    g.drawFittedText(
+                        actionShortName(action),
+                        textArea.toNearestInt(),
+                        juce::Justification::centredBottom, 1);
+                }
+                else if (!actionRange
+                         && (note == firstNote
+                             || note == lastNote
+                             || note % 12 == 0))
+                {
+                    g.setColour(juce::Colours::black.withAlpha(0.62f));
+                    g.setFont(juce::FontOptions(7.5f));
+                    g.drawFittedText(
+                        midiNoteName(note),
+                        key.reduced(1.0f).toNearestInt(),
+                        juce::Justification::centredBottom, 1);
+                }
+            }
+
+            const auto blackWidth = whiteWidth * 0.62f;
+            const auto blackHeight = keyboard.getHeight() * 0.60f;
+
+            for (int note = firstNote; note <= lastNote; ++note)
+            {
+                if (!isBlackKey(note))
+                    continue;
+
+                const auto whiteBoundary = whitesBefore(note);
+                auto key = juce::Rectangle<float>(
+                    keyboard.getX()
+                        + whiteWidth * static_cast<float>(whiteBoundary)
+                        - blackWidth * 0.5f,
+                    keyboard.getY(),
+                    blackWidth,
+                    blackHeight);
+
+                const auto action = fiddle::bowActionForMidiNote(note);
+                const bool assigned =
+                    actionRange ? action != fiddle::BowAction::None
+                                : fiddle::isFingeringKey(note);
+                const bool actionActive =
+                    fiddlePlay && actionRange
+                    && bowAction_ == static_cast<int>(action)
+                    && action != fiddle::BowAction::None;
+                const bool fingeringActive =
+                    fiddlePlay && !actionRange
+                    && note == fingeringMidiNote_;
+
+                if (actionActive)
+                    g.setColour(juce::Colour::fromRGB(69, 145, 166));
+                else if (fingeringActive)
+                    g.setColour(juce::Colour::fromRGB(217, 142, 67));
+                else if (assigned && fiddlePlay)
+                    g.setColour(actionRange
+                        ? juce::Colour::fromRGB(53, 69, 78)
+                        : juce::Colour::fromRGB(73, 66, 49));
+                else
+                    g.setColour(juce::Colour::fromRGB(42, 45, 51));
+
+                g.fillRoundedRectangle(key, 2.0f);
+                g.setColour(juce::Colours::white.withAlpha(
+                    assigned && fiddlePlay ? 0.38f : 0.18f));
+                g.drawRoundedRectangle(key, 2.0f, 0.8f);
+
+                if (actionRange && assigned)
+                {
+                    g.setColour(juce::Colours::white.withAlpha(0.94f));
+                    g.setFont(juce::FontOptions(7.0f).withStyle("Bold"));
+                    g.drawFittedText(
+                        midiNoteName(note) + "\n" + actionShortName(action),
+                        key.reduced(1.0f).toNearestInt(),
+                        juce::Justification::centredBottom, 2);
+                }
+            }
+        };
+
+    drawKeyboard(actionKeyboard, 36, 47, true);
+    drawKeyboard(
+        fingeringKeyboard,
+        fiddle::fiddleLowestNote,
+        fiddle::fiddleHighestNote,
+        false);
 }
 
-
-int BowActionStrip::actionKeyAt(juce::Point<float> position) const noexcept
+int PlayKeyMap::actionKeyAt(juce::Point<float> position) const noexcept
 {
-    static constexpr std::array<int, 9> notes { 36, 37, 38, 40, 41, 43, 45, 46, 47 };
+    if (playMode_ != static_cast<int>(fiddle::PlayMode::FiddlePlay))
+        return -1;
 
-    auto area = getLocalBounds().toFloat().reduced(2.0f);
-    const auto gap = 5.0f;
-    const auto width = (area.getWidth() - gap * 8.0f) / 9.0f;
+    auto outer = getLocalBounds().toFloat().reduced(2.0f);
+    auto area = outer.reduced(7.0f);
+    area.removeFromTop(20.0f);
 
-    for (int i = 0; i < 9; ++i)
+    const auto actionWidth = area.getWidth() * 0.38f;
+    const auto gap = 7.0f;
+    auto actionPanel = juce::Rectangle<float>(
+        area.getX(), area.getY(),
+        actionWidth - gap, area.getHeight());
+    auto keyboard = actionPanel.withTrimmedTop(18.0f);
+
+    const auto isBlackKey = [](int note) noexcept
     {
-        const auto pad = juce::Rectangle<float>(
-            area.getX() + (width + gap) * static_cast<float>(i),
-            area.getY(), width, area.getHeight());
+        const auto pitchClass = note % 12;
+        return pitchClass == 1 || pitchClass == 3
+            || pitchClass == 6 || pitchClass == 8
+            || pitchClass == 10;
+    };
 
-        if (pad.contains(position))
-            return notes[static_cast<std::size_t>(i)];
+    constexpr int firstNote = 36;
+    constexpr int lastNote = 47;
+    constexpr int whiteCount = 7;
+    const auto whiteWidth =
+        keyboard.getWidth() / static_cast<float>(whiteCount);
+    const auto blackWidth = whiteWidth * 0.62f;
+    const auto blackHeight = keyboard.getHeight() * 0.60f;
+
+    const auto whitesBefore = [&](int note)
+    {
+        int count = 0;
+        for (int n = firstNote; n < note; ++n)
+            if (!isBlackKey(n))
+                ++count;
+        return count;
+    };
+
+    for (int note = firstNote; note <= lastNote; ++note)
+    {
+        if (!isBlackKey(note))
+            continue;
+
+        const auto boundary = whitesBefore(note);
+        const auto key = juce::Rectangle<float>(
+            keyboard.getX()
+                + whiteWidth * static_cast<float>(boundary)
+                - blackWidth * 0.5f,
+            keyboard.getY(), blackWidth, blackHeight);
+
+        if (key.contains(position))
+            return fiddle::isBowActionKey(note) ? note : -1;
+    }
+
+    for (int note = firstNote; note <= lastNote; ++note)
+    {
+        if (isBlackKey(note))
+            continue;
+
+        const auto whiteIndex = whitesBefore(note);
+        const auto key = juce::Rectangle<float>(
+            keyboard.getX()
+                + whiteWidth * static_cast<float>(whiteIndex),
+            keyboard.getY(), whiteWidth, keyboard.getHeight());
+
+        if (key.contains(position)
+            && fiddle::isBowActionKey(note))
+            return note;
     }
 
     return -1;
 }
 
-void BowActionStrip::mouseDown(const juce::MouseEvent& event)
+void PlayKeyMap::mouseDown(const juce::MouseEvent& event)
 {
-    if (playMode_ != static_cast<int>(fiddle::PlayMode::FiddlePlay))
-        return;
-
     mouseActionKey_ = actionKeyAt(event.position);
     if (mouseActionKey_ >= 0 && onActionKey)
         onActionKey(mouseActionKey_, true);
 }
 
-void BowActionStrip::mouseUp(const juce::MouseEvent&)
+void PlayKeyMap::mouseUp(const juce::MouseEvent&)
 {
     if (mouseActionKey_ >= 0 && onActionKey)
         onActionKey(mouseActionKey_, false);
@@ -359,7 +599,7 @@ HumanKnob::HumanKnob(juce::String title, juce::String explanation)
 {
     title_.setText(std::move(title), juce::dontSendNotification);
     title_.setJustificationType(juce::Justification::centred);
-    title_.setFont(juce::FontOptions(16.0f).withStyle("Bold"));
+    title_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
     addAndMakeVisible(title_);
 
     slider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
@@ -368,7 +608,7 @@ HumanKnob::HumanKnob(juce::String title, juce::String explanation)
     addAndMakeVisible(slider_);
 
     value_.setJustificationType(juce::Justification::centred);
-    value_.setFont(juce::FontOptions(15.0f));
+    value_.setFont(juce::FontOptions(13.5f));
     addAndMakeVisible(value_);
 
     explanation_.setText(std::move(explanation), juce::dontSendNotification);
@@ -377,8 +617,8 @@ HumanKnob::HumanKnob(juce::String title, juce::String explanation)
     explanation_.setMinimumHorizontalScale(0.72f);
     explanation_.setColour(juce::Label::textColourId,
                            juce::Colours::white.withAlpha(0.66f));
-    addAndMakeVisible(explanation_);
-
+    // Keep the explanation in the tooltip instead of permanently spending
+    // vertical panel space on prose.
     slider_.setTooltip(explanation_.getText());
 }
 
@@ -395,10 +635,9 @@ void HumanKnob::setTitle(const juce::String& text)
 void HumanKnob::resized()
 {
     auto area = getLocalBounds();
-    title_.setBounds(area.removeFromTop(26));
-    explanation_.setBounds(area.removeFromBottom(42));
-    value_.setBounds(area.removeFromBottom(24));
-    slider_.setBounds(area.reduced(8, 2));
+    title_.setBounds(area.removeFromTop(22));
+    value_.setBounds(area.removeFromBottom(21));
+    slider_.setBounds(area.reduced(6, 1));
 }
 
 FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
@@ -407,8 +646,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
       processor_(processor)
 {
     setResizable(true, true);
-    setResizeLimits(860, 810, 1320, 1100);
-    setSize(1020, 950);
+    setResizeLimits(860, 820, 1320, 1080);
+    setSize(1020, 900);
 
     title_.setText("Fiddle Model", juce::dontSendNotification);
     title_.setFont(juce::FontOptions(28.0f).withStyle("Bold"));
@@ -433,7 +672,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playMode_);
 
     playModeGuide_.setText(
-        "Fiddle Play: G3+ = fingering  |  CC64 = Hold  |  36 Down  37 Shuffle  38 Up  40 Short  41 Tremolo  43 Drone  45 Accent  46 Chop  47 Release",
+        "Fiddle Play uses two hands: the Key Map below shows bow commands and the G3+ fingering region.",
         juce::dontSendNotification);
     playModeGuide_.setFont(juce::FontOptions(12.5f));
     playModeGuide_.setColour(juce::Label::textColourId,
@@ -445,8 +684,10 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(fingeringHoldButton_);
 
     addAndMakeVisible(instrumentView_);
-    addAndMakeVisible(bowActionStrip_);
-    bowActionStrip_.onActionKey = [this](int midiNote, bool pressed)
+    addAndMakeVisible(playKeyMap_);
+    playKeyMap_.setTooltip(
+        "Fiddle Play map. Click the C2-B2 bow-action keys; G3-C8 shows the left-hand fingering region.");
+    playKeyMap_.onActionKey = [this](int midiNote, bool pressed)
     {
         processor_.requestPlayActionFromUi(midiNote, pressed);
     };
@@ -599,20 +840,20 @@ void FiddleModelAudioProcessorEditor::resized()
 
     area.removeFromTop(12);
 
-    instrumentView_.setBounds(area.removeFromTop(180));
-    area.removeFromTop(8);
+    instrumentView_.setBounds(area.removeFromTop(158));
+    area.removeFromTop(6);
 
-    auto playModeRow = area.removeFromTop(48);
+    auto playModeRow = area.removeFromTop(40);
     playModeLabel_.setBounds(playModeRow.removeFromLeft(110));
     playMode_.setBounds(playModeRow.removeFromLeft(180).reduced(4, 7));
     fingeringHoldButton_.setBounds(
         playModeRow.removeFromLeft(150).reduced(8, 9));
     playModeGuide_.setBounds(playModeRow.reduced(8, 3));
 
-    bowActionStrip_.setBounds(area.removeFromTop(54).reduced(6, 3));
+    playKeyMap_.setBounds(area.removeFromTop(108).reduced(4, 2));
     area.removeFromTop(6);
 
-    const auto bowHeight = 235;
+    const auto bowHeight = 170;
     auto bowArea = area.removeFromTop(bowHeight);
     bowGroup_.setBounds(bowArea);
 
@@ -628,7 +869,7 @@ void FiddleModelAudioProcessorEditor::resized()
     contact_.setBounds(bowContent);
 
     area.removeFromTop(10);
-    auto stringsArea = area.removeFromTop(170);
+    auto stringsArea = area.removeFromTop(135);
     stringsGroup_.setBounds(stringsArea);
 
     auto stringsContent = stringsArea.reduced(14, 30);
@@ -664,7 +905,7 @@ void FiddleModelAudioProcessorEditor::timerCallback()
 {
     const auto state = processor_.visualState();
     instrumentView_.setState(state);
-    bowActionStrip_.setState(state.playMode, state.bowAction);
+    playKeyMap_.setState(state.playMode, state.bowAction, state.midiNote);
 
     const bool fiddlePlay =
         state.playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay);

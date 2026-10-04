@@ -49,7 +49,10 @@ MIDI-mapping view.
 
 ## Dedicated instrument view
 
-The primary visual metaphor is the bowed instrument itself, not a piano keyboard.
+The primary visual metaphor remains the bowed instrument itself. A compact piano-style
+**Play Key Map** is allowed as a controller legend because Fiddle Play divides the MIDI
+keyboard by hand role. It must remain secondary to the four-string instrument view and
+must clearly show C2-B2 as bow actions, C3-F#3 as unused, and G3-C8 as fingering.
 Show the player which string is active, where it is stopped, where the bow contacts
 the string pair, and the bow direction.
 
@@ -94,14 +97,15 @@ Use the term **Fiddle Play Mode**, not "keyswitch mode", in the normal UI.
 The action keys are closer to right-hand gesture commands than to sample keyswitches:
 they operate the physical bow state while Fingering Keys maintain left-hand string stops.
 
-Stable initial action row:
-C2 Down Bow / D2 Up Bow / E2 Short Stroke / F2 Tremolo /
-G2 Drone Bow / A2 Accent Stroke / B2 Release.
+Current action row:
+C2 Down Bow / C#2 Nashville Shuffle / D2 Up Bow / E2 Short Stroke /
+F2 Tremolo / G2 Drone Bow / A2 Accent Stroke / A#2 Chop / B2 Release.
 
-G3 and above are Fingering Keys.
+G3 through C8 are Fingering Keys. C3 through F#3 are intentionally unused in
+Fiddle Play so the left- and right-hand regions stay visually separated.
 
-Keep the black action-row keys unassigned until a genuinely useful fiddle technique
-requires them; do not fill the map merely for completeness.
+The Play Key Map may expose these assignments directly because MIDI note names are
+musically meaningful controller coordinates, not solver parameters.
 
 
 ## Play modes
@@ -129,9 +133,10 @@ Fiddle Play is a two-hand performance workflow:
   not alternate rendered samples.
 
 
-The dedicated Fiddle Play action strip is interactive. Mouse gestures use the same
-Down / Up / Short / Tremolo / Drone / Accent / Chop / Release paths as the MIDI action
-row, so the GUI is not a separate audition-only sound path.
+The dedicated Fiddle Play Key Map is interactive on the bow-action octave. Mouse
+gestures use the same Down / Shuffle / Up / Short / Tremolo / Drone / Accent / Chop /
+Release paths as the MIDI action row, so the GUI is not a separate audition-only
+sound path.
 
 
 - Shuffle — a repeating long-short-short physical bow gesture on the current fingering.

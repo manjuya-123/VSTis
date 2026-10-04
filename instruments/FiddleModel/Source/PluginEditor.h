@@ -42,10 +42,10 @@ private:
     FiddleVisualState state_{};
 };
 
-class BowActionStrip final : public juce::Component
+class PlayKeyMap final : public juce::Component
 {
 public:
-    void setState(int playMode, int bowAction);
+    void setState(int playMode, int bowAction, int fingeringMidiNote);
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
@@ -57,6 +57,7 @@ private:
 
     int playMode_ = 0;
     int bowAction_ = 0;
+    int fingeringMidiNote_ = -1;
     int mouseActionKey_ = -1;
 };
 
@@ -84,7 +85,7 @@ private:
     juce::Label title_;
     juce::Label subtitle_;
     InstrumentView instrumentView_;
-    BowActionStrip bowActionStrip_;
+    PlayKeyMap playKeyMap_;
     juce::GroupComponent bowGroup_ { "bow", "Bow" };
     juce::GroupComponent stringsGroup_ { "strings", "Strings & Pitch" };
     juce::GroupComponent materialsGroup_ { "materials", "Materials" };
