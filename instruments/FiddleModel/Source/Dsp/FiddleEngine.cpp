@@ -411,6 +411,9 @@ struct FiddleEngine::Impl
         oneShotReleaseSamplesRemaining = 0;
         oneShotReleaseTotalSamples = 0;
         chopDampingSamplesRemaining = 0;
+        chopImpactSamplesRemaining = 0;
+        chopImpactTotalSamples = 0;
+        chopImpactVelocityPeakMps = 0.0;
         tremoloSamplesUntilFlip = 0;
         tremoloReversalsPerSecond = 0.0;
         shuffleSamplesUntilFlip = 0;
