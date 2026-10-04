@@ -300,11 +300,12 @@ Fiddle Play can now be driven without a second MIDI controller:
 - The same map shows the unused C3-F#3 gap and the G3-C8 fingering region.
 - Double stops and chords light all effective fingering keys at once; the current note
   is brighter, and Fingering Hold keeps the latched left-hand shape visible.
-- Short / Accent / Chop still use physical one-shot timing in the engine. Releasing
-  their action key does not shorten the physical gesture or remove its pressure/speed/
-  response settings halfway through. Short leaves the string with a rounded bow lift;
-  Accent combines the stronger first bite with a faster/braked contact release, leaving
-  the string/body resonance to ring naturally.
+- Short / Accent / Chop use physical one-shot timing in the engine. Releasing their
+  action key does not shorten the gesture or remove its pressure/speed/response settings
+  halfway through. Short leaves the string with a rounded bow lift; Accent combines a
+  stronger first bite with a faster/braked release. Chop adds a short transverse impact
+  at the bowing point before the strongly damped lift, so its percussive transient enters
+  through the string waveguides rather than through an output-layer click.
 
 GUI commands are queued to the audio thread through atomics; the editor never calls the
 physical DSP directly from the message thread.
