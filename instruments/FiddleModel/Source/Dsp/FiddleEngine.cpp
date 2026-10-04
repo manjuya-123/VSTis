@@ -907,6 +907,7 @@ struct FiddleEngine::Impl
         debug.sticking.fill(false);
         debug.rosinNoiseVelocityMps.fill(0.0f);
         debug.rosinTransitionEnvelope.fill(0.0f);
+        debug.torsionalSurfaceVelocityMps.fill(0.0f);
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
@@ -948,6 +949,17 @@ struct FiddleEngine::Impl
                 -filtered * fingerTerminationGain * chopTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
+
+            torsion[i].tune(
+                currentFrequency[i],
+                torsionalWaveSpeedRatio[i] * torsionalRatioScale,
+                torsionalQ,
+                sampleRate);
+            const auto torsionalSurfaceVelocity =
+                torsion[i].surfaceVelocity();
+            const auto contactSurfaceVelocity =
+                incomingVelocity + torsionalSurfaceVelocity;
+
             double injection = 0.0;
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
@@ -982,10 +994,27 @@ struct FiddleEngine::Impl
                     slidingGripScale * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
-                const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
-                    localStaticGrip, localSlidingGrip, contactStateRateScale);
-                injection = stringVelocity - incomingVelocity;
+                const auto surfaceVelocity = contacts[i].solve(
+                    contactSurfaceVelocity,
+                    bowSpeed,
+                    bowForce[i],
+                    stringImpedance[i],
+                    sampleRate,
+                    localStaticGrip,
+                    localSlidingGrip,
+                    contactStateRateScale);
+
+                // The friction law acts on the string surface. Subtract the
+                // torsional component again before writing transverse waves.
+                const auto transverseVelocity =
+                    surfaceVelocity - torsionalSurfaceVelocity;
+                injection = transverseVelocity - incomingVelocity;
+
+                // A small fraction of the same friction event excites a
+                // strongly damped torsional mode. Torsion is not sent to the
+                // bridge output directly; it only changes the next contact
+                // velocity seen by the bow.
+                torsion[i].drive(0.22 * injection);
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
@@ -1066,6 +1095,7 @@ struct FiddleEngine::Impl
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
+                torsion[i].drive(0.0);
                 rosinNoisePrevious[i] *= 0.98;
                 rosinNoiseEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.004));
@@ -1091,6 +1121,8 @@ struct FiddleEngine::Impl
                 static_cast<float>(rosinNoiseVelocity);
             debug.rosinTransitionEnvelope[i] =
                 static_cast<float>(rosinTransitionEnvelope[i]);
+            debug.torsionalSurfaceVelocityMps[i] =
+                static_cast<float>(torsion[i].surfaceVelocity());
         }
 
         for (std::size_t i = 0; i < stringCount; ++i)
