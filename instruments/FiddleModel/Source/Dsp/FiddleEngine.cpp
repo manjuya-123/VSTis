@@ -897,7 +897,7 @@ struct FiddleEngine::Impl
                     + brightness * 0.34 * differentiated;
 
                 const auto roughnessDepth =
-                    0.025 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                    0.008 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
                 const auto localStaticGrip =
