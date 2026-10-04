@@ -957,17 +957,17 @@ struct FiddleEngine::Impl
                     0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
 
                 const auto padCutoffHz =
-                    9000.0 - 600.0 * fingerTouch[i];
+                    10000.0 - 500.0 * fingerTouch[i];
                 const auto padAlpha =
                     1.0 - std::exp(-2.0 * pi * padCutoffHz / sampleRate);
                 fingerPadState[i] +=
                     padAlpha * (filtered - fingerPadState[i]);
 
-                // Keep the pad contribution deliberately small: it should
-                // soften stopped-string edge without materially lengthening the
-                // speaking waveguide or detuning the note.
+                // Keep the pad contribution deliberately subtle: stopped
+                // strings should lose a little edge without masking the much
+                // stronger string-impedance/bridge-rocking identity.
                 const auto complianceMix =
-                    0.025 + 0.015 * fingerTouch[i];
+                    0.010 + 0.006 * fingerTouch[i];
                 fingerReflectedVelocity =
                     (1.0 - complianceMix) * filtered
                     + complianceMix * fingerPadState[i];
