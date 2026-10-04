@@ -224,8 +224,8 @@ int main(int argc, char** argv)
     const auto afterShort = engine.debugSnapshot();
     const auto shortForce =
         afterShort.contactNormalForceN[1] + afterShort.contactNormalForceN[2];
-    if (shortForce > 0.01f)
-        return fail("Short Stroke did not release the bow automatically");
+    if (shortForce > 0.01f || afterShort.oneShotActive)
+        return fail("Short Stroke did not complete its physical bow lift");
     render(engine, left, right, 0.06);
 
     // Accent: stronger first bite and shorter, more forceful one-shot.
@@ -243,8 +243,8 @@ int main(int argc, char** argv)
     const auto afterAccent = engine.debugSnapshot();
     const auto accentForce =
         afterAccent.contactNormalForceN[1] + afterAccent.contactNormalForceN[2];
-    if (accentForce > 0.015f)
-        return fail("Accent Stroke did not release the bow automatically");
+    if (accentForce > 0.015f || afterAccent.oneShotActive)
+        return fail("Accent Stroke did not complete its physical bow lift");
     render(engine, left, right, 0.06);
 
     // Short percussive Chop surrogate.
@@ -255,8 +255,8 @@ int main(int argc, char** argv)
     const auto afterChop = engine.debugSnapshot();
     const auto chopForce =
         afterChop.contactNormalForceN[1] + afterChop.contactNormalForceN[2];
-    if (chopForce > 0.015f)
-        return fail("Chop surrogate did not release quickly");
+    if (chopForce > 0.015f || afterChop.oneShotActive)
+        return fail("Chop surrogate did not complete its short bow lift");
     render(engine, left, right, 0.05);
 
     // Tremolo: light, even high-rate reversals.
