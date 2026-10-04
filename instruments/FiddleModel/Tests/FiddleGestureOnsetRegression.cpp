@@ -471,8 +471,10 @@ int main(int argc, char** argv)
     if (!(accent.earlyRms >= 3.0 * shortStroke.earlyRms))
         return fail("Accent did not produce a clearly stronger first-20-ms bow catch than Short Stroke");
 
-    if (!(chop.peakRms > 1.0e-5 && chop.onsetMs <= down.onsetMs + 2.0))
-        return fail("Chop did not produce a prompt physical contact transient");
+    if (!(chop.peakRms > 1.0e-5
+          && chop.onsetMs + 2.0 < accent.onsetMs
+          && chop.earlyRms >= 1.5 * accent.earlyRms))
+        return fail("Chop did not produce a distinct collision-dominant contact transient");
 
     if (!(tremoloCatch.reversals >= 4
           && tremoloCatch.maxLatencyMs <= 16.0))
