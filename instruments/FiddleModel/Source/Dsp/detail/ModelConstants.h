@@ -27,7 +27,6 @@ inline constexpr std::array<double, stringCount> stringImpedance {
     0.13873751546881677
 };
 
-
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
 };
