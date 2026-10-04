@@ -375,6 +375,7 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         playModePreferredPrimaryString_ = -1;
         activeMidiNote_.store(-1, std::memory_order_relaxed);
         activePairLowerString_.store(1, std::memory_order_relaxed);
+        visualFingeringMask_.store(0, std::memory_order_relaxed);
         return;
     }
 
@@ -383,11 +384,19 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
     heldNotes[count++] = current.note;
 
-    for (int note = fiddle::fiddleLowestNote; note <= 108 && count < heldNotes.size(); ++note)
+    for (int note = fiddle::fiddleLowestNote;
+         note <= fiddle::fiddleHighestNote && count < heldNotes.size();
+         ++note)
     {
         if (note != current.note && noteStack_.isHeld(note))
             heldNotes[count++] = note;
     }
+
+    std::uint64_t fingeringMask = 0;
+    for (std::size_t i = 0; i < count; ++i)
+        fingeringMask |= fiddle::fingeringMaskBit(heldNotes[i]);
+    visualFingeringMask_.store(
+        fingeringMask, std::memory_order_relaxed);
 
     const auto layout = fiddle::voiceFingering(
         heldNotes, count, current.note, playModePreferredPrimaryString_);
@@ -607,6 +616,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
         static_cast<int>(fiddle::BowAction::None),
         std::memory_order_relaxed);
     visualFingeringHold_.store(false, std::memory_order_relaxed);
+    visualFingeringMask_.store(0, std::memory_order_relaxed);
 
     std::array<float, 4> openStrings{};
     engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
@@ -624,7 +634,8 @@ void FiddleModelAudioProcessor::updateFingeringHoldState(bool enabled)
 
     if (!fingeringHold_)
     {
-        for (int note = fiddle::fiddleLowestNote; note <= 108; ++note)
+        for (int note = fiddle::fiddleLowestNote;
+             note <= fiddle::fiddleHighestNote; ++note)
         {
             if (!fingeringKeyDown_[static_cast<std::size_t>(note)]
                 && noteStack_.isHeld(note))
@@ -648,6 +659,8 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
     state.bowAction = visualBowAction_.load(std::memory_order_relaxed);
     state.fingeringHold =
         visualFingeringHold_.load(std::memory_order_relaxed);
+    state.fingeringMask =
+        visualFingeringMask_.load(std::memory_order_relaxed);
 
     for (std::size_t i = 0; i < state.speakingFrequencyHz.size(); ++i)
     {
