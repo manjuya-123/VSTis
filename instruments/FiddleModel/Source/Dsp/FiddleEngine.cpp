@@ -15,69 +15,6 @@ namespace fiddle
 {
 using namespace detail;
 
-struct ReducedTorsionalResonator
-{
-    double y1 = 0.0;
-    double y2 = 0.0;
-    double poleA1 = 0.0;
-    double poleA2 = 0.0;
-    double driveGain = 0.0;
-    double lastFrequencyHz = 0.0;
-
-    void reset() noexcept
-    {
-        y1 = 0.0;
-        y2 = 0.0;
-        lastFrequencyHz = 0.0;
-    }
-
-    void tune(double transverseFrequencyHz,
-              double waveSpeedRatio,
-              double q,
-              double sampleRate) noexcept
-    {
-        const auto targetFrequency = std::clamp(
-            transverseFrequencyHz * waveSpeedRatio,
-            450.0,
-            sampleRate * 0.42);
-
-        if (lastFrequencyHz > 0.0
-            && std::abs(targetFrequency - lastFrequencyHz)
-                < std::max(2.0, 0.004 * lastFrequencyHz))
-            return;
-
-        lastFrequencyHz = targetFrequency;
-        const auto safeQ = std::clamp(q, 8.0, 40.0);
-        const auto radius = std::exp(
-            -pi * targetFrequency / (safeQ * sampleRate));
-        const auto omega =
-            2.0 * pi * targetFrequency / sampleRate;
-
-        poleA1 = 2.0 * radius * std::cos(omega);
-        poleA2 = -radius * radius;
-
-        // Torsion changes the velocity seen by the bow but should remain much
-        // smaller than the transverse string velocity in normal playing.
-        driveGain = 0.015 * (1.0 - radius);
-    }
-
-    [[nodiscard]] double surfaceVelocity() const noexcept
-    {
-        return y1;
-    }
-
-    void drive(double frictionVelocity) noexcept
-    {
-        auto y =
-            poleA1 * y1
-            + poleA2 * y2
-            + driveGain * frictionVelocity;
-        y = std::clamp(y, -0.08, 0.08);
-        y2 = y1;
-        y1 = y;
-    }
-};
-
 struct FiddleEngine::Impl
 {
     double sampleRate = 48000.0;
@@ -95,7 +32,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
     std::array<BowContact, stringCount> contacts{};
-    std::array<ReducedTorsionalResonator, stringCount> torsion{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
@@ -128,8 +64,6 @@ struct FiddleEngine::Impl
     double staticGripScale = 1.0;
     double slidingGripScale = 1.0;
     double contactStateRateScale = 1.0;
-    double torsionalRatioScale = 1.0;
-    double torsionalQ = 22.0;
 
     double velocityScale = 1.0;
     double bowSpeed = 0.0;
@@ -197,7 +131,6 @@ struct FiddleEngine::Impl
         for (auto& rail : toNut) rail.clear();
         for (auto& rail : fromNut) rail.clear();
         for (auto& contact : contacts) contact.reset();
-        for (auto& resonator : torsion) resonator.reset();
 
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
@@ -360,24 +293,18 @@ struct FiddleEngine::Impl
             case StringCorePreset::SyntheticCore:
                 lossAmountScale = 1.00;
                 dispersionScale = 1.00;
-                torsionalRatioScale = 1.00;
-                torsionalQ = 22.0;
                 break;
             case StringCorePreset::SteelCore:
                 // Quicker, more persistent response: reduce distributed loss and
                 // slightly reduce the phase-smearing allpass strength.
                 lossAmountScale = 0.72;
                 dispersionScale = 0.82;
-                torsionalRatioScale = 1.12;
-                torsionalQ = 26.0;
                 break;
             case StringCorePreset::GutLike:
                 // A deliberately broad profile for a softer, slower-response core.
                 // This is not a calibrated commercial string model.
                 lossAmountScale = 1.34;
                 dispersionScale = 1.12;
-                torsionalRatioScale = 0.58;
-                torsionalQ = 15.0;
                 break;
         }
 
@@ -907,7 +834,6 @@ struct FiddleEngine::Impl
         debug.sticking.fill(false);
         debug.rosinNoiseVelocityMps.fill(0.0f);
         debug.rosinTransitionEnvelope.fill(0.0f);
-        debug.torsionalSurfaceVelocityMps.fill(0.0f);
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
@@ -950,16 +876,6 @@ struct FiddleEngine::Impl
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
 
-            torsion[i].tune(
-                currentFrequency[i],
-                torsionalWaveSpeedRatio[i] * torsionalRatioScale,
-                torsionalQ,
-                sampleRate);
-            const auto torsionalSurfaceVelocity =
-                torsion[i].surfaceVelocity();
-            const auto contactSurfaceVelocity =
-                incomingVelocity + torsionalSurfaceVelocity;
-
             double injection = 0.0;
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
@@ -994,8 +910,8 @@ struct FiddleEngine::Impl
                     slidingGripScale * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
-                const auto surfaceVelocity = contacts[i].solve(
-                    contactSurfaceVelocity,
+                const auto stringVelocity = contacts[i].solve(
+                    incomingVelocity,
                     bowSpeed,
                     bowForce[i],
                     stringImpedance[i],
@@ -1003,18 +919,7 @@ struct FiddleEngine::Impl
                     localStaticGrip,
                     localSlidingGrip,
                     contactStateRateScale);
-
-                // The friction law acts on the string surface. Subtract the
-                // torsional component again before writing transverse waves.
-                const auto transverseVelocity =
-                    surfaceVelocity - torsionalSurfaceVelocity;
-                injection = transverseVelocity - incomingVelocity;
-
-                // A small fraction of the same friction event excites a
-                // strongly damped torsional mode. Torsion is not sent to the
-                // bridge output directly; it only changes the next contact
-                // velocity seen by the bow.
-                torsion[i].drive(0.08 * injection);
+                injection = stringVelocity - incomingVelocity;
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
@@ -1095,7 +1000,6 @@ struct FiddleEngine::Impl
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
-                torsion[i].drive(0.0);
                 rosinNoisePrevious[i] *= 0.98;
                 rosinNoiseEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.004));
@@ -1121,8 +1025,6 @@ struct FiddleEngine::Impl
                 static_cast<float>(rosinNoiseVelocity);
             debug.rosinTransitionEnvelope[i] =
                 static_cast<float>(rosinTransitionEnvelope[i]);
-            debug.torsionalSurfaceVelocityMps[i] =
-                static_cast<float>(torsion[i].surfaceVelocity());
         }
 
         for (std::size_t i = 0; i < stringCount; ++i)
