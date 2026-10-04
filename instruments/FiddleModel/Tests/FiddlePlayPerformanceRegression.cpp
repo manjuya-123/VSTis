@@ -14,7 +14,7 @@
 namespace
 {
 constexpr double sampleRate = 48000.0;
-constexpr float listenGain = 0.15f;
+constexpr float listenGain = 3.9810717f; // +12 dB, matches plugin default Output Level.
 
 void writeU16(std::ofstream& out, std::uint16_t value)
 {
