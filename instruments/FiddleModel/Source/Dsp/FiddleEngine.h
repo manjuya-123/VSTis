@@ -69,6 +69,7 @@ struct DebugState
     float strokeBiteGain = 1.0f;
     float reversalAccelerationGain = 1.0f;
     float oneShotLiftGain = 1.0f;
+    float chopImpactVelocityMps = 0.0f;
     bool oneShotActive = false;
     int bowDirection = 1;
     int bowPairLowerString = 1;
@@ -102,7 +103,10 @@ public:
                           float liftDurationSeconds = 0.012f,
                           float liftBrake = 2.0f,
                           float liftForceCurve = 1.0f) noexcept;
-    void startChop(int direction, float durationSeconds = 0.032f) noexcept;
+    void startChop(int direction,
+                   float durationSeconds = 0.032f,
+                   float impactVelocityMps = 0.014f,
+                   float impactDurationSeconds = 0.0022f) noexcept;
     void startTremolo(float reversalsPerSecond = 14.0f) noexcept;
     void startShuffle(float subdivisionsPerSecond = 12.0f) noexcept;
     void stopBow() noexcept;
