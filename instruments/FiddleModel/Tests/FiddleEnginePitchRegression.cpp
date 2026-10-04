@@ -57,7 +57,7 @@ double correlationAtFrequency(const std::vector<float>& x,
 
 double estimateFrequency(const std::vector<float>& x, double target)
 {
-    constexpr int candidates = 160;
+    constexpr int candidates = 640;
     double bestFrequency = target;
     double bestCorrelation = -2.0;
 
@@ -111,7 +111,7 @@ bool testPitch(double target)
               << " estimated=" << estimated
               << " cents=" << cents << '\n';
 
-    return std::abs(cents) <= 7.0;
+    return std::abs(cents) <= 4.0;
 }
 
 struct PitchMatrixResult
@@ -275,7 +275,7 @@ int main(int argc, char** argv)
     {
         if (!testPitch(target))
         {
-            std::cerr << "FAIL: pitch error exceeded 7 cents\n";
+            std::cerr << "FAIL: pitch error exceeded 4 cents\n";
             return EXIT_FAILURE;
         }
     }
@@ -319,9 +319,9 @@ int main(int argc, char** argv)
               << "pitch_matrix_mean_abs_cents="
               << pitchMatrix.meanAbsCents << '\n';
 
-    if (pitchMatrix.maxAbsCents > 12.0)
+    if (pitchMatrix.maxAbsCents > 3.0)
     {
-        std::cerr << "FAIL: bridge/body loaded pitch matrix exceeded 12 cents\n";
+        std::cerr << "FAIL: bridge/body loaded pitch matrix exceeded 3 cents\n";
         return EXIT_FAILURE;
     }
 
