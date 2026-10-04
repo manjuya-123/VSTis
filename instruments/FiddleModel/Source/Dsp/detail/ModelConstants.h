@@ -27,12 +27,6 @@ inline constexpr std::array<double, stringCount> stringImpedance {
     0.13873751546881677
 };
 
-// Reduced-order torsional/transverse wave-speed ratios for the default
-// synthetic-core family. Torsional motion is used at the bow contact only;
-// it is not radiated directly at the bridge.
-inline constexpr std::array<double, stringCount> torsionalWaveSpeedRatio {
-    4.2, 4.6, 5.4, 6.6
-};
 
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
