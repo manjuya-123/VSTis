@@ -15,6 +15,34 @@ namespace fiddle
 {
 using namespace detail;
 
+namespace
+{
+double rosinSurfaceSample(double coordinate, std::uint32_t seed) noexcept
+{
+    const auto lattice = static_cast<std::int64_t>(std::floor(coordinate));
+    const auto frac = coordinate - static_cast<double>(lattice);
+    const auto smooth = frac * frac * (3.0 - 2.0 * frac);
+
+    const auto hash = [seed](std::int64_t index) noexcept
+    {
+        auto x = static_cast<std::uint64_t>(index)
+            ^ (static_cast<std::uint64_t>(seed) << 32u);
+        x ^= x >> 30u;
+        x *= 0xbf58476d1ce4e5b9ULL;
+        x ^= x >> 27u;
+        x *= 0x94d049bb133111ebULL;
+        x ^= x >> 31u;
+        const auto unit = static_cast<double>(x & 0xFFFFFFu)
+            / static_cast<double>(0xFFFFFFu);
+        return 2.0 * unit - 1.0;
+    };
+
+    const auto a = hash(lattice);
+    const auto b = hash(lattice + 1);
+    return a + smooth * (b - a);
+}
+} // namespace
+
 struct FiddleEngine::Impl
 {
     double sampleRate = 48000.0;
@@ -36,6 +64,7 @@ struct FiddleEngine::Impl
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
     std::array<double, stringCount> rosinNoisePrevious{};
+    std::array<double, stringCount> rosinSurfaceCoordinate{};
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
@@ -140,6 +169,7 @@ struct FiddleEngine::Impl
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
         };
         rosinNoisePrevious.fill(0.0);
+        rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
         body.reset();
@@ -882,24 +912,27 @@ struct FiddleEngine::Impl
                 // Deterministic microscopic hair/rosin roughness. One physical
                 // roughness sample drives both a tiny friction-coefficient
                 // variation and the residual contact-velocity texture.
-                auto& noiseState = rosinNoiseState[i];
-                noiseState = noiseState * 1664525u + 1013904223u;
-                const auto rawNoise =
-                    static_cast<double>(noiseState >> 8u)
-                        / 8388608.0 - 1.0;
+                // Hair/rosin roughness is a spatial field attached to the
+                // travelling bow hair. Faster bow motion traverses the same
+                // microscopic profile faster; reversing the bow retraces it in
+                // the opposite direction instead of generating unrelated noise.
+                constexpr double roughnessFeaturesPerMeter = 13000.0;
+                rosinSurfaceCoordinate[i] +=
+                    bowSpeed * roughnessFeaturesPerMeter / sampleRate;
+                const auto rawNoise = rosinSurfaceSample(
+                    rosinSurfaceCoordinate[i], rosinNoiseState[i]);
                 const auto differentiated =
                     rawNoise - rosinNoisePrevious[i];
                 rosinNoisePrevious[i] = rawNoise;
 
-                // Hair/rosin roughness is spatial. Moving the bow faster
-                // traverses the same microscopic irregularities more quickly,
-                // shifting their temporal texture upward as well as increasing
-                // activity. Bow Contact still provides the larger spectral tilt.
+                // Bow Contact remains the dominant spectral tilt. Bow speed now
+                // changes temporal roughness mostly through spatial traversal,
+                // with only a small residual colour term.
                 const auto speedColour = std::clamp(
                     std::abs(bowSpeed) / 0.65, 0.0, 1.0);
                 const auto brightness = std::clamp(
-                    0.14 + 0.56 * pos + 0.24 * speedColour,
-                    0.0, 0.95);
+                    0.16 + 0.60 * pos + 0.10 * speedColour,
+                    0.0, 0.92);
                 const auto colouredNoise =
                     (1.0 - brightness) * 0.58 * rawNoise
                     + brightness * 0.34 * differentiated;
