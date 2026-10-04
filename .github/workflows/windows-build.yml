@@ -34,6 +34,7 @@ jobs:
         run: |
           Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/metrics.csv
           Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
+          Get-Content build/vs2022-core/instruments/FiddleModel/regression-audio/gesture_reversal_metrics.csv
 
       - name: Configure plugin (Visual Studio 2022 x64)
         run: cmake --preset vs2022-x64

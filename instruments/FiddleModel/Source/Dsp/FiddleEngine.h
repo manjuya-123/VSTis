@@ -67,6 +67,7 @@ struct DebugState
     float bowAngleDeg = 0.0f;
     float vibratoOffsetCents = 0.0f;
     float strokeBiteGain = 1.0f;
+    float reversalAccelerationGain = 1.0f;
     int bowDirection = 1;
     int bowPairLowerString = 1;
     int primaryString = 1;

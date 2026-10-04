@@ -73,6 +73,9 @@ struct FiddleEngine::Impl
     double strokeBiteAmount = 0.0;
     std::int64_t strokeBiteSamplesRemaining = 0;
     std::int64_t strokeBiteTotalSamples = 0;
+    double reversalAccelerationBoost = 0.0;
+    std::int64_t reversalAssistSamplesRemaining = 0;
+    std::int64_t reversalAssistTotalSamples = 0;
     int primaryString = 1;
     int pairLower = 1;
 
@@ -146,6 +149,9 @@ struct FiddleEngine::Impl
         strokeBiteAmount = 0.0;
         strokeBiteSamplesRemaining = 0;
         strokeBiteTotalSamples = 0;
+        reversalAccelerationBoost = 0.0;
+        reversalAssistSamplesRemaining = 0;
+        reversalAssistTotalSamples = 0;
         primaryString = 1;
         pairLower = 1;
         debug = {};
@@ -287,7 +293,13 @@ struct FiddleEngine::Impl
         }
 
         if (alternateDirection)
+        {
             bowDirection = -bowDirection;
+            // Real bow changes are driven by a short wrist/forearm acceleration
+            // pulse. Keep that gesture in the mechanical bow state instead of
+            // hiding the reversal with an output transient.
+            triggerBowReversalAssist(2.4, 0.008);
+        }
     }
 
     void setFingeringLayout(const std::array<float, stringCount>& frequencies,
@@ -362,10 +374,25 @@ struct FiddleEngine::Impl
         setStrokeBite(amount, durationSeconds);
     }
 
+    void triggerBowReversalAssist(double amount, double durationSeconds) noexcept
+    {
+        reversalAccelerationBoost = std::clamp(amount, 0.0, 5.0);
+        reversalAssistTotalSamples = std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(
+                std::clamp(durationSeconds, 0.001, 0.020) * sampleRate));
+        reversalAssistSamplesRemaining = reversalAssistTotalSamples;
+    }
+
     void startBow(int direction) noexcept
     {
+        const auto newDirection = direction < 0 ? -1 : 1;
+        const bool reversingMovingBow =
+            bowSpeed * static_cast<double>(newDirection) < -0.02;
+
         bowStrokeStarted = true;
-        bowDirection = direction < 0 ? -1 : 1;
+        bowDirection = newDirection;
+        if (reversingMovingBow)
+            triggerBowReversalAssist(2.6, 0.008);
         shortStrokeSamplesRemaining = 0;
         chopDampingSamplesRemaining = 0;
         tremoloSamplesUntilFlip = 0;
@@ -444,6 +471,9 @@ struct FiddleEngine::Impl
         shuffleSubdivisionsPerSecond = 0.0;
         shufflePhase = 0;
         shuffleEnergyScale = 1.0;
+        reversalAccelerationBoost = 0.0;
+        reversalAssistSamplesRemaining = 0;
+        reversalAssistTotalSamples = 0;
         gate.setTarget(0.0);
     }
 
@@ -480,6 +510,7 @@ struct FiddleEngine::Impl
             {
                 bowDirection = -bowDirection;
                 retriggerBowCatch(0.10, 0.0045);
+                triggerBowReversalAssist(3.2, 0.0080);
                 tremoloSamplesUntilFlip = std::max<std::int64_t>(
                     1, static_cast<std::int64_t>(
                         sampleRate / tremoloReversalsPerSecond));
@@ -507,6 +538,7 @@ struct FiddleEngine::Impl
                     energyScale[static_cast<std::size_t>(shufflePhase)];
                 retriggerBowCatch(
                     0.08 + 0.06 * shuffleEnergyScale, 0.0050);
+                triggerBowReversalAssist(3.0, 0.0090);
                 shuffleSamplesUntilFlip = std::max<std::int64_t>(
                     1, static_cast<std::int64_t>(
                         durationUnits[static_cast<std::size_t>(shufflePhase)]
@@ -528,8 +560,24 @@ struct FiddleEngine::Impl
         // Bow Response is the player's ability to accelerate/reverse the bow,
         // not an amplitude-envelope attack. The earlier 0.25..3 m/s^2 range
         // made alternating fiddle strokes unrealistically sluggish.
-        const auto bowAcceleration =
+        const auto baseBowAcceleration =
             bowResponseScale * 2.5 * std::pow(24.0, a);
+        double reversalAccelerationGain = 1.0;
+        if (reversalAssistSamplesRemaining > 0
+            && reversalAssistTotalSamples > 0)
+        {
+            const auto phase =
+                static_cast<double>(reversalAssistSamplesRemaining)
+                / static_cast<double>(reversalAssistTotalSamples);
+            // Smoothly release the acceleration pulse. This changes bow
+            // kinematics only; it is not an audio amplitude envelope.
+            const auto shaped = phase * phase * (3.0 - 2.0 * phase);
+            reversalAccelerationGain +=
+                reversalAccelerationBoost * shaped;
+            --reversalAssistSamplesRemaining;
+        }
+        const auto bowAcceleration =
+            baseBowAcceleration * reversalAccelerationGain;
         // A player's "same pressure" gesture does not produce the same usable
         // string-normal force everywhere along the speaking length. Close to the
         // bridge the string is mechanically stiffer and stable Helmholtz motion
@@ -703,6 +751,8 @@ struct FiddleEngine::Impl
         debug.bridgeVelocity = static_cast<float>(bridgeVelocity);
         debug.vibratoOffsetCents = static_cast<float>(appliedVibratoCents);
         debug.strokeBiteGain = static_cast<float>(strokeBiteGain);
+        debug.reversalAccelerationGain =
+            static_cast<float>(reversalAccelerationGain);
         debug.bowDirection = bowDirection;
         debug.bowPairLowerString = pairLower;
         debug.primaryString = primaryString;

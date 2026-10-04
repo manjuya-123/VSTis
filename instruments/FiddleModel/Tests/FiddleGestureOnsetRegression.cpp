@@ -23,6 +23,13 @@ struct GestureRender
     double peakRms = 0.0;
 };
 
+struct ReversalMetrics
+{
+    int reversals = 0;
+    double maxLatencyMs = 0.0;
+    double meanLatencyMs = 0.0;
+};
+
 double windowRms(const std::vector<float>& x,
                  std::size_t begin,
                  std::size_t length)
@@ -115,6 +122,98 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
     return result;
 }
 
+ReversalMetrics measureReversalCatch(fiddle::BowAction action,
+                                     float velocity)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.52f;
+    controls.speed = 0.60f;
+    controls.attack = 0.52f;
+    controls.position = 0.45f;
+    controls.balance = -0.90f;
+    controls.vibratoWidth = 0.0f;
+
+    const auto profile = fiddle::makeBowGestureProfile(action, velocity);
+    controls.pressure = std::clamp(
+        controls.pressure + profile.pressureBoost, 0.0f, 1.0f);
+    controls.speed = std::clamp(
+        controls.speed * profile.speedScale, 0.0f, 1.0f);
+    controls.attack = std::clamp(
+        controls.attack + profile.responseBoost, 0.0f, 1.0f);
+    engine.setControls(controls);
+    engine.setStrokeBite(
+        profile.biteBoost, profile.biteDurationSeconds);
+
+    std::array<float, 4> fingering {};
+    fingering[1] = 329.6276f;
+    engine.setFingeringLayout(fingering, 1, 1, velocity);
+
+    if (action == fiddle::BowAction::Tremolo)
+        engine.startTremolo(profile.tremoloReversalsPerSecond);
+    else
+        engine.startShuffle(profile.shuffleSubdivisionsPerSecond);
+
+    ReversalMetrics result;
+    auto previousDirection = engine.debugSnapshot().bowDirection;
+    std::int64_t pendingReversalSample = -1;
+    double latencySumMs = 0.0;
+
+    constexpr auto speedCatchThreshold = 0.08f;
+    const auto maxSamples =
+        static_cast<std::int64_t>(0.75 * sampleRate);
+
+    for (std::int64_t sample = 0; sample < maxSamples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+
+        const auto state = engine.debugSnapshot();
+        if (state.bowDirection != previousDirection)
+        {
+            // A second scheduled reversal before the bow has acquired useful
+            // speed in the new direction is a failed re-catch.
+            if (pendingReversalSample >= 0)
+            {
+                result.maxLatencyMs = 1000.0;
+                return result;
+            }
+
+            pendingReversalSample = sample;
+            previousDirection = state.bowDirection;
+        }
+
+        if (pendingReversalSample >= 0
+            && state.bowSpeedMps
+                * static_cast<float>(state.bowDirection)
+                >= speedCatchThreshold)
+        {
+            const auto latencyMs =
+                1000.0
+                * static_cast<double>(
+                    sample - pendingReversalSample + 1)
+                / sampleRate;
+            result.maxLatencyMs =
+                std::max(result.maxLatencyMs, latencyMs);
+            latencySumMs += latencyMs;
+            ++result.reversals;
+            pendingReversalSample = -1;
+
+            if (result.reversals >= 5)
+                break;
+        }
+    }
+
+    if (result.reversals > 0)
+        result.meanLatencyMs =
+            latencySumMs / static_cast<double>(result.reversals);
+
+    return result;
+}
+
 void writeU16(std::ofstream& out, std::uint16_t value)
 {
     const char bytes[2] {
@@ -194,6 +293,10 @@ int main(int argc, char** argv)
         renderGesture(fiddle::BowAction::ShortStroke, 0.82f);
     const auto chop =
         renderGesture(fiddle::BowAction::Chop, 0.82f);
+    const auto tremoloCatch =
+        measureReversalCatch(fiddle::BowAction::Tremolo, 0.82f);
+    const auto shuffleCatch =
+        measureReversalCatch(fiddle::BowAction::Shuffle, 0.82f);
 
     std::cout << "down_onset_ms=" << down.onsetMs
               << " down_peak_rms=" << down.peakRms << '\n'
@@ -202,7 +305,13 @@ int main(int argc, char** argv)
               << "short_onset_ms=" << shortStroke.onsetMs
               << " short_peak_rms=" << shortStroke.peakRms << '\n'
               << "chop_onset_ms=" << chop.onsetMs
-              << " chop_peak_rms=" << chop.peakRms << '\n';
+              << " chop_peak_rms=" << chop.peakRms << '\n'
+              << "tremolo_reversal_max_ms=" << tremoloCatch.maxLatencyMs
+              << " tremolo_reversal_mean_ms=" << tremoloCatch.meanLatencyMs
+              << " tremolo_reversals=" << tremoloCatch.reversals << '\n'
+              << "shuffle_reversal_max_ms=" << shuffleCatch.maxLatencyMs
+              << " shuffle_reversal_mean_ms=" << shuffleCatch.meanLatencyMs
+              << " shuffle_reversals=" << shuffleCatch.reversals << '\n';
 
     if (!(std::isfinite(down.onsetMs)
           && std::isfinite(accent.onsetMs)
@@ -218,6 +327,14 @@ int main(int argc, char** argv)
 
     if (!(chop.peakRms > 1.0e-5 && chop.onsetMs <= down.onsetMs + 2.0))
         return fail("Chop did not produce a prompt physical contact transient");
+
+    if (!(tremoloCatch.reversals >= 4
+          && tremoloCatch.maxLatencyMs <= 16.0))
+        return fail("Tremolo bow reversal did not re-catch useful speed promptly");
+
+    if (!(shuffleCatch.reversals >= 4
+          && shuffleCatch.maxLatencyMs <= 18.0))
+        return fail("Shuffle bow reversal did not re-catch useful speed promptly");
 
     if (argc >= 2)
     {
@@ -236,6 +353,20 @@ int main(int argc, char** argv)
             << "Short," << shortStroke.onsetMs << ',' << shortStroke.peakRms << '\n'
             << "Accent," << accent.onsetMs << ',' << accent.peakRms << '\n'
             << "Chop," << chop.onsetMs << ',' << chop.peakRms << '\n';
+
+        std::ofstream reversalCsv(
+            outputDirectory / "gesture_reversal_metrics.csv");
+        if (!reversalCsv)
+            return fail("Could not write gesture reversal metrics CSV");
+
+        reversalCsv << "gesture,reversals,max_latency_ms,mean_latency_ms\n"
+                    << std::setprecision(9)
+                    << "Tremolo," << tremoloCatch.reversals << ','
+                    << tremoloCatch.maxLatencyMs << ','
+                    << tremoloCatch.meanLatencyMs << '\n'
+                    << "Shuffle," << shuffleCatch.reversals << ','
+                    << shuffleCatch.maxLatencyMs << ','
+                    << shuffleCatch.meanLatencyMs << '\n';
 
         if (!writeComparisonWav(
                 outputDirectory / "10_gesture_onset_comparison.wav",
