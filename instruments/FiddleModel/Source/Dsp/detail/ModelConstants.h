@@ -5,7 +5,7 @@
 namespace fiddle::detail
 {
 inline constexpr int stringCount = 4;
-inline constexpr int bodyModeCount = 12;
+inline constexpr int bodyModeCount = 20;
 inline constexpr int delaySize = 4096;
 inline constexpr double pi = 3.1415926535897932384626433832795;
 inline constexpr double balanceSharpness = 1.75;
@@ -60,6 +60,18 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     { 2350.0, 0.120, 0.0065 },
     { 2850.0, 0.140, 0.0050 },
     { 3500.0, 0.180, 0.0034 },
+
+    // Above the strongest bridge/body regions, a real fiddle does not become
+    // spectrally empty. Use a sparse, increasingly damped modal tail rather
+    // than one bright shelf; these remain part of the mechanical admittance.
+    { 4050.0, 0.200, 0.0025 },
+    { 4550.0, 0.215, 0.0022 },
+    { 5100.0, 0.230, 0.0020 },
+    { 5700.0, 0.245, 0.0018 },
+    { 6350.0, 0.265, 0.0016 },
+    { 7050.0, 0.285, 0.0014 },
+    { 7800.0, 0.310, 0.00115 },
+    { 8650.0, 0.340, 0.00090 },
 }};
 
 inline constexpr double bodyDirectConductance = 0.0007;
