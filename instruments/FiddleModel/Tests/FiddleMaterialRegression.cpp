@@ -239,6 +239,41 @@ ContactTextureMetrics contactTexture(
     return result;
 }
 
+double maxTorsionalSurfaceVelocity(fiddle::StringCorePreset preset)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::MaterialSettings materials;
+    materials.strings = preset;
+    engine.setMaterials(materials);
+
+    auto c = controls();
+    c.pressure = 0.50f;
+    c.speed = 0.66f;
+    c.position = 0.52f;
+    engine.setControls(c);
+    engine.beginBowStroke(false);
+    engine.noteOn(329.6276f, 0.88f);
+
+    double maximum = 0.0;
+    const auto samples = static_cast<std::size_t>(0.50 * sampleRate);
+    for (std::size_t sample = 0; sample < samples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+
+        const auto debug = engine.debugSnapshot();
+        for (const auto velocity : debug.torsionalSurfaceVelocityMps)
+            maximum = std::max(
+                maximum,
+                std::abs(static_cast<double>(velocity)));
+    }
+
+    return maximum;
+}
+
 double reversalSpeed(fiddle::BowStickPreset preset)
 {
     fiddle::FiddleEngine engine;
@@ -362,6 +397,20 @@ int main()
     if (!std::isfinite(stringDifference) || stringDifference < 1.0e-5)
         return fail("String-core material profile did not change string-loop behavior");
 
+    const auto syntheticTorsion = maxTorsionalSurfaceVelocity(
+        fiddle::StringCorePreset::SyntheticCore);
+    const auto steelTorsion = maxTorsionalSurfaceVelocity(
+        fiddle::StringCorePreset::SteelCore);
+    const auto gutTorsion = maxTorsionalSurfaceVelocity(
+        fiddle::StringCorePreset::GutLike);
+
+    if (!(syntheticTorsion > 1.0e-8
+          && syntheticTorsion < 0.02
+          && steelTorsion > 1.0e-8
+          && gutTorsion > 1.0e-8
+          && std::abs(steelTorsion - gutTorsion) > 1.0e-7))
+        return fail("Reduced torsional contact motion is missing, excessive, or ignores string core");
+
     const auto rigidBowSpeed =
         reversalSpeed(fiddle::BowStickPreset::LightRigidExperimental);
     const auto flexibleBowSpeed =
@@ -400,6 +449,12 @@ int main()
               << "dry_texture_rms=" << dryTexture.noiseRms << '\n'
               << "high_grip_texture_rms=" << highGripTexture.noiseRms << '\n'
               << "string_difference_rms=" << stringDifference << '\n'
+              << "synthetic_torsional_surface_velocity="
+              << syntheticTorsion << '\n'
+              << "steel_torsional_surface_velocity="
+              << steelTorsion << '\n'
+              << "gut_torsional_surface_velocity="
+              << gutTorsion << '\n'
               << "rigid_bow_speed=" << rigidBowSpeed << '\n'
               << "flexible_bow_speed=" << flexibleBowSpeed << '\n';
 
