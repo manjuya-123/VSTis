@@ -63,16 +63,18 @@ This mapping is an intermediate performance model and will become configurable l
 The same test has also been compiled with AddressSanitizer/UBSan in the development
 environment.
 
-`FiddleModelPitchRegression` checks E4/F#4/G4 on the D string with a period-correlation
-pitch estimator and currently requires <= 7 cents error. `FiddleModelNoteStackSmoke`
-checks overlapping-note/legato priority without any JUCE dependency.
+`FiddleModelPitchRegression` checks single-note pitch plus a four-string/three-contact
+position matrix under the full bridge/body load. The calibrated matrix now requires
+<= 2 cents maximum error and <= 0.8 cents mean absolute error. The bridge reflection
+phase is derived from the translation + rocking modal admittance rather than an
+empirical cents offset. `FiddleModelNoteStackSmoke` checks overlapping-note/legato
+priority without any JUCE dependency.
 
 ## Next milestones
 
-1. Add regression rendering against reference WAV metrics.
-2. Improve phase/pitch compensation at the bridge load where needed.
-3. Add note-stack/legato policy and MPE mappings.
-4. Replace the generic JUCE editor with the performance UI.
+1. Add reference-listening comparisons against external fiddle recordings where licensing permits.
+2. Expand MPE/per-note expression beyond the current pitch-bend path.
+3. Continue refining performance gestures without exposing solver coefficients.
 
 The Bow Angle calibration LUT is generated in `prepare()` rather than on the audio thread. The audio path only bilinearly interpolates the LUT and performs the final contact-depth solve.
 
