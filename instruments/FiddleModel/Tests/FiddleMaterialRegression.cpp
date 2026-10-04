@@ -24,6 +24,8 @@ struct ContactTextureMetrics
     double brightnessRatio = 0.0;
     double maxGripUtilization = 0.0;
     double slidingFraction = 0.0;
+    double transitionEnvelopePeak = 0.0;
+    std::size_t transitionEnvelopeSamples = 0;
     std::size_t nearYieldStickSamples = 0;
     std::size_t stickSlipTransitions = 0;
 };
@@ -162,6 +164,12 @@ ContactTextureMetrics contactTexture(
             aggregateNoise += noise;
             const auto grip =
                 static_cast<double>(debug.contactGripUtilization[i]);
+            const auto transitionEnvelope =
+                static_cast<double>(debug.rosinTransitionEnvelope[i]);
+            result.transitionEnvelopePeak =
+                std::max(result.transitionEnvelopePeak, transitionEnvelope);
+            if (transitionEnvelope >= 0.05)
+                ++result.transitionEnvelopeSamples;
             noiseEnergy += noise * noise;
 
             if (havePreviousSticking[i]
@@ -323,6 +331,11 @@ int main()
           && mediumTexture.maxGripUtilization >= 0.68))
         return fail("Near-yield sticking no longer produces microscopic pre-slip roughness");
 
+    if (!(mediumTexture.stickSlipTransitions > 0
+          && mediumTexture.transitionEnvelopePeak >= 0.50
+          && mediumTexture.transitionEnvelopeSamples > 100))
+        return fail("Stick-slip transitions no longer create a short rosin roughness burst");
+
     const auto fingerboardTexture = contactTexture(
         fiddle::ContactMaterialPreset::HorsehairMediumRosin,
         0.44f, 0.60f, 0.10f);
@@ -375,6 +388,10 @@ int main()
               << "medium_sliding_fraction=" << mediumTexture.slidingFraction << '\n'
               << "medium_stick_slip_transitions="
               << mediumTexture.stickSlipTransitions << '\n'
+              << "medium_transition_envelope_peak="
+              << mediumTexture.transitionEnvelopePeak << '\n'
+              << "medium_transition_envelope_samples="
+              << mediumTexture.transitionEnvelopeSamples << '\n'
               << "fingerboard_texture_brightness="
               << fingerboardTexture.brightnessRatio << '\n'
               << "bridge_texture_brightness="
