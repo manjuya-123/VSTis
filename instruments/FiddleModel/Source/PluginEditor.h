@@ -42,7 +42,8 @@ private:
     FiddleVisualState state_{};
 };
 
-class PlayKeyMap final : public juce::Component
+class PlayKeyMap final : public juce::Component,
+                         public juce::SettableTooltipClient
 {
 public:
     void setState(int playMode, int bowAction, int fingeringMidiNote);
