@@ -1,4 +1,5 @@
 #include "Dsp/FiddleEngine.h"
+#include "Dsp/FiddleFingeringVoicer.h"
 #include "Dsp/FiddleGestureProfile.h"
 
 #include <algorithm>
@@ -160,14 +161,40 @@ int main(int argc, char** argv)
     engine.stopBow();
     render(engine, left, right, 0.08);
 
-    // Open-string drone: one stopped E4 on D while A remains open.
+    // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
+    // primarily bow D, not silently turn every melody note into a D+A drone.
     std::array<float, 4> singleFingering {};
     singleFingering[1] = 329.6276f;
     engine.setFingeringLayout(singleFingering, 1, 1, 0.88f);
+    std::array<int, 4> singleNotes { 64, -1, -1, -1 };
+    const auto singleLayout =
+        fiddle::voiceFingering(singleNotes, 1, 64);
+    controls.balance =
+        fiddle::singleStringFocusForLayout(singleLayout, 1);
+    engine.setControls(controls);
+    engine.startBow(+1);
+    const auto singleFocusBegin = left.size();
+    render(engine, left, right, 0.30);
+    const auto singleFocusEnd = left.size();
+
+    const auto singleFocus = engine.debugSnapshot();
+    const auto singlePairForce =
+        singleFocus.contactNormalForceN[1]
+        + singleFocus.contactNormalForceN[2];
+    if (!(singlePairForce > 0.001f)
+        || singleFocus.contactNormalForceN[2] > singlePairForce * 0.08f)
+        return fail("Monophonic Fiddle Play did not focus the primary D string");
+    engine.stopBow();
+    render(engine, left, right, 0.08);
+
+    // Open-string Drone Bow deliberately re-centres the same stopped D + open A
+    // shape so both strings are directly contacted.
     controls.balance = 0.0f;
     engine.setControls(controls);
     engine.startBow(+1);
+    const auto droneBegin = left.size();
     render(engine, left, right, 0.30);
+    const auto droneEnd = left.size();
 
     const auto openDrone = engine.debugSnapshot();
     if (!(openDrone.contactNormalForceN[1] > 0.001f
@@ -373,8 +400,34 @@ int main(int argc, char** argv)
         if (!writeWav(gestureOutput, gestureLeft, gestureRight))
             return fail("Could not write Fiddle gesture showcase WAV");
 
+        std::vector<float> focusLeft;
+        std::vector<float> focusRight;
+        focusLeft.insert(
+            focusLeft.end(),
+            left.begin() + singleFocusBegin,
+            left.begin() + singleFocusEnd);
+        focusRight.insert(
+            focusRight.end(),
+            right.begin() + singleFocusBegin,
+            right.begin() + singleFocusEnd);
+        appendSilence(focusLeft, focusRight, 0.18);
+        focusLeft.insert(
+            focusLeft.end(),
+            left.begin() + droneBegin,
+            left.begin() + droneEnd);
+        focusRight.insert(
+            focusRight.end(),
+            right.begin() + droneBegin,
+            right.begin() + droneEnd);
+
+        const auto focusOutput =
+            output.parent_path() / "16_single_focus_vs_drone.wav";
+        if (!writeWav(focusOutput, focusLeft, focusRight))
+            return fail("Could not write single-focus versus Drone Bow WAV");
+
         std::cout << "wav=" << output.string() << '\n'
-                  << "gesture_wav=" << gestureOutput.string() << '\n';
+                  << "gesture_wav=" << gestureOutput.string() << '\n'
+                  << "focus_wav=" << focusOutput.string() << '\n';
     }
 
     std::cout << "PASS\n";
