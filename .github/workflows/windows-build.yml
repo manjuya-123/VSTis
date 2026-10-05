@@ -62,7 +62,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure plugin (Visual Studio 2022 x64)
-        run: cmake --preset vs2022-x64
+        run: >-
+          cmake --preset vs2022-x64
+          -DFIDDLE_SOURCE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build VST3, Standalone, and processor MIDI regression
         run: >-
