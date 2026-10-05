@@ -892,9 +892,20 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
+        // Schelleng-type bow-force limits scale with string
+        // characteristic impedance. Keep most of each string's physical
+        // difference, but give the player-facing Pressure control a weak
+        // impedance compensation so the same gesture does not place adjacent
+        // strings in radically different stick/slip regimes.
+        const auto primaryImpedanceScale = std::pow(
+            stringImpedance[static_cast<std::size_t>(
+                std::clamp(primaryString, 0, stringCount - 1))]
+                / stringImpedance[2],
+            0.25);
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
+            * primaryImpedanceScale
             * velocityScale
             * shuffleEnergyScale
             * strokeBiteGain
