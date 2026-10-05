@@ -93,6 +93,11 @@ private:
     float playModeSpeedScale_ = 1.0f;
     float playModeResponseBoost_ = 0.0f;
     bool playModeOneShotLatched_ = false;
+    // If a bow starts from one fingering note, overlapping MIDI note-ons during
+    // that bow are treated as melodic left-hand slurs rather than accidental
+    // double stops. A multi-note shape prepared before the bow remains
+    // explicitly polyphonic.
+    bool playModeMonophonicPhrase_ = false;
     float playModeGestureStrength_ = 0.5f;
     int playModePreferredPrimaryString_ = -1;
     std::atomic<int> activePairLowerString_ { 1 };
