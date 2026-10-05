@@ -91,15 +91,36 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
     {
-        const auto uiPress =
+        const auto uiActionPress =
             pendingUiActionPress_.exchange(-1, std::memory_order_relaxed);
-        if (uiPress >= 0)
-            triggerFiddlePlayAction(uiPress, 0.82f);
+        if (uiActionPress >= 0)
+            triggerFiddlePlayAction(uiActionPress, 0.82f);
 
-        const auto uiRelease =
+        const auto uiFingeringRelease =
+            pendingUiFingeringRelease_.exchange(-1, std::memory_order_relaxed);
+        if (uiFingeringRelease >= 0)
+        {
+            fingeringKeyDown_[static_cast<std::size_t>(uiFingeringRelease)] = false;
+            if (!fingeringHold_)
+            {
+                noteStack_.noteOff(uiFingeringRelease);
+                updateFiddlePlayFingering();
+            }
+        }
+
+        const auto uiFingeringPress =
+            pendingUiFingeringPress_.exchange(-1, std::memory_order_relaxed);
+        if (uiFingeringPress >= 0)
+        {
+            fingeringKeyDown_[static_cast<std::size_t>(uiFingeringPress)] = true;
+            noteStack_.noteOn(uiFingeringPress, 0.82f);
+            updateFiddlePlayFingering();
+        }
+
+        const auto uiActionRelease =
             pendingUiActionRelease_.exchange(-1, std::memory_order_relaxed);
-        if (uiRelease >= 0)
-            releaseFiddlePlayAction(uiRelease);
+        if (uiActionRelease >= 0)
+            releaseFiddlePlayAction(uiActionRelease);
     }
 
     auto* left = buffer.getWritePointer(0);
@@ -130,6 +151,7 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             const auto note = message.getNoteNumber();
             const auto velocity = message.getFloatVelocity();
+            visualLastInputMidiNote_.store(note, std::memory_order_relaxed);
 
             if (playMode == static_cast<int>(fiddle::PlayMode::FiddlePlay))
             {
@@ -854,6 +876,8 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
 {
     FiddleVisualState state;
     state.midiNote = activeMidiNote_.load(std::memory_order_relaxed);
+    state.lastInputMidiNote =
+        visualLastInputMidiNote_.load(std::memory_order_relaxed);
     state.active = state.midiNote >= 0;
     state.primaryString = visualPrimaryString_.load(std::memory_order_relaxed);
     state.pairLowerString = activePairLowerString_.load(std::memory_order_relaxed);
@@ -923,10 +947,24 @@ void FiddleModelAudioProcessor::requestPlayActionFromUi(
     if (!fiddle::isBowActionKey(midiNote))
         return;
 
+    visualLastInputMidiNote_.store(midiNote, std::memory_order_relaxed);
     if (pressed)
         pendingUiActionPress_.store(midiNote, std::memory_order_relaxed);
     else
         pendingUiActionRelease_.store(midiNote, std::memory_order_relaxed);
+}
+
+void FiddleModelAudioProcessor::requestPlayFingeringFromUi(
+    int midiNote, bool pressed) noexcept
+{
+    if (!fiddle::isFingeringKey(midiNote))
+        return;
+
+    visualLastInputMidiNote_.store(midiNote, std::memory_order_relaxed);
+    if (pressed)
+        pendingUiFingeringPress_.store(midiNote, std::memory_order_relaxed);
+    else
+        pendingUiFingeringRelease_.store(midiNote, std::memory_order_relaxed);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
