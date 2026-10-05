@@ -156,15 +156,6 @@ private:
 
     static double desiredUpperFraction(int pairLower, double balance) noexcept
     {
-        // The exact ends of String Focus represent a real single-string bow
-        // angle: the hair has cleared the neighbouring string. Keep the
-        // existing impedance-aware exponential curve everywhere else so
-        // ordinary double-stop balance and gesture calibration do not move.
-        if (balance <= -0.999999)
-            return 0.0;
-        if (balance >= +0.999999)
-            return 1.0;
-
         const auto lower = static_cast<std::size_t>(pairLower);
         const auto upper = lower + 1;
         const auto lowerWeight =
