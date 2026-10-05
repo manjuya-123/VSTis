@@ -254,6 +254,24 @@ int main(int argc, char** argv)
             std::cerr << "FAIL: low-string probe produced invalid spectrum\n";
             return EXIT_FAILURE;
         }
+
+        // Player-reported failure mode: the correct pitch existed only as a
+        // tiny synth-like component behind a much louder body/formant sound.
+        // Require the first three harmonics to carry perceptually meaningful
+        // energy on the two low strings, not merely be detectable by a
+        // narrow-band pitch estimator.
+        if ((item.stringIndex == 0
+             && radiatedMetrics.low3Fraction < 0.27)
+            || (item.stringIndex == 1
+                && radiatedMetrics.low3Fraction < 0.46))
+        {
+            std::cerr
+                << "FAIL: low-string pitch harmonics are masked by body/formant energy"
+                << " string=" << item.stringIndex
+                << " low3_fraction=" << radiatedMetrics.low3Fraction
+                << '\n';
+            return EXIT_FAILURE;
+        }
     }
 
     std::cout << "PASS low-string physical-path probe\n";
