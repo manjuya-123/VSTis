@@ -81,8 +81,8 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     // the gaps below A0/B1 without creating another narrow body note, so low
     // strings can project their moving fundamental/low partials through the
     // body instead of being heard mainly through the fixed bridge-hill formant.
-    { 235.0, 0.200, 0.00180 },
-    { 340.0, 0.160, 0.00150 },
+    { 235.0, 0.200, 0.00090 },
+    { 340.0, 0.160, 0.00075 },
 }};
 
 
