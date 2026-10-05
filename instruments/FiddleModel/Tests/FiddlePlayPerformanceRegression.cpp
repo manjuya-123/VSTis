@@ -171,6 +171,7 @@ int main(int argc, char** argv)
         fiddle::voiceFingering(singleNotes, 1, 64);
     controls.balance =
         fiddle::singleStringFocusForLayout(singleLayout, 1);
+    controls.singleStringIsolation = 1.0f;
     engine.setControls(controls);
     engine.startBow(+1);
     const auto singleFocusBegin = left.size();
@@ -182,14 +183,15 @@ int main(int argc, char** argv)
         singleFocus.contactNormalForceN[1]
         + singleFocus.contactNormalForceN[2];
     if (!(singlePairForce > 0.001f)
-        || singleFocus.contactNormalForceN[2] > singlePairForce * 0.08f)
-        return fail("Monophonic Fiddle Play did not focus the primary D string");
+        || singleFocus.contactNormalForceN[2] > singlePairForce * 0.015f)
+        return fail("Monophonic Fiddle Play directly bowed too much adjacent A string");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
     // Open-string Drone Bow deliberately re-centres the same stopped D + open A
     // shape so both strings are directly contacted.
     controls.balance = 0.0f;
+    controls.singleStringIsolation = 0.0f;
     engine.setControls(controls);
     engine.startBow(+1);
     const auto droneBegin = left.size();
