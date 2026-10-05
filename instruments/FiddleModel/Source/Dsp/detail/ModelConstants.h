@@ -54,12 +54,12 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     // correct fundamental, but it sat behind a nearly fixed body-formant sound.
     // Broaden and strengthen only the low modes; the bridge-hill/tail above
     // 1 kHz is deliberately left unchanged.
-    { 280.0,  0.110, 0.0042 },
-    { 405.0,  0.085, 0.0024 },
-    { 465.0,  0.065, 0.0054 },
-    { 550.0,  0.060, 0.0066 },
-    { 720.0,  0.075, 0.0042 },
-    { 920.0,  0.085, 0.0040 },
+    { 280.0,  0.110, 0.00412 },
+    { 405.0,  0.085, 0.00235 },
+    { 465.0,  0.065, 0.00530 },
+    { 550.0,  0.060, 0.00648 },
+    { 720.0,  0.075, 0.00412 },
+    { 920.0,  0.085, 0.00392 },
     { 1180.0, 0.075, 0.0028 },
     { 1500.0, 0.090, 0.0032 },
     { 1900.0, 0.110, 0.0038 },
