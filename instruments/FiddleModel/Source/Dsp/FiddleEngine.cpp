@@ -277,7 +277,7 @@ struct FiddleEngine::Impl
         // bowed loop once bridge/body loading and the existing dispersive
         // string filter are present. Keep this as a proportional correction
         // to the physical fingertip phase rather than a note/cents offset.
-        constexpr double loopPhaseParticipation = 0.90;
+        constexpr double loopPhaseParticipation = 0.80;
         return loopPhaseParticipation
             * std::clamp(-phase / omega, 0.0, 0.25);
     }
