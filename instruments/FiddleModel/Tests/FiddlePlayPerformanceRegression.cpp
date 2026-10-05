@@ -150,7 +150,34 @@ int main(int argc, char** argv)
     slurFingering[1] = 369.9944f; // F#4 on D
     slurFingering[2] = 554.3653f; // C#5 on A
     engine.setFingeringLayout(slurFingering, 1, 1, 0.88f);
-    render(engine, left, right, 0.24);
+
+    // A stopped-note change should move the physical speaking length quickly,
+    // without an artificial tens-of-milliseconds portamento. Measure the
+    // actual engine state while the bow continues in the same direction.
+    constexpr auto maxSlurSettleSamples =
+        static_cast<std::size_t>(0.030 * sampleRate);
+    std::size_t slurSettleSamples = maxSlurSettleSamples + 1;
+    for (std::size_t sample = 0; sample < maxSlurSettleSamples; ++sample)
+    {
+        float sampleLeft = 0.0f;
+        float sampleRight = 0.0f;
+        engine.process(&sampleLeft, &sampleRight, 1);
+        left.push_back(sampleLeft);
+        right.push_back(sampleRight);
+
+        const auto state = engine.debugSnapshot();
+        if (std::abs(state.speakingFrequencyHz[1] - 369.9944f) <= 2.0f
+            && std::abs(state.speakingFrequencyHz[2] - 554.3653f) <= 2.0f)
+        {
+            slurSettleSamples = sample + 1;
+            break;
+        }
+    }
+
+    if (slurSettleSamples > maxSlurSettleSamples)
+        return fail("Slur fingering did not settle within 30 ms");
+
+    render(engine, left, right, 0.21);
 
     const auto slurDebug = engine.debugSnapshot();
     if (slurDebug.bowDirection != 1)
@@ -158,6 +185,10 @@ int main(int argc, char** argv)
     if (std::abs(slurDebug.speakingFrequencyHz[1] - 369.9944f) > 2.0f
         || std::abs(slurDebug.speakingFrequencyHz[2] - 554.3653f) > 2.0f)
         return fail("Slur did not move the held fingering while bowing");
+    std::cout << "slur_fingering_settle_ms="
+              << (1000.0 * static_cast<double>(slurSettleSamples)
+                  / sampleRate)
+              << '\n';
     engine.stopBow();
     render(engine, left, right, 0.08);
 
