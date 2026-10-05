@@ -60,6 +60,7 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
+    std::array<double, stringCount> fingerTerminationState{};
     std::array<BowContact, stringCount> contacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -95,6 +96,7 @@ struct FiddleEngine::Impl
     double staticGripScale = 1.0;
     double slidingGripScale = 1.0;
     double contactStateRateScale = 1.0;
+    double fingerTerminationAlpha = 0.0;
 
     double velocityScale = 1.0;
     double bowSpeed = 0.0;
@@ -128,6 +130,14 @@ struct FiddleEngine::Impl
     void prepare(double newSampleRate)
     {
         sampleRate = std::clamp(newSampleRate, 32000.0, 192000.0);
+        // A stopped string is terminated by a soft fingertip rather than the
+        // comparatively hard nut. Keep the mechanical reflection nearly full
+        // at low frequencies, but let the fingertip absorb progressively more
+        // upper partial energy. This is part of the string loop, not post-EQ.
+        constexpr double fingerTerminationCutoffHz = 6800.0;
+        fingerTerminationAlpha =
+            1.0 - std::exp(
+                -2.0 * pi * fingerTerminationCutoffHz / sampleRate);
         body.prepare(sampleRate);
         bodyRocking.prepare(sampleRate);
         // Two nearby radiation angles: left keeps slightly more body, right
@@ -167,6 +177,7 @@ struct FiddleEngine::Impl
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
         fingerTouch.fill(0.0);
+        fingerTerminationState.fill(0.0);
         allpassY1.fill(0.0);
         rosinNoiseState = {
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -1022,12 +1033,24 @@ struct FiddleEngine::Impl
                 speakingFrequency[i].target > openFrequency[i] * 1.0005;
 
             // A stopped string loses additional transverse energy into the
-            // fingertip. The short extra loss after Note On represents the
-            // finger settling onto the string; it is applied at the termination,
-            // not as an output amplitude envelope.
+            // fingertip. The fingertip termination is mildly frequency
+            // dependent: low partials remain close to the hard-reflection
+            // string loop, while upper partials see a little more absorption.
+            // The short extra loss after Note On represents the finger settling
+            // onto the string. Everything happens at the termination, never as
+            // an output amplitude envelope or post-EQ.
             double fingerTerminationGain = 1.0;
+            double fingerTerminationSample = filtered;
             if (fingered)
             {
+                fingerTerminationState[i] += fingerTerminationAlpha
+                    * (filtered - fingerTerminationState[i]);
+                const auto dampingMix =
+                    0.12 + 0.08 * fingerTouch[i];
+                fingerTerminationSample =
+                    (1.0 - dampingMix) * filtered
+                    + dampingMix * fingerTerminationState[i];
+
                 fingerTerminationGain =
                     0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
                 const auto touchDecay =
@@ -1037,12 +1060,18 @@ struct FiddleEngine::Impl
             else
             {
                 fingerTouch[i] = 0.0;
+                // Follow the hard termination while the string is open so a
+                // later finger placement does not begin from a stale filter
+                // state and create a synthetic transient.
+                fingerTerminationState[i] = filtered;
             }
 
             const auto chopTerminationGain =
                 chopDampingActive ? 0.960 : 1.0;
             const auto reflectedNut =
-                -filtered * fingerTerminationGain * chopTerminationGain;
+                -fingerTerminationSample
+                * fingerTerminationGain
+                * chopTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
