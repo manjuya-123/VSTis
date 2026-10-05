@@ -289,7 +289,13 @@ sampled articulation.
 
 Left hand:
 - MIDI G3 and above describes pitches to be stopped on the four physical strings.
-- One to four held notes are voiced across G/D/A/E with continuity preference.
+  Fingering keys move the left hand; they do **not** inject bow energy by themselves.
+  Hold/trigger one of the C2-B2 bow-action keys to make the stopped pitch speak.
+- A multi-note shape prepared before a bow stroke is voiced across G/D/A/E with
+  continuity preference and remains available for deliberate double stops/chords.
+  If a bow starts from a single fingering note, brief overlapping MIDI note-ons during
+  that active bow are interpreted as a melodic slur to the newest note instead of an
+  accidental double stop. Fingering Hold keeps an explicit multi-note shape polyphonic.
 - With one held fingering note and the String Focus control left at its centred/default
   position, Fiddle Play automatically leans the physical bow toward the primary string
   (about +/-0.95 focus). In that deliberate single-string posture the effective hair
@@ -313,8 +319,11 @@ Right hand action row:
 - B2 / 47 — Release
 
 The action row drives bow physics; it does not switch to prerecorded or alternate
-synthesis voices. Slurs are made by keeping a bow action active while changing the
-left-hand fingering.
+synthesis voices. For a simple melody, hold Down Bow (C2) or Up Bow (D2) and play the
+G3+ fingering notes with the other hand. Slurs are made by keeping that bow action active
+while changing the left-hand fingering; ordinary keyboard overlap between consecutive
+melody notes is accepted. To prepare a deliberate double stop, hold the multi-note
+fingering shape before starting the bow, or use Fingering Hold/CC64.
 
 The regression artifacts include `16_single_focus_vs_drone.wav`, ordered
 **automatic single-string focus -> Drone Bow**, so the difference can be auditioned
