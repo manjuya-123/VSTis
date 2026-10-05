@@ -502,12 +502,6 @@ struct FiddleEngine::Impl
                 && std::abs(target - speakingFrequency[i].target) > 0.25;
 
             speakingFrequency[i].setTarget(target);
-            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
-                sampleRate,
-                target,
-                runtimeLossGain[i],
-                lossAlpha[i],
-                runtimeAllpassA[i]);
             refreshBridgeLoadPhaseDelay(i, target);
             if (newlyStopped)
                 fingerTouch[i] = 1.0;
@@ -542,12 +536,6 @@ struct FiddleEngine::Impl
         const auto requested = std::clamp(
             frequencyHz, openFrequency[primary], 2500.0);
         speakingFrequency[primary].setTarget(requested);
-        filterPhaseDelay[primary] = reflectionPhaseDelaySamples(
-            sampleRate,
-            requested,
-            runtimeLossGain[primary],
-            lossAlpha[primary],
-            runtimeAllpassA[primary]);
         refreshBridgeLoadPhaseDelay(primary, requested);
     }
 
