@@ -405,6 +405,48 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
     if (!current.active)
     {
         std::array<float, 4> openStrings{};
+        const bool bowActive =
+            activeBowActionNote_ >= 0 || playModeOneShotLatched_;
+
+        if (bowActive)
+        {
+            // Releasing the left-hand key while a bow action remains held is
+            // a real open-string transition, not a request to stop the bow.
+            // Preserve the phrase's physical string/pair so C2-held fingering
+            // changes can pass through brief key-up gaps without killing the
+            // excitation.
+            const auto primary = std::clamp(
+                playModePreferredPrimaryString_ >= 0
+                    ? playModePreferredPrimaryString_
+                    : 1,
+                0, 3);
+            auto pair = std::clamp(
+                activePairLowerString_.load(std::memory_order_relaxed),
+                0, 2);
+            if (primary < pair || primary > pair + 1)
+                pair = std::clamp(primary, 0, 2);
+
+            engine_.setFingeringLayout(
+                openStrings, primary, pair, 0.8f);
+
+            playModeAutoFocusEnabled_ = playModeMonophonicPhrase_;
+            if (playModeAutoFocusEnabled_)
+            {
+                playModeAutoFocusValue_ =
+                    primary == pair ? -0.95f : +0.95f;
+            }
+            else
+            {
+                playModeAutoFocusValue_ = 0.0f;
+            }
+
+            applyPerformanceControls();
+            activeMidiNote_.store(-1, std::memory_order_relaxed);
+            activePairLowerString_.store(pair, std::memory_order_relaxed);
+            visualFingeringMask_.store(0, std::memory_order_relaxed);
+            return;
+        }
+
         engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
         engine_.stopBow();
         playModePreferredPrimaryString_ = -1;
@@ -438,6 +480,13 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         // melodic one-string phrase or an explicit polyphonic/double-stop
         // shape. This makes ordinary keyboard note overlap usable for slurs.
         playModeMonophonicPhrase_ = count == 1;
+    }
+    else if (playModePreferredPrimaryString_ < 0 && count == 1)
+    {
+        // Bow-first workflow: C2 may be held before the first fingering key.
+        // With no pre-bowed chord shape, treat the arriving fingering as a
+        // monophonic phrase so subsequent key overlap remains a slur.
+        playModeMonophonicPhrase_ = true;
     }
     count = fiddle::collapseMelodicBowOverlap(
         heldNotes,
@@ -507,8 +556,18 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
         return;
     }
 
-    if (!noteStack_.current().active)
-        return;
+    if (!noteStack_.current().active
+        && action != fiddle::BowAction::DroneBow)
+    {
+        // No prepared left-hand shape means the bow-first workflow defaults
+        // to a monophonic phrase. The open D string is the neutral initial
+        // physical target; the first G3+ fingering immediately revoices and
+        // re-focuses the same held bow action onto its selected string.
+        playModeMonophonicPhrase_ = true;
+        playModePreferredPrimaryString_ = 1;
+        playModeAutoFocusEnabled_ = true;
+        playModeAutoFocusValue_ = -0.95f;
+    }
 
     const auto gestureStrength = std::clamp(velocity, 0.0f, 1.0f);
     playModeGestureStrength_ = gestureStrength;
