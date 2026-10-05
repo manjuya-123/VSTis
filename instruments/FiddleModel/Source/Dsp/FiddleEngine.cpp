@@ -162,7 +162,11 @@ struct FiddleEngine::Impl
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
         {
-            speakingFrequency[i].prepare(sampleRate, 0.018);
+            // Finger placement changes speaking length much faster than
+            // bow/pressure gestures. Keep a short smoothing interval to avoid
+            // a discontinuous delay-line jump, but do not turn ordinary slurs
+            // into an audible ~50 ms pitch glide.
+            speakingFrequency[i].prepare(sampleRate, 0.008);
             filterPhaseDelay[i] = reflectionPhaseDelaySamples(
                 sampleRate, openFrequency[i], runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
         }
