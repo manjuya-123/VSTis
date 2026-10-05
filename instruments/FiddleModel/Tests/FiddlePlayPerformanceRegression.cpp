@@ -222,7 +222,7 @@ int main(int argc, char** argv)
     // without an artificial tens-of-milliseconds portamento. Measure the
     // actual engine state while the bow continues in the same direction.
     constexpr auto maxSlurSettleSamples =
-        static_cast<std::size_t>(0.030 * sampleRate);
+        static_cast<std::size_t>(0.008 * sampleRate);
     std::size_t slurSettleSamples = maxSlurSettleSamples + 1;
     for (std::size_t sample = 0; sample < maxSlurSettleSamples; ++sample)
     {
@@ -242,7 +242,7 @@ int main(int argc, char** argv)
     }
 
     if (slurSettleSamples > maxSlurSettleSamples)
-        return fail("Slur fingering did not settle within 30 ms");
+        return fail("Slur fingering did not settle within 8 ms");
 
     render(engine, left, right, 0.21);
 
