@@ -158,8 +158,8 @@ struct BowContact
         // microslip before the whole contact becomes sliding. This narrow
         // transition removes an artificial timbre cliff without changing the
         // steady stick or full-slip solutions.
-        constexpr double microSlipBegin = 0.90;
-        constexpr double fullSlipBegin = 1.10;
+        constexpr double microSlipBegin = 0.97;
+        constexpr double fullSlipBegin = 1.06;
         if (rawGripUtilization <= microSlipBegin)
         {
             sticking = true;
