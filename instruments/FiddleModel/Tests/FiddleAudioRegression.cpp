@@ -754,15 +754,29 @@ int main(int argc, char** argv)
     const auto openAMetrics = measure(openA, 440.0);
     const auto rockingWidthDifference = std::abs(
         a4OnDMetrics.stereoSideRatio - openAMetrics.stereoSideRatio);
+    const auto pairSideCentroidRatio =
+        std::min(
+            a4OnDMetrics.spectralCentroidHz,
+            a4OnDGSideMetrics.spectralCentroidHz)
+        / std::max(
+            a4OnDMetrics.spectralCentroidHz,
+            a4OnDGSideMetrics.spectralCentroidHz);
+    const auto pairSideWidthDifference = std::abs(
+        a4OnDMetrics.stereoSideRatio
+        - a4OnDGSideMetrics.stereoSideRatio);
 
     if (!std::isfinite(stringIdentityDifference)
         || stringIdentityDifference < 0.005
-        || rockingWidthDifference < 0.003)
+        || rockingWidthDifference < 0.003
+        || pairSideCentroidRatio < 0.90
+        || pairSideWidthDifference > 0.010)
     {
         std::cerr << "FAIL: same-pitch notes lost physical string identity"
                   << " difference_rms=" << stringIdentityDifference
                   << " D_side_ratio=" << a4OnDMetrics.stereoSideRatio
                   << " A_side_ratio=" << openAMetrics.stereoSideRatio
+                  << " pair_side_centroid_ratio=" << pairSideCentroidRatio
+                  << " pair_side_width_difference=" << pairSideWidthDifference
                   << '\n';
         ok = false;
     }
@@ -855,7 +869,11 @@ int main(int argc, char** argv)
               << "string_identity_open_A_centroid="
               << openAMetrics.spectralCentroidHz << '\n'
               << "string_identity_open_A_side_ratio="
-              << openAMetrics.stereoSideRatio << '\n';
+              << openAMetrics.stereoSideRatio << '\n'
+              << "string_identity_pair_side_centroid_ratio="
+              << pairSideCentroidRatio << '\n'
+              << "string_identity_pair_side_width_difference="
+              << pairSideWidthDifference << '\n';
 
     const auto fastPassage = renderFastAlternatePassage();
     if (!writeStereoWav16(outputDirectory / "08_fast_alternate_passage.wav",
