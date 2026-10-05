@@ -13,6 +13,7 @@ struct FiddleVisualState
 {
     bool active = false;
     int midiNote = -1;
+    int lastInputMidiNote = -1;
     int primaryString = 1;
     int pairLowerString = 1;
     int bowDirection = 1;
@@ -57,6 +58,7 @@ public:
     int activePairLowerString() const noexcept { return activePairLowerString_.load(std::memory_order_relaxed); }
     FiddleVisualState visualState() const noexcept;
     void requestPlayActionFromUi(int midiNote, bool pressed) noexcept;
+    void requestPlayFingeringFromUi(int midiNote, bool pressed) noexcept;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -112,6 +114,9 @@ private:
     std::atomic<std::uint64_t> visualFingeringMask_ { 0 };
     std::atomic<int> pendingUiActionPress_ { -1 };
     std::atomic<int> pendingUiActionRelease_ { -1 };
+    std::atomic<int> pendingUiFingeringPress_ { -1 };
+    std::atomic<int> pendingUiFingeringRelease_ { -1 };
+    std::atomic<int> visualLastInputMidiNote_ { -1 };
     std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
     std::array<std::atomic<float>, 4> visualContactTemperatureC_{};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FiddleModelAudioProcessor)
