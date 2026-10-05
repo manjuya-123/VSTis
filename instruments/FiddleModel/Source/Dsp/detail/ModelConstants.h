@@ -48,12 +48,18 @@ struct BodyModeDefinition
 
 // Representative violin regions, not a fit to one specific instrument.
 inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
-    { 280.0,  0.070, 0.0028 },
-    { 405.0,  0.065, 0.0015 },
-    { 465.0,  0.050, 0.0045 },
-    { 550.0,  0.045, 0.0060 },
-    { 720.0,  0.055, 0.0030 },
-    { 920.0,  0.065, 0.0027 },
+    // Low body/air-region mobility must carry enough of the first few string
+    // harmonics to preserve pitch identity. The earlier sparse bank gave the
+    // 1.5-3 kHz modes too much perceptual authority: low strings contained the
+    // correct fundamental, but it sat behind a nearly fixed body-formant sound.
+    // Broaden and strengthen only the low modes; the bridge-hill/tail above
+    // 1 kHz is deliberately left unchanged.
+    { 280.0,  0.110, 0.0042 },
+    { 405.0,  0.085, 0.0024 },
+    { 465.0,  0.065, 0.0054 },
+    { 550.0,  0.060, 0.0066 },
+    { 720.0,  0.075, 0.0042 },
+    { 920.0,  0.085, 0.0040 },
     { 1180.0, 0.075, 0.0028 },
     { 1500.0, 0.090, 0.0032 },
     { 1900.0, 0.110, 0.0038 },
