@@ -410,11 +410,30 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
         if (bowActive)
         {
-            // Releasing the left-hand key while a bow action remains held is
-            // a real open-string transition, not a request to stop the bow.
-            // Preserve the phrase's physical string/pair so C2-held fingering
-            // changes can pass through brief key-up gaps without killing the
-            // excitation.
+            // In a monophonic keyboard phrase, a short gap between fingering
+            // keys is not an instruction to bow the open string. Keep the last
+            // stopped speaking length until the next fingering arrives. Open
+            // strings remain explicitly playable via their G3/D4/A4/E5 keys.
+            // This prevents an open string from becoming a dominant drone
+            // behind the moving stopped pitch.
+            if (playModeMonophonicPhrase_
+                && playModePreferredPrimaryString_ >= 0)
+            {
+                activeMidiNote_.store(-1, std::memory_order_relaxed);
+                visualFingeringMask_.store(0, std::memory_order_relaxed);
+                return;
+            }
+
+            // A bow action may also be armed before the first fingering. Do not
+            // invent a default D string in that state; wait for the left hand
+            // to establish the physical string.
+            if (playModeBowArmed_)
+            {
+                activeMidiNote_.store(-1, std::memory_order_relaxed);
+                visualFingeringMask_.store(0, std::memory_order_relaxed);
+                return;
+            }
+
             const auto primary = std::clamp(
                 playModePreferredPrimaryString_ >= 0
                     ? playModePreferredPrimaryString_
@@ -428,18 +447,8 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
             engine_.setFingeringLayout(
                 openStrings, primary, pair, 0.8f);
-
-            playModeAutoFocusEnabled_ = playModeMonophonicPhrase_;
-            if (playModeAutoFocusEnabled_)
-            {
-                playModeAutoFocusValue_ =
-                    primary == pair ? -0.95f : +0.95f;
-            }
-            else
-            {
-                playModeAutoFocusValue_ = 0.0f;
-            }
-
+            playModeAutoFocusEnabled_ = false;
+            playModeAutoFocusValue_ = 0.0f;
             applyPerformanceControls();
             activeMidiNote_.store(-1, std::memory_order_relaxed);
             activePairLowerString_.store(pair, std::memory_order_relaxed);
@@ -531,6 +540,40 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
     // open string dominate the audible pitch.
     applyPerformanceControls();
 
+    if (playModeBowArmed_)
+    {
+        const auto armedAction =
+            fiddle::bowActionForMidiNote(activeBowActionNote_);
+        switch (armedAction)
+        {
+            case fiddle::BowAction::DownBow:
+                playBowDirection_ = 1;
+                engine_.startBow(1);
+                break;
+            case fiddle::BowAction::UpBow:
+                playBowDirection_ = -1;
+                engine_.startBow(-1);
+                break;
+            case fiddle::BowAction::Tremolo:
+            {
+                const auto gesture = fiddle::makeBowGestureProfile(
+                    armedAction, playModeGestureStrength_);
+                engine_.startTremolo(gesture.tremoloReversalsPerSecond);
+                break;
+            }
+            case fiddle::BowAction::Shuffle:
+            {
+                const auto gesture = fiddle::makeBowGestureProfile(
+                    armedAction, playModeGestureStrength_);
+                engine_.startShuffle(gesture.shuffleSubdivisionsPerSecond);
+                break;
+            }
+            default:
+                break;
+        }
+        playModeBowArmed_ = false;
+    }
+
     playModePreferredPrimaryString_ = layout.primaryString;
     activeMidiNote_.store(current.note, std::memory_order_relaxed);
     activePairLowerString_.store(
@@ -556,17 +599,17 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
         return;
     }
 
-    if (!noteStack_.current().active
+    const bool hasFingering = noteStack_.current().active;
+    if (!hasFingering
         && action != fiddle::BowAction::DroneBow)
     {
-        // No prepared left-hand shape means the bow-first workflow defaults
-        // to a monophonic phrase. The open D string is the neutral initial
-        // physical target; the first G3+ fingering immediately revoices and
-        // re-focuses the same held bow action onto its selected string.
+        // Bow-first workflow: arm the right hand but do not excite an
+        // arbitrary default string. The first G3+ fingering selects the
+        // physical string and starts the already-held continuous bow action.
         playModeMonophonicPhrase_ = true;
-        playModePreferredPrimaryString_ = 1;
-        playModeAutoFocusEnabled_ = true;
-        playModeAutoFocusValue_ = -0.95f;
+        playModePreferredPrimaryString_ = -1;
+        playModeAutoFocusEnabled_ = false;
+        playModeAutoFocusValue_ = 0.0f;
     }
 
     const auto gestureStrength = std::clamp(velocity, 0.0f, 1.0f);
@@ -585,8 +628,11 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             playBowDirection_ = 1;
-            engine_.startBow(1);
             activeBowActionNote_ = midiNote;
+            if (hasFingering)
+                engine_.startBow(1);
+            else
+                playModeBowArmed_ = true;
             break;
 
         case fiddle::BowAction::UpBow:
@@ -595,8 +641,11 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
             playBowDirection_ = -1;
-            engine_.startBow(-1);
             activeBowActionNote_ = midiNote;
+            if (hasFingering)
+                engine_.startBow(-1);
+            else
+                playModeBowArmed_ = true;
             break;
 
         case fiddle::BowAction::ShortStroke:
@@ -620,8 +669,11 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
-            engine_.startTremolo(gesture.tremoloReversalsPerSecond);
             activeBowActionNote_ = midiNote;
+            if (hasFingering)
+                engine_.startTremolo(gesture.tremoloReversalsPerSecond);
+            else
+                playModeBowArmed_ = true;
             break;
 
         case fiddle::BowAction::Shuffle:
@@ -629,8 +681,11 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
             playModeFocusOverride_ = false;
             playModePressureBoost_ = gesture.pressureBoost;
             applyPerformanceControls();
-            engine_.startShuffle(gesture.shuffleSubdivisionsPerSecond);
             activeBowActionNote_ = midiNote;
+            if (hasFingering)
+                engine_.startShuffle(gesture.shuffleSubdivisionsPerSecond);
+            else
+                playModeBowArmed_ = true;
             break;
 
         case fiddle::BowAction::DroneBow:
@@ -722,6 +777,7 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
     playModeResponseBoost_ = 0.0f;
+    playModeBowArmed_ = false;
     applyPerformanceControls();
     activeBowActionNote_ = -1;
 
@@ -751,6 +807,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModeSpeedScale_ = 1.0f;
     playModeResponseBoost_ = 0.0f;
     playModeOneShotLatched_ = false;
+    playModeBowArmed_ = false;
     playModeMonophonicPhrase_ = false;
     playModeGestureStrength_ = 0.5f;
     playModePreferredPrimaryString_ = -1;
