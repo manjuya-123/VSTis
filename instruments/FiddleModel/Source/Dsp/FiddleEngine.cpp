@@ -991,6 +991,8 @@ struct FiddleEngine::Impl
             incidentNut[i] = toNut[i].read(nutDelay[i]);
             incomingBridge[i] = fromBridge[i].read(bridgeDelay[i]);
             incomingNut[i] = fromNut[i].read(nutDelay[i]);
+            debug.incidentBridgeVelocityMps[i] =
+                static_cast<float>(incidentBridge[i]);
 
             bridgeLever[i] = bridgeXmm[i] / halfBridgeSpan;
             const auto incident =
@@ -1262,6 +1264,8 @@ struct FiddleEngine::Impl
             }
 
             injection += chopImpactInjection[i];
+            debug.bowInjectionVelocityMps[i] =
+                static_cast<float>(injection);
 
             toBridge[i].write(incomingNut[i] + injection);
             toNut[i].write(incomingBridge[i] + injection);
