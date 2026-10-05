@@ -897,11 +897,17 @@ struct FiddleEngine::Impl
         // difference, but give the player-facing Pressure control a weak
         // impedance compensation so the same gesture does not place adjacent
         // strings in radically different stick/slip regimes.
-        const auto primaryImpedanceScale = std::pow(
+        const auto impedanceGestureScale = std::pow(
             stringImpedance[static_cast<std::size_t>(
                 std::clamp(primaryString, 0, stringCount - 1))]
                 / stringImpedance[2],
             0.25);
+        // Apply the ergonomic normalization only when the player has
+        // deliberately narrowed the hair footprint onto one physical string.
+        // Ordinary bowing, double stops, Drone Bow and gesture profiles retain
+        // their existing force calibration.
+        const auto primaryImpedanceScale =
+            1.0 + singleIsolation * (impedanceGestureScale - 1.0);
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
