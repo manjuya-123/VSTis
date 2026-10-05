@@ -44,6 +44,8 @@ struct Metrics
     double spectralCentroidHz = 0.0;
     double highBandRatio = 0.0;
     double stereoSideRatio = 0.0;
+    double stereoLowBandSideRatio = 0.0;
+    double stereoHighBandSideRatio = 0.0;
     bool finite = true;
 };
 
@@ -279,9 +281,25 @@ Metrics measure(const Render& render, double fundamentalHz)
     const auto spectralBegin = static_cast<std::size_t>(1.00 * sampleRate);
     const auto spectralSegment = makeHannSegment(x, spectralBegin, spectralLength);
 
+    std::vector<float> midSignal(render.left.size(), 0.0f);
+    std::vector<float> sideSignal(render.left.size(), 0.0f);
+    for (std::size_t i = 0; i < render.left.size(); ++i)
+    {
+        midSignal[i] = 0.5f * (render.left[i] + render.right[i]);
+        sideSignal[i] = 0.5f * (render.left[i] - render.right[i]);
+    }
+    const auto midSpectralSegment =
+        makeHannSegment(midSignal, spectralBegin, spectralLength);
+    const auto sideSpectralSegment =
+        makeHannSegment(sideSignal, spectralBegin, spectralLength);
+
     double totalEnergy = 0.0;
     double highEnergy = 0.0;
     double weightedFrequency = 0.0;
+    double lowMidEnergy = 0.0;
+    double lowSideEnergy = 0.0;
+    double highMidEnergy = 0.0;
+    double highSideEnergy = 0.0;
 
     const auto firstBin = static_cast<int>(std::ceil(
         100.0 * static_cast<double>(spectralLength) / sampleRate));
@@ -293,14 +311,31 @@ Metrics measure(const Render& render, double fundamentalHz)
         const auto frequency =
             static_cast<double>(bin) * sampleRate / static_cast<double>(spectralLength);
         const auto power = goertzelPower(spectralSegment, frequency);
+        const auto midPower = goertzelPower(midSpectralSegment, frequency);
+        const auto sidePower = goertzelPower(sideSpectralSegment, frequency);
         totalEnergy += power;
         weightedFrequency += frequency * power;
         if (frequency >= 2500.0)
             highEnergy += power;
+
+        if (frequency < 800.0)
+        {
+            lowMidEnergy += midPower;
+            lowSideEnergy += sidePower;
+        }
+        else if (frequency >= 2500.0)
+        {
+            highMidEnergy += midPower;
+            highSideEnergy += sidePower;
+        }
     }
 
     m.spectralCentroidHz = totalEnergy > 0.0 ? weightedFrequency / totalEnergy : 0.0;
     m.highBandRatio = totalEnergy > 0.0 ? highEnergy / totalEnergy : 0.0;
+    m.stereoLowBandSideRatio =
+        std::sqrt(lowSideEnergy / (lowMidEnergy + 1.0e-30));
+    m.stereoHighBandSideRatio =
+        std::sqrt(highSideEnergy / (highMidEnergy + 1.0e-30));
     return m;
 }
 
@@ -506,9 +541,17 @@ bool passesSanity(const Scenario& scenario, const Metrics& metrics)
     const bool naturalStereo =
         metrics.stereoSideRatio >= 0.006
         && metrics.stereoSideRatio <= 0.050;
+    const bool frequencyDependentStereo =
+        metrics.stereoLowBandSideRatio >= 0.004
+        && metrics.stereoLowBandSideRatio <= 0.035
+        && metrics.stereoHighBandSideRatio >= 0.012
+        && metrics.stereoHighBandSideRatio <= 0.060
+        && metrics.stereoHighBandSideRatio
+            >= metrics.stereoLowBandSideRatio * 1.40;
 
     if (!(finiteAndBounded && audible && releases
-          && auditionHeadroom && naturalStereo))
+          && auditionHeadroom && naturalStereo
+          && frequencyDependentStereo))
     {
         std::cerr << "FAIL " << scenario.name
                   << " finite=" << metrics.finite
@@ -518,6 +561,8 @@ bool passesSanity(const Scenario& scenario, const Metrics& metrics)
                   << " audition_peak="
                   << metrics.peak * static_cast<double>(listeningGain)
                   << " side_ratio=" << metrics.stereoSideRatio
+                  << " low_side_ratio=" << metrics.stereoLowBandSideRatio
+                  << " high_side_ratio=" << metrics.stereoHighBandSideRatio
                   << '\n';
         return false;
     }
@@ -550,7 +595,8 @@ int main(int argc, char** argv)
     }
 
     csv << "scenario,sustain_rms,tail_rms,peak,periodicity_at_note,"
-           "spectral_centroid_hz,high_band_ratio,stereo_side_ratio\n";
+           "spectral_centroid_hz,high_band_ratio,stereo_side_ratio,"
+           "stereo_low_band_side_ratio,stereo_high_band_side_ratio\n";
     csv << std::setprecision(9);
 
     std::vector<float> comparisonLeft;
@@ -574,7 +620,9 @@ int main(int argc, char** argv)
             << metrics.periodicity << ','
             << metrics.spectralCentroidHz << ','
             << metrics.highBandRatio << ','
-            << metrics.stereoSideRatio << '\n';
+            << metrics.stereoSideRatio << ','
+            << metrics.stereoLowBandSideRatio << ','
+            << metrics.stereoHighBandSideRatio << '\n';
 
         std::cout << scenario.name
                   << " rms=" << metrics.sustainRms
@@ -583,7 +631,10 @@ int main(int argc, char** argv)
                   << " periodicity=" << metrics.periodicity
                   << " centroid_hz=" << metrics.spectralCentroidHz
                   << " hf_ratio=" << metrics.highBandRatio
-                  << " side_ratio=" << metrics.stereoSideRatio << '\n';
+                  << " side_ratio=" << metrics.stereoSideRatio
+                  << " low_side_ratio=" << metrics.stereoLowBandSideRatio
+                  << " high_side_ratio=" << metrics.stereoHighBandSideRatio
+                  << '\n';
 
         ok = passesSanity(scenario, metrics) && ok;
         measured.push_back(metrics);
