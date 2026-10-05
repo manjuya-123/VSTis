@@ -47,6 +47,8 @@ int main()
         const auto layout = fiddle::voiceFingering(notes, 1, 64);
         if (layout.midiNoteByString[1] != 64 || layout.primaryString != 1)
             return fail("E4 should be stopped on D string");
+        if (fiddle::singleStringFocusForLayout(layout, 1) > -0.90f)
+            return fail("monophonic E4 should auto-focus the D string");
     }
 
     {
@@ -72,6 +74,8 @@ int main()
             || layout.midiNoteByString[2] != 71
             || layout.bowPairLowerString != 1)
             return fail("E4+B4 should voice as stopped D+A double stop");
+        if (std::abs(fiddle::singleStringFocusForLayout(layout, 2)) > 1.0e-6f)
+            return fail("double-stop fingering should keep centre focus available");
     }
 
     {
