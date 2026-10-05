@@ -83,10 +83,12 @@ private:
     int activeBowActionNote_ = -1;
     int playBowDirection_ = 1;
     bool playModeFocusOverride_ = false;
+    bool playModeAutoFocusEnabled_ = false;
     bool fingeringHold_ = false;
     bool fingeringPedalHold_ = false;
     std::array<bool, 128> fingeringKeyDown_{};
     float playModeFocusValue_ = 0.0f;
+    float playModeAutoFocusValue_ = 0.0f;
     float playModePressureBoost_ = 0.0f;
     float playModeSpeedScale_ = 1.0f;
     float playModeResponseBoost_ = 0.0f;
@@ -99,6 +101,7 @@ private:
     std::atomic<int> visualBowDirection_ { 1 };
     std::atomic<int> visualPlayMode_ { 0 };
     std::atomic<int> visualBowAction_ { 0 };
+    std::atomic<float> visualEffectiveStringFocus_ { 0.0f };
     std::atomic<bool> visualFingeringHold_ { false };
     std::atomic<std::uint64_t> visualFingeringMask_ { 0 };
     std::atomic<int> pendingUiActionPress_ { -1 };
