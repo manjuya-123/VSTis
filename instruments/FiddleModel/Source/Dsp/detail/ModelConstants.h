@@ -32,11 +32,7 @@ inline constexpr std::array<double, stringCount> lossGain {
 };
 
 inline constexpr std::array<double, stringCount> lossAlpha {
-    // Thicker low strings round the travelling Helmholtz corner more strongly.
-    // Keep this distributed propagation loss modest and pitch-calibrated, but
-    // give G/D enough high-frequency loss that their low harmonic series is
-    // not perceptually buried behind the body/bridge formants.
-    0.026, 0.020, 0.012, 0.010
+    0.018, 0.015, 0.012, 0.010
 };
 
 inline constexpr std::array<double, stringCount> allpassA {
@@ -80,8 +76,13 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     { 5700.0, 0.245, 0.00100 },
     { 6350.0, 0.265, 0.00088 },
     { 7050.0, 0.285, 0.00076 },
-    { 7800.0, 0.310, 0.00062 },
-    { 8650.0, 0.340, 0.00048 },
+
+    // Broad residual low-frequency mobility. These heavily damped modes fill
+    // the gaps below A0/B1 without creating another narrow body note, so low
+    // strings can project their moving fundamental/low partials through the
+    // body instead of being heard mainly through the fixed bridge-hill formant.
+    { 235.0, 0.200, 0.00180 },
+    { 340.0, 0.160, 0.00150 },
 }};
 
 
