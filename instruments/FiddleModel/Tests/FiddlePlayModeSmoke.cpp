@@ -69,6 +69,33 @@ int main()
     }
 
     {
+        // Ordinary keyboard legato often overlaps note-ons. If a bow started
+        // from one fingering note, keep that phrase monophonic and move the
+        // stopped position to the newest note instead of creating an accidental
+        // double stop.
+        std::array<int, 4> notes { 66, 64, -1, -1 }; // F#4 over held E4
+        auto count = fiddle::collapseMelodicBowOverlap(
+            notes, 2, 66, true, true, false);
+        if (count != 1 || notes[0] != 66)
+            return fail("monophonic bow overlap should collapse to newest fingering");
+        const auto layout = fiddle::voiceFingering(notes, count, 66, 1);
+        if (layout.midiNoteByString[1] != 66 || layout.primaryString != 1)
+            return fail("overlapped F#4 slur should remain on preferred D string");
+
+        notes = { 66, 64, -1, -1 };
+        count = fiddle::collapseMelodicBowOverlap(
+            notes, 2, 66, true, false, false);
+        if (count != 2)
+            return fail("pre-bowed polyphonic shape must remain a double stop");
+
+        notes = { 66, 64, -1, -1 };
+        count = fiddle::collapseMelodicBowOverlap(
+            notes, 2, 66, true, true, true);
+        if (count != 2)
+            return fail("Fingering Hold must preserve an intentional multi-note shape");
+    }
+
+    {
         std::array<int, 4> notes { 64, 71, -1, -1 }; // E4 + B4
         const auto layout = fiddle::voiceFingering(notes, 2, 71);
         if (layout.midiNoteByString[1] != 64
