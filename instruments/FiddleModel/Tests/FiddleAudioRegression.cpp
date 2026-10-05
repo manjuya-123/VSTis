@@ -875,6 +875,136 @@ int main(int argc, char** argv)
               << "string_identity_pair_side_width_difference="
               << pairSideWidthDifference << '\n';
 
+    // Adjacent-string identity matrix: each row compares the same pitch
+    // played as a stopped note on the lower string and as the next open string.
+    // This does not require them to sound identical; it records whether the
+    // physical string family changes smoothly across G/D, D/A and A/E.
+    struct IdentityPair
+    {
+        const char* name;
+        int lowerString;
+        int upperString;
+        float pitchHz;
+    };
+    constexpr std::array<IdentityPair, 3> identityPairs {{
+        { "G_to_open_D", 0, 1, 293.6648f },
+        { "D_to_open_A", 1, 2, 440.0f },
+        { "A_to_open_E", 2, 3, 659.2551f }
+    }};
+
+    std::ofstream identityMatrixCsv(
+        outputDirectory / "string_identity_matrix.csv");
+    if (!identityMatrixCsv)
+    {
+        std::cerr << "FAIL: cannot write string identity matrix CSV\n";
+        ok = false;
+    }
+    else
+    {
+        identityMatrixCsv
+            << "pair,lower_string_centroid_hz,open_upper_centroid_hz,"
+               "centroid_ratio,lower_high_band_ratio,open_upper_high_band_ratio,"
+               "lower_side_ratio,open_upper_side_ratio,difference_rms\n"
+            << std::setprecision(9);
+
+        std::vector<float> matrixLeft;
+        std::vector<float> matrixRight;
+        for (const auto& pair : identityPairs)
+        {
+            const auto pairLower = std::min(pair.lowerString, 2);
+            const auto lowerBalance =
+                pair.lowerString == pairLower ? -0.95f : +0.95f;
+            const auto upperPairLower = std::max(0, pair.upperString - 1);
+            const auto upperBalance =
+                pair.upperString == upperPairLower ? -0.95f : +0.95f;
+
+            const auto stoppedLower = renderSamePitchOnString(
+                pair.lowerString,
+                pairLower,
+                lowerBalance,
+                pair.pitchHz,
+                true);
+            const auto openUpper = renderSamePitchOnString(
+                pair.upperString,
+                upperPairLower,
+                upperBalance,
+                pair.pitchHz,
+                true);
+
+            const auto lowerMetrics = measure(stoppedLower, pair.pitchHz);
+            const auto upperMetrics = measure(openUpper, pair.pitchHz);
+            const auto centroidRatio =
+                lowerMetrics.spectralCentroidHz
+                / std::max(1.0, upperMetrics.spectralCentroidHz);
+            const auto diff = differenceRms(
+                stoppedLower.left,
+                openUpper.left,
+                identityBegin,
+                identityEnd);
+
+            identityMatrixCsv
+                << pair.name << ','
+                << lowerMetrics.spectralCentroidHz << ','
+                << upperMetrics.spectralCentroidHz << ','
+                << centroidRatio << ','
+                << lowerMetrics.highBandRatio << ','
+                << upperMetrics.highBandRatio << ','
+                << lowerMetrics.stereoSideRatio << ','
+                << upperMetrics.stereoSideRatio << ','
+                << diff << '\n';
+
+            if (!std::isfinite(centroidRatio)
+                || centroidRatio < 0.45
+                || centroidRatio > 3.0
+                || diff < 0.003)
+            {
+                std::cerr
+                    << "FAIL: adjacent string identity matrix out of bounds"
+                    << " pair=" << pair.name
+                    << " centroid_ratio=" << centroidRatio
+                    << " difference_rms=" << diff << '\n';
+                ok = false;
+            }
+
+            matrixLeft.insert(
+                matrixLeft.end(),
+                stoppedLower.left.begin(),
+                stoppedLower.left.end());
+            matrixRight.insert(
+                matrixRight.end(),
+                stoppedLower.right.begin(),
+                stoppedLower.right.end());
+            matrixLeft.insert(matrixLeft.end(), silenceSamples, 0.0f);
+            matrixRight.insert(matrixRight.end(), silenceSamples, 0.0f);
+            matrixLeft.insert(
+                matrixLeft.end(),
+                openUpper.left.begin(),
+                openUpper.left.end());
+            matrixRight.insert(
+                matrixRight.end(),
+                openUpper.right.begin(),
+                openUpper.right.end());
+            matrixLeft.insert(matrixLeft.end(), silenceSamples, 0.0f);
+            matrixRight.insert(matrixRight.end(), silenceSamples, 0.0f);
+
+            std::cout
+                << "string_identity_matrix_" << pair.name
+                << "_centroid_ratio=" << centroidRatio
+                << " lower_centroid=" << lowerMetrics.spectralCentroidHz
+                << " upper_centroid=" << upperMetrics.spectralCentroidHz
+                << " difference_rms=" << diff << '\n';
+        }
+
+        if (!writeStereoWav16(
+                outputDirectory / "17_string_identity_matrix.wav",
+                matrixLeft,
+                matrixRight))
+        {
+            std::cerr << "FAIL: cannot write string identity matrix WAV\n";
+            ok = false;
+        }
+    }
+
     const auto fastPassage = renderFastAlternatePassage();
     if (!writeStereoWav16(outputDirectory / "08_fast_alternate_passage.wav",
                           fastPassage.left, fastPassage.right))
