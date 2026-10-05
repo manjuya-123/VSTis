@@ -268,6 +268,8 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         playModeSpeedScale_ = 1.0f;
         playModeResponseBoost_ = 0.0f;
         activeBowActionNote_ = -1;
+        if (noteStack_.current().active)
+            updateFiddlePlayFingering();
         visualBowAction_.store(
             static_cast<int>(fiddle::BowAction::None),
             std::memory_order_relaxed);
@@ -427,6 +429,29 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
             heldNotes[count++] = note;
     }
 
+    const bool bowActive =
+        activeBowActionNote_ >= 0 || playModeOneShotLatched_;
+
+    if (!bowActive)
+    {
+        // Shape prepared before bowing decides whether this stroke is a
+        // melodic one-string phrase or an explicit polyphonic/double-stop
+        // shape. This makes ordinary keyboard note overlap usable for slurs.
+        playModeMonophonicPhrase_ = count == 1;
+    }
+    else if (playModeMonophonicPhrase_
+             && !fingeringHold_
+             && count > 1)
+    {
+        // MIDI legato commonly overlaps note-ons by a few milliseconds.
+        // During a bow that started monophonically, interpret that overlap as
+        // the left hand moving to the newest stopped note, not as an
+        // accidental new string/double stop.
+        heldNotes.fill(-1);
+        heldNotes[0] = current.note;
+        count = 1;
+    }
+
     std::uint64_t fingeringMask = 0;
     for (std::size_t i = 0; i < count; ++i)
         fingeringMask |= fiddle::fingeringMaskBit(heldNotes[i]);
@@ -470,6 +495,7 @@ void FiddleModelAudioProcessor::triggerFiddlePlayAction(int midiNote, float velo
         engine_.stopBow();
         activeBowActionNote_ = -1;
         playModeOneShotLatched_ = false;
+        playModeMonophonicPhrase_ = false;
         playModeFocusOverride_ = false;
         playModePressureBoost_ = 0.0f;
         playModeSpeedScale_ = 1.0f;
@@ -636,6 +662,11 @@ void FiddleModelAudioProcessor::releaseFiddlePlayAction(int midiNote)
     playModeResponseBoost_ = 0.0f;
     applyPerformanceControls();
     activeBowActionNote_ = -1;
+
+    // Once the bow is released, expose the physically held shape again so a
+    // player can prepare an intentional double stop before the next stroke.
+    if (noteStack_.current().active)
+        updateFiddlePlayFingering();
     visualBowAction_.store(
         static_cast<int>(fiddle::BowAction::None),
         std::memory_order_relaxed);
@@ -658,6 +689,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModeSpeedScale_ = 1.0f;
     playModeResponseBoost_ = 0.0f;
     playModeOneShotLatched_ = false;
+    playModeMonophonicPhrase_ = false;
     playModeGestureStrength_ = 0.5f;
     playModePreferredPrimaryString_ = -1;
 
