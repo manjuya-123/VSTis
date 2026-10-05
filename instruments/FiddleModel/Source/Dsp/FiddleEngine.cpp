@@ -55,8 +55,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> lossX1{};
     std::array<double, stringCount> allpassX1{};
     std::array<double, stringCount> allpassY1{};
-    std::array<double, stringCount> fingerTerminationX1{};
-    std::array<double, stringCount> fingerTerminationX2{};
     std::array<double, stringCount> filterPhaseDelay{};
     std::array<double, stringCount> bridgeLoadPhaseDelay{};
     std::array<double, stringCount> runtimeLossGain = lossGain;
@@ -183,8 +181,6 @@ struct FiddleEngine::Impl
         allpassX1.fill(0.0);
         fingerTouch.fill(0.0);
         allpassY1.fill(0.0);
-        fingerTerminationX1.fill(0.0);
-        fingerTerminationX2.fill(0.0);
         rosinNoiseState = {
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
         };
@@ -952,21 +948,11 @@ struct FiddleEngine::Impl
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
-            const auto fingered =
-                speakingFrequency[i].target
-                    > openFrequency[i] * 1.0005;
-            // The stopped-end FIR below is exactly linear phase with a
-            // one-sample group delay. Account for that known round-trip
-            // termination delay explicitly so the extra high-frequency
-            // fingertip loss does not detune stopped notes.
-            const auto fingerTerminationPhaseDelay =
-                fingered ? 1.0 : 0.0;
             auto oneWay =
                 sampleRate / (2.0 * currentFrequency[i])
                 - 0.5 * (
                     filterPhaseDelay[i]
-                    + bridgeLoadPhaseDelay[i]
-                    + fingerTerminationPhaseDelay);
+                    + bridgeLoadPhaseDelay[i]);
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
@@ -1092,24 +1078,10 @@ struct FiddleEngine::Impl
             const auto fingered =
                 speakingFrequency[i].target > openFrequency[i] * 1.0005;
 
-            // A real fingertip is a softer termination than the nut and
-            // preferentially absorbs short-wavelength transverse motion.
-            // Use a symmetric 3-tap FIR (a,b,a): its magnitude rolls off
-            // smoothly while its group delay is exactly one sample, which is
-            // compensated in the speaking-length calculation above.
-            constexpr double fingerFirSide = 0.18;
-            constexpr double fingerFirCenter =
-                1.0 - 2.0 * fingerFirSide;
-            const auto fingerFiltered =
-                fingerFirSide * filtered
-                + fingerFirCenter * fingerTerminationX1[i]
-                + fingerFirSide * fingerTerminationX2[i];
-            fingerTerminationX2[i] = fingerTerminationX1[i];
-            fingerTerminationX1[i] = filtered;
-
-            // The short extra loss after Note On represents the finger settling
-            // onto the string; all loss is applied at the physical termination,
-            // never as an output amplitude envelope.
+            // A stopped string loses additional transverse energy into the
+            // fingertip. The short extra loss after Note On represents the
+            // finger settling onto the string; it is applied at the termination,
+            // not as an output amplitude envelope.
             double fingerTerminationGain = 1.0;
             if (fingered)
             {
@@ -1124,14 +1096,10 @@ struct FiddleEngine::Impl
                 fingerTouch[i] = 0.0;
             }
 
-            const auto terminationVelocity =
-                fingered ? fingerFiltered : filtered;
             const auto chopTerminationGain =
                 chopDampingActive ? 0.960 : 1.0;
             const auto reflectedNut =
-                -terminationVelocity
-                * fingerTerminationGain
-                * chopTerminationGain;
+                -filtered * fingerTerminationGain * chopTerminationGain;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
