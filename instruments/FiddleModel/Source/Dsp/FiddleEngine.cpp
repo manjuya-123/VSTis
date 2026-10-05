@@ -83,6 +83,7 @@ struct FiddleEngine::Impl
     Smoother attack{};
     Smoother position{};
     Smoother balance{};
+    Smoother singleStringIsolation{};
     Smoother vibratoWidth{};
     Smoother vibratoPace{};
     Smoother gate{};
@@ -154,6 +155,7 @@ struct FiddleEngine::Impl
         attack.prepare(sampleRate, 0.020);
         position.prepare(sampleRate, 0.015);
         balance.prepare(sampleRate, 0.015);
+        singleStringIsolation.prepare(sampleRate, 0.010);
         vibratoWidth.prepare(sampleRate, 0.030);
         vibratoPace.prepare(sampleRate, 0.050);
         gate.prepare(sampleRate, 0.018);
@@ -197,6 +199,7 @@ struct FiddleEngine::Impl
         attack.reset(controlTargets.attack);
         position.reset(controlTargets.position);
         balance.reset(controlTargets.balance);
+        singleStringIsolation.reset(controlTargets.singleStringIsolation);
         vibratoWidth.reset(controlTargets.vibratoWidth);
         vibratoPace.reset(controlTargets.vibratoPace);
         gate.reset(0.0);
@@ -242,6 +245,8 @@ struct FiddleEngine::Impl
         controlTargets.attack = static_cast<float>(clamp01(controls.attack));
         controlTargets.position = static_cast<float>(clamp01(controls.position));
         controlTargets.balance = std::clamp(controls.balance, -1.0f, 1.0f);
+        controlTargets.singleStringIsolation =
+            static_cast<float>(clamp01(controls.singleStringIsolation));
         controlTargets.vibratoWidth = static_cast<float>(clamp01(controls.vibratoWidth));
         controlTargets.vibratoPace = static_cast<float>(clamp01(controls.vibratoPace));
 
@@ -250,6 +255,7 @@ struct FiddleEngine::Impl
         attack.setTarget(controlTargets.attack);
         position.setTarget(controlTargets.position);
         balance.setTarget(controlTargets.balance);
+        singleStringIsolation.setTarget(controlTargets.singleStringIsolation);
         vibratoWidth.setTarget(controlTargets.vibratoWidth);
         vibratoPace.setTarget(controlTargets.vibratoPace);
     }
@@ -695,12 +701,37 @@ struct FiddleEngine::Impl
         stopBow();
     }
 
-    std::array<double, stringCount> makeBowForces(double totalForce,
-                                                        double balanceValue) noexcept
+    std::array<double, stringCount> makeBowForces(
+        double totalForce,
+        double balanceValue,
+        double isolationAmount) noexcept
     {
-        const auto geometry = bowGeometry.solve(pairLower, totalForce, balanceValue);
+        const auto geometry = bowGeometry.solve(
+            pairLower, totalForce, balanceValue);
         debug.bowAngleDeg = static_cast<float>(geometry.bowAngleDeg);
-        return geometry.normalForceN;
+
+        auto forces = geometry.normalForceN;
+        isolationAmount = clamp01(isolationAmount);
+        if (isolationAmount <= 1.0e-6 || std::abs(balanceValue) < 0.80)
+            return forces;
+
+        // A deliberate single-string lean narrows the effective hair footprint.
+        // The neighbouring string is still present in the waveguide and shared
+        // bridge/body, so sympathetic resonance remains; only direct bow force
+        // on that neighbour is reduced. Reassign the unloaded force to the
+        // primary string to conserve the player's total normal force.
+        const auto lower = static_cast<std::size_t>(pairLower);
+        const auto upper = lower + 1;
+        const auto primary = static_cast<std::size_t>(
+            std::clamp(primaryString, pairLower, pairLower + 1));
+        const auto neighbour = primary == lower ? upper : lower;
+        const auto neighbourScale =
+            1.0 - 0.85 * isolationAmount;
+        const auto removed =
+            forces[neighbour] * (1.0 - neighbourScale);
+        forces[neighbour] *= neighbourScale;
+        forces[primary] += removed;
+        return forces;
     }
 
     std::array<double, 2> processSample() noexcept
@@ -807,6 +838,7 @@ struct FiddleEngine::Impl
         const auto a = attack.next();
         const auto pos = position.next();
         const auto bal = balance.next();
+        const auto singleIsolation = singleStringIsolation.next();
         const auto vibWidth = vibratoWidth.next();
         const auto vibPace = vibratoPace.next();
         const auto gateValue = gate.next();
@@ -989,7 +1021,8 @@ struct FiddleEngine::Impl
                 bridgeVelocity
                 + bridgeLever[i] * bridgeRockingVelocity;
 
-        const auto bowForce = makeBowForces(totalForce, bal);
+        const auto bowForce = makeBowForces(
+            totalForce, bal, singleIsolation);
 
         std::array<double, stringCount> chopImpactInjection {};
         if (std::abs(chopImpactVelocity) > 1.0e-12)
