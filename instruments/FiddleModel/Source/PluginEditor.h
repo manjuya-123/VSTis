@@ -53,18 +53,23 @@ public:
                   std::uint64_t fingeringMask);
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
 
     std::function<void(int, bool)> onActionKey;
+    std::function<void(int, bool)> onFingeringKey;
 
 private:
     int actionKeyAt(juce::Point<float>) const noexcept;
+    int fingeringKeyAt(juce::Point<float>) const noexcept;
 
     int playMode_ = 0;
     int bowAction_ = 0;
     int fingeringMidiNote_ = -1;
     std::uint64_t fingeringMask_ = 0;
     int mouseActionKey_ = -1;
+    int mouseFingeringKey_ = -1;
+    bool mouseAuditionBow_ = false;
 };
 
 class FiddleModelAudioProcessorEditor final
