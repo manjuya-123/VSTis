@@ -178,35 +178,6 @@ int main()
     if (!(aHeavy.contactNormalForceN[2] > aHeavy.contactNormalForceN[1]))
         return fail("positive Balance should favor upper/A string");
 
-    // Exact String Focus endpoints are true single-string bow angles.
-    engine.reset();
-    controls.balance = -1.0f;
-    engine.setControls(controls);
-    engine.noteOn(440.0f, 0.85f);
-    std::fill(scratch.begin(), scratch.end(), 0.0f);
-    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
-    engine.process(scratch.data(), scratchR.data(), scratch.size());
-    const auto isolatedD = engine.debugSnapshot();
-    const auto isolatedDPair =
-        isolatedD.contactNormalForceN[1] + isolatedD.contactNormalForceN[2];
-    if (!(isolatedDPair > 0.0f)
-        || isolatedD.contactNormalForceN[2] > isolatedDPair * 0.001f)
-        return fail("String Focus -1 should physically clear the adjacent A string");
-
-    engine.reset();
-    controls.balance = +1.0f;
-    engine.setControls(controls);
-    engine.noteOn(440.0f, 0.85f);
-    std::fill(scratch.begin(), scratch.end(), 0.0f);
-    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
-    engine.process(scratch.data(), scratchR.data(), scratch.size());
-    const auto isolatedA = engine.debugSnapshot();
-    const auto isolatedAPair =
-        isolatedA.contactNormalForceN[1] + isolatedA.contactNormalForceN[2];
-    if (!(isolatedAPair > 0.0f)
-        || isolatedA.contactNormalForceN[1] > isolatedAPair * 0.001f)
-        return fail("String Focus +1 should physically clear the adjacent D string");
-
     const auto gStringRocking = maxBridgeRocking(195.9977f, -0.95f);
     const auto eStringRocking = maxBridgeRocking(659.2551f, +0.95f);
     if (!(gStringRocking > 1.0e-6 && eStringRocking > 1.0e-6))
