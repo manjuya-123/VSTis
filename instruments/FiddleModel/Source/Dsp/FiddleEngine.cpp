@@ -502,19 +502,21 @@ struct FiddleEngine::Impl
             const auto previousTarget = speakingFrequency[i].target;
             speakingFrequency[i].setTarget(target);
 
-            // A finger lands much faster than bow/pressure gestures. During an
-            // already-moving bow, temporarily shorten only the speaking-length
-            // smoothing time so a slur does not become portamento. Initial
-            // note capture keeps the original 18 ms trajectory, which is part
-            // of the calibrated nonlinear pitch/attack behaviour.
+            // A normal violin fingering change is a fast relocation of the
+            // stopped termination, not a synthesizer-style portamento. Keep
+            // initial note capture on the calibrated 18 ms path, but while a
+            // bow is already moving let the fingertip establish the new
+            // speaking length within a few milliseconds. A true finger slide
+            // should be modelled as a separate gesture, not inferred from
+            // ordinary MIDI-note overlap.
             if (gate.target > 0.5
                 && std::abs(target - previousTarget) > 0.25)
             {
-                speakingFrequency[i].prepare(sampleRate, 0.006);
+                speakingFrequency[i].prepare(sampleRate, 0.0015);
                 fastFingeringSamplesRemaining[i] =
                     std::max<std::int64_t>(
                         1,
-                        static_cast<std::int64_t>(0.040 * sampleRate));
+                        static_cast<std::int64_t>(0.012 * sampleRate));
             }
 
             refreshBridgeLoadPhaseDelay(i, target);
