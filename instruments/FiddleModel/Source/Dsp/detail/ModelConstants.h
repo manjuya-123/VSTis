@@ -36,7 +36,7 @@ inline constexpr std::array<double, stringCount> lossAlpha {
 };
 
 inline constexpr std::array<double, stringCount> allpassA {
-    -0.055, -0.040, -0.025, -0.015
+    -0.055, -0.0325, -0.025, -0.015
 };
 
 struct BodyModeDefinition
