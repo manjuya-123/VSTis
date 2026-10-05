@@ -2,6 +2,7 @@
 #include "Dsp/FiddleFingeringVoicer.h"
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 
