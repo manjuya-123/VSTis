@@ -439,18 +439,13 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         // shape. This makes ordinary keyboard note overlap usable for slurs.
         playModeMonophonicPhrase_ = count == 1;
     }
-    else if (playModeMonophonicPhrase_
-             && !fingeringHold_
-             && count > 1)
-    {
-        // MIDI legato commonly overlaps note-ons by a few milliseconds.
-        // During a bow that started monophonically, interpret that overlap as
-        // the left hand moving to the newest stopped note, not as an
-        // accidental new string/double stop.
-        heldNotes.fill(-1);
-        heldNotes[0] = current.note;
-        count = 1;
-    }
+    count = fiddle::collapseMelodicBowOverlap(
+        heldNotes,
+        count,
+        current.note,
+        bowActive,
+        playModeMonophonicPhrase_,
+        fingeringHold_);
 
     std::uint64_t fingeringMask = 0;
     for (std::size_t i = 0; i < count; ++i)
