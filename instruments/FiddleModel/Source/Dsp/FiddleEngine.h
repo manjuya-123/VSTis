@@ -13,6 +13,11 @@ struct Controls
     float attack = 0.5f;
     float position = 0.5f;
     float balance = 0.0f;
+    // Internal performance gesture: when deliberately bowing one string,
+    // narrow the effective hair contact footprint so the neighbouring string
+    // remains sympathetically coupled through the bridge without being
+    // directly bowed. This is not a post-output mix control.
+    float singleStringIsolation = 0.0f;
     float vibratoWidth = 0.0f;
     float vibratoPace = 0.5f;
 };
