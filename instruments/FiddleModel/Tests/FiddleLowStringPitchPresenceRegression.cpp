@@ -261,9 +261,9 @@ int main(int argc, char** argv)
         // energy on the two low strings, not merely be detectable by a
         // narrow-band pitch estimator.
         if ((item.stringIndex == 0
-             && radiatedMetrics.low3Fraction < 0.27)
+             && radiatedMetrics.low3Fraction < 0.36)
             || (item.stringIndex == 1
-                && radiatedMetrics.low3Fraction < 0.46))
+                && radiatedMetrics.low3Fraction < 0.56))
         {
             std::cerr
                 << "FAIL: low-string pitch harmonics are masked by body/formant energy"
