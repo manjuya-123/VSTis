@@ -1332,10 +1332,15 @@ struct FiddleEngine::Impl
             lowBandRockingMix * rockingRadiationLow
             + highBandRockingMix * rockingRadiationHigh;
 
+        // Listening/output calibration only; the low-body-mode
+        // rebalance increased the loudest double-stop by about 0.5%. Keep the
+        // physical mechanics untouched and recover the previous headroom with
+        // a sub-0.05 dB post-model calibration trim.
+        constexpr double radiationCalibration = 17.90;
         return {
-            18.0 * radiationLeft.process(
+            radiationCalibration * radiationLeft.process(
                 bridgeVelocity + directionalRocking),
-            18.0 * radiationRight.process(
+            radiationCalibration * radiationRight.process(
                 bridgeVelocity - directionalRocking)
         };
     }
