@@ -43,6 +43,52 @@ if (NOT VSTIS_CORE_ONLY)
             juce::juce_recommended_lto_flags
             juce::juce_recommended_warning_flags
     )
+
+    if (BUILD_TESTING)
+        juce_add_console_app(FiddleModelProcessorMidiRegression
+            PRODUCT_NAME "Fiddle Processor MIDI Regression"
+        )
+
+        target_sources(FiddleModelProcessorMidiRegression PRIVATE
+            Tests/FiddleProcessorMidiRegression.cpp
+            Source/PluginProcessor.cpp
+            Source/PluginProcessor.h
+            Source/PluginEditor.cpp
+            Source/PluginEditor.h
+            Source/ParameterPresentation.h
+            Source/Dsp/FiddleEngine.cpp
+            Source/Dsp/FiddleEngine.h
+            Source/Dsp/MidiNoteStack.h
+            Source/Dsp/BowStrokePolicy.h
+            Source/Dsp/FiddlePlayLayout.h
+            Source/Dsp/FiddleFingeringVoicer.h
+            Source/Dsp/FiddleGestureProfile.h
+            Source/Dsp/detail/BowGeometryMapper.h
+        )
+
+        target_include_directories(FiddleModelProcessorMidiRegression PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/Source
+        )
+
+        target_compile_definitions(FiddleModelProcessorMidiRegression PRIVATE
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0
+            JUCE_VST3_CAN_REPLACE_VST2=0
+            JucePlugin_Name="Fiddle Model"
+        )
+
+        target_link_libraries(FiddleModelProcessorMidiRegression
+            PRIVATE juce::juce_audio_utils juce::juce_dsp
+            PUBLIC
+                juce::juce_recommended_config_flags
+                juce::juce_recommended_warning_flags
+        )
+
+        add_test(
+            NAME FiddleModelProcessorMidiRegression
+            COMMAND FiddleModelProcessorMidiRegression
+        )
+    endif()
 endif()
 
 if (BUILD_TESTING)
