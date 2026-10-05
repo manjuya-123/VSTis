@@ -474,6 +474,14 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         layout.bowPairLowerString,
         0.85f);
 
+    // Fingering can change which physical string is primary while a bow
+    // action is already held. Re-apply performance controls here so the
+    // newly computed monophonic auto-focus reaches the engine immediately.
+    // Without this, the UI/speaking length moves but a C2-first workflow can
+    // leave the bow centred across the old pair, letting the neighbouring
+    // open string dominate the audible pitch.
+    applyPerformanceControls();
+
     playModePreferredPrimaryString_ = layout.primaryString;
     activeMidiNote_.store(current.note, std::memory_order_relaxed);
     activePairLowerString_.store(
