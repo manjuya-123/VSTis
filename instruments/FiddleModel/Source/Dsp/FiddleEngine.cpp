@@ -1135,7 +1135,7 @@ struct FiddleEngine::Impl
                 static_cast<int>(i) == primaryString + 1;
             const auto sympatheticLoss =
                 isUpperAdjacentSympathetic
-                    ? 1.0 - 0.008 * singleIsolation
+                    ? 1.0 - 0.035 * singleIsolation
                     : 1.0;
             const auto reflectedNut =
                 -filtered
