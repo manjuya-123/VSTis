@@ -88,6 +88,7 @@ struct FiddleEngine::Impl
     Smoother vibratoPace{};
     Smoother gate{};
     std::array<Smoother, stringCount> speakingFrequency{};
+    std::array<std::int64_t, stringCount> fastFingeringSamplesRemaining{};
 
     Controls controlTargets{};
     MaterialSettings materialSettings{};
@@ -162,11 +163,7 @@ struct FiddleEngine::Impl
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
         {
-            // Finger placement changes speaking length much faster than
-            // bow/pressure gestures. Keep a short smoothing interval to avoid
-            // a discontinuous delay-line jump, but do not turn ordinary slurs
-            // into an audible ~50 ms pitch glide.
-            speakingFrequency[i].prepare(sampleRate, 0.008);
+            speakingFrequency[i].prepare(sampleRate, 0.018);
             filterPhaseDelay[i] = reflectionPhaseDelaySamples(
                 sampleRate, openFrequency[i], runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
         }
@@ -210,6 +207,7 @@ struct FiddleEngine::Impl
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
             speakingFrequency[i].reset(openFrequency[i]);
+        fastFingeringSamplesRemaining.fill(0);
 
         velocityScale = 1.0;
         bowSpeed = 0.0;
@@ -501,7 +499,24 @@ struct FiddleEngine::Impl
                 target > openFrequency[i] * 1.0005
                 && std::abs(target - speakingFrequency[i].target) > 0.25;
 
+            const auto previousTarget = speakingFrequency[i].target;
             speakingFrequency[i].setTarget(target);
+
+            // A finger lands much faster than bow/pressure gestures. During an
+            // already-moving bow, temporarily shorten only the speaking-length
+            // smoothing time so a slur does not become portamento. Initial
+            // note capture keeps the original 18 ms trajectory, which is part
+            // of the calibrated nonlinear pitch/attack behaviour.
+            if (gate.target > 0.5
+                && std::abs(target - previousTarget) > 0.25)
+            {
+                speakingFrequency[i].prepare(sampleRate, 0.006);
+                fastFingeringSamplesRemaining[i] =
+                    std::max<std::int64_t>(
+                        1,
+                        static_cast<std::int64_t>(0.040 * sampleRate));
+            }
+
             refreshBridgeLoadPhaseDelay(i, target);
             if (newlyStopped)
                 fingerTouch[i] = 1.0;
@@ -930,6 +945,13 @@ struct FiddleEngine::Impl
         for (std::size_t i = 0; i < currentFrequency.size(); ++i)
         {
             currentFrequency[i] = std::max(20.0, speakingFrequency[i].next());
+
+            if (fastFingeringSamplesRemaining[i] > 0)
+            {
+                --fastFingeringSamplesRemaining[i];
+                if (fastFingeringSamplesRemaining[i] == 0)
+                    speakingFrequency[i].prepare(sampleRate, 0.018);
+            }
 
             const auto isFingeredPrimary =
                 static_cast<int>(i) == primaryString
