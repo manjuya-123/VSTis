@@ -75,6 +75,8 @@ struct FiddleEngine::Impl
     RadiationFilter radiationLeft{};
     RadiationFilter radiationRight{};
     BowGeometryMapper bowGeometry{};
+    double rockingRadiationLow = 0.0;
+    double rockingRadiationAlpha = 0.0;
 
     Smoother pressure{};
     Smoother speed{};
@@ -134,6 +136,15 @@ struct FiddleEngine::Impl
         // slightly more bridge air. The mechanical body itself remains shared.
         radiationLeft.prepare(sampleRate, 6900.0, 0.19);
         radiationRight.prepare(sampleRate, 7700.0, 0.25);
+        // Rocking motion behaves increasingly like a directional radiator as
+        // wavelength shortens. Keep low-frequency rocking close to the mono
+        // body core and allow only a little more stereo radiation above the
+        // body-presence region. This acts after the shared mechanics and never
+        // duplicates/detunes the physical strings or body.
+        constexpr double rockingRadiationCrossoverHz = 1200.0;
+        rockingRadiationAlpha =
+            1.0 - std::exp(
+                -2.0 * pi * rockingRadiationCrossoverHz / sampleRate);
         bowGeometry.prepare();
         materialConfigured = false;
         setMaterials(materialSettings);
@@ -179,6 +190,7 @@ struct FiddleEngine::Impl
         bodyRocking.reset();
         radiationLeft.reset();
         radiationRight.reset();
+        rockingRadiationLow = 0.0;
 
         pressure.reset(controlTargets.pressure);
         speed.reset(controlTargets.speed);
@@ -1243,15 +1255,25 @@ struct FiddleEngine::Impl
 
         // Listening/output calibration only; not part of the mechanical closure.
         // Directional radiation creates a small natural stereo side signal
-        // without duplicating or detuning the string/body mechanics.
-        constexpr double rockingRadiationMix = 0.20;
+        // without duplicating or detuning the string/body mechanics. Rocking
+        // radiation is intentionally narrower at long wavelengths and slightly
+        // stronger at short wavelengths, matching the increasing directivity of
+        // a small resonant body as frequency rises.
+        rockingRadiationLow += rockingRadiationAlpha
+            * (bridgeRockingVelocity - rockingRadiationLow);
+        const auto rockingRadiationHigh =
+            bridgeRockingVelocity - rockingRadiationLow;
+        constexpr double lowBandRockingMix = 0.16;
+        constexpr double highBandRockingMix = 0.24;
+        const auto directionalRocking =
+            lowBandRockingMix * rockingRadiationLow
+            + highBandRockingMix * rockingRadiationHigh;
+
         return {
             18.0 * radiationLeft.process(
-                bridgeVelocity
-                + rockingRadiationMix * bridgeRockingVelocity),
+                bridgeVelocity + directionalRocking),
             18.0 * radiationRight.process(
-                bridgeVelocity
-                - rockingRadiationMix * bridgeRockingVelocity)
+                bridgeVelocity - directionalRocking)
         };
     }
 };
