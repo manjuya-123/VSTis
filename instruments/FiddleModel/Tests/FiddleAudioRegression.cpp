@@ -735,12 +735,18 @@ int main(int argc, char** argv)
     // sample-layer round robin: D-string A4 and open A4 should retain different
     // string impedance, stopped-string termination and bridge-rocking colour.
     const auto a4OnD = renderSamePitchOnString(1, 1, -0.95f, 440.0f);
+    // Diagnostic alternate bow-pair: the same stopped D-string A4 approached
+    // from the G/D side. The open A string remains physically present through
+    // the shared bridge, but it is no longer the directly bowed neighbour.
+    const auto a4OnDFromGSide =
+        renderSamePitchOnString(1, 0, +0.95f, 440.0f);
     const auto openA = renderSamePitchOnString(2, 1, +0.95f, 440.0f);
     const auto identityBegin = static_cast<std::size_t>(0.85 * sampleRate);
     const auto identityEnd = static_cast<std::size_t>(1.55 * sampleRate);
     const auto stringIdentityDifference = differenceRms(
         a4OnD.left, openA.left, identityBegin, identityEnd);
     const auto a4OnDMetrics = measure(a4OnD, 440.0);
+    const auto a4OnDGSideMetrics = measure(a4OnDFromGSide, 440.0);
     const auto openAMetrics = measure(openA, 440.0);
     const auto rockingWidthDifference = std::abs(
         a4OnDMetrics.stereoSideRatio - openAMetrics.stereoSideRatio);
@@ -781,10 +787,69 @@ int main(int argc, char** argv)
         ok = false;
     }
 
+    std::vector<float> pairSideLeft;
+    std::vector<float> pairSideRight;
+    const auto appendPairSide = [&](const Render& render)
+    {
+        pairSideLeft.insert(
+            pairSideLeft.end(), render.left.begin(), render.left.end());
+        pairSideRight.insert(
+            pairSideRight.end(), render.right.begin(), render.right.end());
+        pairSideLeft.insert(pairSideLeft.end(), silenceSamples, 0.0f);
+        pairSideRight.insert(pairSideRight.end(), silenceSamples, 0.0f);
+    };
+    appendPairSide(a4OnD);
+    appendPairSide(a4OnDFromGSide);
+    appendPairSide(openA);
+
+    if (!writeStereoWav16(
+            outputDirectory / "15_string_identity_pair_side.wav",
+            pairSideLeft,
+            pairSideRight))
+    {
+        std::cerr << "FAIL: cannot write bow-pair string identity diagnostic WAV\n";
+        ok = false;
+    }
+
+    std::ofstream stringIdentityCsv(
+        outputDirectory / "string_identity_metrics.csv");
+    if (!stringIdentityCsv)
+    {
+        std::cerr << "FAIL: cannot write string identity metrics CSV\n";
+        ok = false;
+    }
+    else
+    {
+        stringIdentityCsv
+            << "case,spectral_centroid_hz,high_band_ratio,stereo_side_ratio,"
+               "stereo_low_band_side_ratio,stereo_high_band_side_ratio\n"
+            << std::setprecision(9);
+        const auto writeIdentityMetrics =
+            [&](const char* name, const Metrics& m)
+        {
+            stringIdentityCsv
+                << name << ','
+                << m.spectralCentroidHz << ','
+                << m.highBandRatio << ','
+                << m.stereoSideRatio << ','
+                << m.stereoLowBandSideRatio << ','
+                << m.stereoHighBandSideRatio << '\n';
+        };
+        writeIdentityMetrics("D_A4_from_DA_side", a4OnDMetrics);
+        writeIdentityMetrics("D_A4_from_GD_side", a4OnDGSideMetrics);
+        writeIdentityMetrics("open_A4", openAMetrics);
+    }
+
     std::cout << "string_identity_A4_D_vs_A_difference_rms="
               << stringIdentityDifference << '\n'
               << "string_identity_A4_on_D_side_ratio="
               << a4OnDMetrics.stereoSideRatio << '\n'
+              << "string_identity_A4_on_D_DA_centroid="
+              << a4OnDMetrics.spectralCentroidHz << '\n'
+              << "string_identity_A4_on_D_GD_centroid="
+              << a4OnDGSideMetrics.spectralCentroidHz << '\n'
+              << "string_identity_open_A_centroid="
+              << openAMetrics.spectralCentroidHz << '\n'
               << "string_identity_open_A_side_ratio="
               << openAMetrics.stereoSideRatio << '\n';
 
