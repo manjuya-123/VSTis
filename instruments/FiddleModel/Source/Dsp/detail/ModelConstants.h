@@ -8,7 +8,7 @@ inline constexpr int stringCount = 4;
 inline constexpr int bodyModeCount = 20;
 inline constexpr int delaySize = 4096;
 inline constexpr double pi = 3.1415926535897932384626433832795;
-inline constexpr double balanceSharpness = 1.75;
+inline constexpr double balanceSharpness = 2.30;
 
 // Normalized bow position beta = distance from bridge / speaking length.
 // These are player-facing endpoints, not a claim about one specific violin.
