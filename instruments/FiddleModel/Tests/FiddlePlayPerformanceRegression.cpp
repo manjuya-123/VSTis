@@ -17,6 +17,73 @@ namespace
 constexpr double sampleRate = 48000.0;
 constexpr float listenGain = 7.9432823f; // +18 dB, matches plugin default Output Level.
 
+
+double correlationAtFrequency(const std::vector<float>& x,
+                              std::size_t begin,
+                              std::size_t end,
+                              double frequency)
+{
+    begin = std::min(begin, x.size());
+    end = std::min(end, x.size());
+    if (frequency <= 0.0 || end <= begin + 100)
+        return -1.0;
+
+    const auto lag = sampleRate / frequency;
+    const auto lagInt = static_cast<std::size_t>(std::floor(lag));
+    const auto frac = lag - static_cast<double>(lagInt);
+    if (begin + lagInt + 2 >= end)
+        return -1.0;
+
+    double mean = 0.0;
+    for (std::size_t i = begin; i < end; ++i)
+        mean += x[i];
+    mean /= static_cast<double>(end - begin);
+
+    double dot = 0.0;
+    double aa = 0.0;
+    double bb = 0.0;
+    const auto last = end - lagInt - 1;
+    for (std::size_t i = begin; i < last; ++i)
+    {
+        const auto a = static_cast<double>(x[i]) - mean;
+        const auto d0 = static_cast<double>(x[i + lagInt]) - mean;
+        const auto d1 = static_cast<double>(x[i + lagInt + 1]) - mean;
+        const auto b = (1.0 - frac) * d0 + frac * d1;
+        dot += a * b;
+        aa += a * a;
+        bb += b * b;
+    }
+    return dot / (std::sqrt(aa * bb) + 1.0e-30);
+}
+
+double estimateFrequencyNear(const std::vector<float>& x,
+                             std::size_t begin,
+                             std::size_t end,
+                             double target)
+{
+    constexpr int candidates = 480;
+    double bestFrequency = target;
+    double bestCorrelation = -2.0;
+    for (int i = 0; i <= candidates; ++i)
+    {
+        const auto fraction = static_cast<double>(i) / candidates;
+        const auto frequency = target * (0.97 + 0.06 * fraction);
+        const auto corr = correlationAtFrequency(
+            x, begin, end, frequency);
+        if (corr > bestCorrelation)
+        {
+            bestCorrelation = corr;
+            bestFrequency = frequency;
+        }
+    }
+    return bestFrequency;
+}
+
+double centsBetween(double measured, double target)
+{
+    return 1200.0 * std::log2(measured / target);
+}
+
 void writeU16(std::ofstream& out, std::uint16_t value)
 {
     const char b[2] {
@@ -191,6 +258,79 @@ int main(int argc, char** argv)
               << '\n';
     engine.stopBow();
     render(engine, left, right, 0.08);
+
+    // Audible monophonic slur pitch tracking. The UI uses the engine's
+    // speaking-frequency state, so explicitly verify that the radiated output
+    // follows the same stopped-note changes while one bow stroke continues.
+    {
+        fiddle::FiddleEngine mono;
+        mono.prepare(sampleRate);
+
+        fiddle::Controls monoControls;
+        monoControls.pressure = 0.56f;
+        monoControls.speed = 0.66f;
+        monoControls.attack = 0.78f;
+        monoControls.position = 0.48f;
+        monoControls.balance = -0.95f;
+        monoControls.singleStringIsolation = 1.0f;
+        mono.setControls(monoControls);
+
+        std::vector<float> monoLeft;
+        std::vector<float> monoRight;
+        std::array<float, 4> monoFingering {};
+
+        constexpr std::array<float, 3> targets {
+            329.6276f, 369.9944f, 391.9954f
+        };
+        std::array<double, targets.size()> measuredHz {};
+
+        mono.startBow(+1);
+        for (std::size_t noteIndex = 0; noteIndex < targets.size(); ++noteIndex)
+        {
+            monoFingering.fill(0.0f);
+            monoFingering[1] = targets[noteIndex];
+            mono.setFingeringLayout(monoFingering, 1, 1, 0.88f);
+
+            const auto segmentBegin = monoLeft.size();
+            render(mono, monoLeft, monoRight,
+                   noteIndex == 0 ? 0.30 : 0.22);
+            const auto segmentEnd = monoLeft.size();
+
+            const auto measureLength =
+                static_cast<std::size_t>(0.11 * sampleRate);
+            const auto measureBegin =
+                segmentEnd > measureLength
+                    ? std::max(segmentBegin, segmentEnd - measureLength)
+                    : segmentBegin;
+            measuredHz[noteIndex] = estimateFrequencyNear(
+                monoLeft, measureBegin, segmentEnd, targets[noteIndex]);
+
+            const auto cents =
+                centsBetween(measuredHz[noteIndex], targets[noteIndex]);
+            std::cout << "monophonic_slur_pitch"
+                      << " target=" << targets[noteIndex]
+                      << " measured=" << measuredHz[noteIndex]
+                      << " cents=" << cents << '\n';
+            if (std::abs(cents) > 5.0)
+                return fail("Monophonic audible slur pitch did not follow fingering");
+        }
+
+        if (!(measuredHz[1] > measuredHz[0] * 1.08
+              && measuredHz[2] > measuredHz[1] * 1.04))
+            return fail("Monophonic audible slur pitch stayed effectively fixed");
+
+        mono.stopBow();
+        render(mono, monoLeft, monoRight, 0.10);
+
+        if (argc >= 2)
+        {
+            const auto monoOutput =
+                std::filesystem::path(argv[1]).parent_path()
+                / "18_monophonic_pitch_slur.wav";
+            if (!writeWav(monoOutput, monoLeft, monoRight))
+                return fail("Could not write monophonic pitch-slur WAV");
+        }
+    }
 
     // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
     // primarily bow D, not silently turn every melody note into a D+A drone.
