@@ -59,13 +59,17 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     { 465.0,  0.065, 0.00530 },
     { 550.0,  0.060, 0.00648 },
     { 720.0,  0.075, 0.00412 },
-    { 920.0,  0.085, 0.00392 },
-    { 1180.0, 0.075, 0.0028 },
-    { 1500.0, 0.090, 0.0032 },
-    { 1900.0, 0.110, 0.0038 },
-    { 2350.0, 0.120, 0.0065 },
-    { 2850.0, 0.140, 0.0050 },
-    { 3500.0, 0.180, 0.0034 },
+    // Keep the bridge/body colour, but do not let the 1-3.5 kHz formant
+    // region overpower the moving low-string harmonic series. These peaks are
+    // deliberately a little flatter than the earlier prototype bank so the
+    // body colours the string instead of becoming the perceptual pitch source.
+    { 920.0,  0.085, 0.00345 },
+    { 1180.0, 0.075, 0.00245 },
+    { 1500.0, 0.090, 0.00265 },
+    { 1900.0, 0.110, 0.00310 },
+    { 2350.0, 0.120, 0.00520 },
+    { 2850.0, 0.140, 0.00410 },
+    { 3500.0, 0.180, 0.00290 },
 
     // Above the strongest bridge/body regions, a real fiddle does not become
     // spectrally empty. Use a sparse, increasingly damped modal tail rather
