@@ -1,4 +1,16 @@
 if (NOT VSTIS_CORE_ONLY)
+    set(FIDDLE_BUILD_ID "local")
+    find_package(Git QUIET)
+    if (GIT_FOUND)
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --short=10 HEAD
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_VARIABLE FIDDLE_BUILD_ID
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+    endif()
+
     juce_add_plugin(FiddleModel
         COMPANY_NAME "VSTis"
         BUNDLE_ID "com.vstis.fiddlemodel"
@@ -34,6 +46,7 @@ if (NOT VSTIS_CORE_ONLY)
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
+        FIDDLE_BUILD_ID="${FIDDLE_BUILD_ID}"
     )
     
     target_link_libraries(FiddleModel
@@ -75,6 +88,7 @@ if (NOT VSTIS_CORE_ONLY)
             JUCE_USE_CURL=0
             JUCE_VST3_CAN_REPLACE_VST2=0
             JucePlugin_Name="Fiddle Model"
+            FIDDLE_BUILD_ID="${FIDDLE_BUILD_ID}"
         )
 
         target_link_libraries(FiddleModelProcessorMidiRegression
