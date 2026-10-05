@@ -731,6 +731,7 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
 void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
 {
     auto controls = baseControls_;
+    controls.singleStringIsolation = 0.0f;
 
     controls.pressure = std::clamp(
         controls.pressure
@@ -757,6 +758,7 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         // explicit manual override. Drone Bow uses the stronger gesture
         // override above and therefore still centres the bow across the pair.
         controls.balance = playModeAutoFocusValue_;
+        controls.singleStringIsolation = 1.0f;
     }
 
     visualEffectiveStringFocus_.store(
