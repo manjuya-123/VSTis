@@ -406,6 +406,8 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         engine_.setFingeringLayout(openStrings, 1, 1, 0.8f);
         engine_.stopBow();
         playModePreferredPrimaryString_ = -1;
+        playModeAutoFocusEnabled_ = false;
+        playModeAutoFocusValue_ = 0.0f;
         activeMidiNote_.store(-1, std::memory_order_relaxed);
         activePairLowerString_.store(1, std::memory_order_relaxed);
         visualFingeringMask_.store(0, std::memory_order_relaxed);
@@ -433,6 +435,10 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
     const auto layout = fiddle::voiceFingering(
         heldNotes, count, current.note, playModePreferredPrimaryString_);
+
+    playModeAutoFocusEnabled_ = count == 1;
+    playModeAutoFocusValue_ =
+        fiddle::singleStringFocusForLayout(layout, count);
 
     std::array<float, 4> frequencies{};
     for (std::size_t stringIndex = 0; stringIndex < frequencies.size(); ++stringIndex)
@@ -642,10 +648,12 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     activeBowActionNote_ = -1;
     playBowDirection_ = 1;
     playModeFocusOverride_ = false;
+    playModeAutoFocusEnabled_ = false;
     fingeringHold_ = false;
     fingeringPedalHold_ = false;
     fingeringKeyDown_.fill(false);
     playModeFocusValue_ = 0.0f;
+    playModeAutoFocusValue_ = 0.0f;
     playModePressureBoost_ = 0.0f;
     playModeSpeedScale_ = 1.0f;
     playModeResponseBoost_ = 0.0f;
@@ -658,6 +666,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     visualBowAction_.store(
         static_cast<int>(fiddle::BowAction::None),
         std::memory_order_relaxed);
+    visualEffectiveStringFocus_.store(0.0f, std::memory_order_relaxed);
     visualFingeringHold_.store(false, std::memory_order_relaxed);
     visualFingeringMask_.store(0, std::memory_order_relaxed);
 
@@ -714,7 +723,8 @@ FiddleVisualState FiddleModelAudioProcessor::visualState() const noexcept
     }
 
     state.bowContact = parameters_.getRawParameterValue("position")->load();
-    state.stringFocus = parameters_.getRawParameterValue("balance")->load();
+    state.stringFocus =
+        visualEffectiveStringFocus_.load(std::memory_order_relaxed);
     return state;
 }
 
@@ -736,8 +746,21 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         controls.attack + playModeResponseBoost_, 0.0f, 1.0f);
 
     if (playModeFocusOverride_)
+    {
         controls.balance = playModeFocusValue_;
+    }
+    else if (playModeAutoFocusEnabled_
+             && std::abs(controls.balance) < 0.08f)
+    {
+        // A centred/default String Focus means "follow the primary string" in
+        // monophonic Fiddle Play. Moving the knob away from centre remains an
+        // explicit manual override. Drone Bow uses the stronger gesture
+        // override above and therefore still centres the bow across the pair.
+        controls.balance = playModeAutoFocusValue_;
+    }
 
+    visualEffectiveStringFocus_.store(
+        controls.balance, std::memory_order_relaxed);
     engine_.setControls(controls);
 }
 
