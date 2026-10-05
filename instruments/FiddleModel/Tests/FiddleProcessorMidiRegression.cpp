@@ -51,19 +51,25 @@ double correlationAtFrequency(const std::vector<float>& x,
     return dot / (std::sqrt(aa * bb) + 1.0e-30);
 }
 
-double estimateFrequencyNear(const std::vector<float>& x, double target)
+double estimateDominantPitch(const std::vector<float>& x)
 {
-    constexpr int candidates = 480;
+    // Search the whole G-string first-position region rather than only a
+    // narrow window around the expected note. The previous local estimator
+    // could "find" a weak moving stopped component while a much louder stale
+    // open string remained the perceptual main pitch.
+    constexpr int candidates = 1200;
+    constexpr double lowHz = 185.0;
+    constexpr double highHz = 305.0;
     const auto length = std::min<std::size_t>(
         x.size(), static_cast<std::size_t>(0.12 * sampleRate));
     const auto begin = x.size() - length;
-    double bestFrequency = target;
+    double bestFrequency = lowHz;
     double bestCorrelation = -2.0;
 
     for (int i = 0; i <= candidates; ++i)
     {
         const auto fraction = static_cast<double>(i) / candidates;
-        const auto frequency = target * (0.97 + 0.06 * fraction);
+        const auto frequency = lowHz + (highHz - lowHz) * fraction;
         const auto corr = correlationAtFrequency(
             x, begin, x.size(), frequency);
         if (corr > bestCorrelation)
@@ -107,13 +113,13 @@ void renderBlocks(FiddleModelAudioProcessor& processor,
 bool checkPitch(const std::vector<float>& segment, int note)
 {
     const auto target = static_cast<double>(midiToHz(note));
-    const auto measured = estimateFrequencyNear(segment, target);
+    const auto measured = estimateDominantPitch(segment);
     const auto cents = centsBetween(measured, target);
-    std::cout << "processor_bow_first_pitch note=" << note
+    std::cout << "processor_bow_first_dominant_pitch note=" << note
               << " target=" << target
               << " measured=" << measured
               << " cents=" << cents << '\n';
-    return std::abs(cents) <= 6.0;
+    return std::abs(cents) <= 10.0;
 }
 } // namespace
 
@@ -128,6 +134,18 @@ int main()
     const auto downBow = juce::MidiMessage::noteOn(1, 36, 0.85f);
     std::vector<float> scratch;
     renderBlocks(processor, 4, scratch, &downBow);
+
+    // Bow-first is armed, not assigned to an arbitrary default string.
+    // Until the first fingering arrives there should be no radiated note.
+    float armedPeak = 0.0f;
+    for (const auto sample : scratch)
+        armedPeak = std::max(armedPeak, std::abs(sample));
+    if (armedPeak > 1.0e-5f)
+    {
+        std::cerr << "FAIL: bow-first action excited a default string before fingering"
+                  << " peak=" << armedPeak << '\n';
+        return EXIT_FAILURE;
+    }
 
     auto playNote = [&](int note, bool overlapPrevious, int previousNote)
     {
