@@ -178,6 +178,43 @@ int main()
     if (!(aHeavy.contactNormalForceN[2] > aHeavy.contactNormalForceN[1]))
         return fail("positive Balance should favor upper/A string");
 
+    // Near the ends of String Focus the bow should genuinely clear the
+    // neighbouring string rather than leaving a small direct double-stop.
+    // This matters especially when the adjacent open string is in unison with
+    // a stopped note: sympathetic bridge coupling is welcome, direct bow force
+    // on the neighbour is not.
+    engine.reset();
+    controls.balance = -0.95f;
+    engine.setControls(controls);
+    engine.noteOn(440.0f, 0.85f);
+    std::fill(scratch.begin(), scratch.end(), 0.0f);
+    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
+    engine.process(scratch.data(), scratchR.data(), scratch.size());
+    const auto focusedD = engine.debugSnapshot();
+    const auto focusedDPairForce =
+        focusedD.contactNormalForceN[1] + focusedD.contactNormalForceN[2];
+    const auto focusedALeak = focusedDPairForce > 0.0f
+        ? focusedD.contactNormalForceN[2] / focusedDPairForce
+        : 1.0f;
+    if (focusedALeak > 0.015f)
+        return fail("negative String Focus still bows too much adjacent A string");
+
+    engine.reset();
+    controls.balance = +0.95f;
+    engine.setControls(controls);
+    engine.noteOn(440.0f, 0.85f);
+    std::fill(scratch.begin(), scratch.end(), 0.0f);
+    std::fill(scratchR.begin(), scratchR.end(), 0.0f);
+    engine.process(scratch.data(), scratchR.data(), scratch.size());
+    const auto focusedA = engine.debugSnapshot();
+    const auto focusedAPairForce =
+        focusedA.contactNormalForceN[1] + focusedA.contactNormalForceN[2];
+    const auto focusedDLeak = focusedAPairForce > 0.0f
+        ? focusedA.contactNormalForceN[1] / focusedAPairForce
+        : 1.0f;
+    if (focusedDLeak > 0.025f)
+        return fail("positive String Focus still bows too much adjacent D string");
+
     const auto gStringRocking = maxBridgeRocking(195.9977f, -0.95f);
     const auto eStringRocking = maxBridgeRocking(659.2551f, +0.95f);
     if (!(gStringRocking > 1.0e-6 && eStringRocking > 1.0e-6))
