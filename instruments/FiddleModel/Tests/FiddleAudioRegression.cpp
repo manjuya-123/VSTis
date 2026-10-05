@@ -426,13 +426,15 @@ fiddle::Controls baseControls()
 Render renderSamePitchOnString(int stringIndex,
                               int pairLower,
                               float balance,
-                              float targetHz)
+                              float targetHz,
+                              bool singleStringIsolation = false)
 {
     fiddle::FiddleEngine engine;
     engine.prepare(sampleRate);
 
     auto controls = baseControls();
     controls.balance = balance;
+    controls.singleStringIsolation = singleStringIsolation ? 1.0f : 0.0f;
     engine.setControls(controls);
 
     std::array<float, 4> layout {};
@@ -734,13 +736,15 @@ int main(int argc, char** argv)
     // Same pitch, two physical strings. This is deliberately not a
     // sample-layer round robin: D-string A4 and open A4 should retain different
     // string impedance, stopped-string termination and bridge-rocking colour.
-    const auto a4OnD = renderSamePitchOnString(1, 1, -0.95f, 440.0f);
+    const auto a4OnD = renderSamePitchOnString(
+        1, 1, -0.95f, 440.0f, true);
     // Diagnostic alternate bow-pair: the same stopped D-string A4 approached
     // from the G/D side. The open A string remains physically present through
     // the shared bridge, but it is no longer the directly bowed neighbour.
     const auto a4OnDFromGSide =
-        renderSamePitchOnString(1, 0, +0.95f, 440.0f);
-    const auto openA = renderSamePitchOnString(2, 1, +0.95f, 440.0f);
+        renderSamePitchOnString(1, 0, +0.95f, 440.0f, true);
+    const auto openA = renderSamePitchOnString(
+        2, 1, +0.95f, 440.0f, true);
     const auto identityBegin = static_cast<std::size_t>(0.85 * sampleRate);
     const auto identityEnd = static_cast<std::size_t>(1.55 * sampleRate);
     const auto stringIdentityDifference = differenceRms(
