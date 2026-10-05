@@ -84,3 +84,4 @@ jobs:
           path: |
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/VST3/**
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/Standalone/**
+            build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/**
