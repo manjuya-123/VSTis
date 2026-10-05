@@ -41,6 +41,7 @@ jobs:
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_reversal_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/fast_passage_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/pitch_matrix.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/control_surface_metrics.csv
 
       - name: Upload portable listening artifacts
         uses: actions/upload-artifact@v4
