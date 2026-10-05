@@ -147,11 +147,20 @@ struct BowContact
             0.85 + 0.15 * strength, 0.78, 1.08);
         const auto staticLimit =
             1.2 * staticGripScale * normalForce * staticStateScale;
+        const auto rawGripUtilization =
+            std::abs(requiredForce) / (staticLimit + 1.0e-12);
         lastGripUtilization = std::clamp(
-            std::abs(requiredForce) / (staticLimit + 1.0e-12),
-            0.0, 3.0);
+            rawGripUtilization, 0.0, 3.0);
 
-        if (std::abs(requiredForce) <= staticLimit)
+        // A real bow is a distributed hair/rosin contact, not a single rigid
+        // Coulomb point. Well below the yield boundary it follows the bow
+        // exactly; close to yield, a small part of the hair bundle can
+        // microslip before the whole contact becomes sliding. This narrow
+        // transition removes an artificial timbre cliff without changing the
+        // steady stick or full-slip solutions.
+        constexpr double microSlipBegin = 0.90;
+        constexpr double fullSlipBegin = 1.10;
+        if (rawGripUtilization <= microSlipBegin)
         {
             sticking = true;
             lastSlipSpeedMps = 0.0;
@@ -159,7 +168,6 @@ struct BowContact
             return bowVelocity;
         }
 
-        sticking = false;
         const bool positive = requiredForce > 0.0;
         double lo = positive ? bowVelocity - 3.0 : bowVelocity + 1.0e-10;
         double hi = positive ? bowVelocity - 1.0e-10 : bowVelocity + 3.0;
@@ -179,37 +187,46 @@ struct BowContact
         auto glo = equation(lo);
         const auto ghi = equation(hi);
 
+        double slidingVelocity = bowVelocity;
         if (glo * ghi > 0.0)
         {
             const auto force = positive ? staticLimit : -staticLimit;
-            const auto stringVelocity =
+            slidingVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
-            const auto slip = stringVelocity - bowVelocity;
-            lastSlipSpeedMps = slip;
-            updateTemperature(
-                slip, std::abs(force * slip), sampleRate, stateRateScale);
-            return stringVelocity;
         }
-
-        for (int iteration = 0; iteration < 12; ++iteration)
+        else
         {
-            const auto mid = 0.5 * (lo + hi);
-            const auto gm = equation(mid);
-            if (glo * gm <= 0.0)
-                hi = mid;
-            else
+            for (int iteration = 0; iteration < 12; ++iteration)
             {
-                lo = mid;
-                glo = gm;
+                const auto mid = 0.5 * (lo + hi);
+                const auto gm = equation(mid);
+                if (glo * gm <= 0.0)
+                    hi = mid;
+                else
+                {
+                    lo = mid;
+                    glo = gm;
+                }
             }
+            slidingVelocity = 0.5 * (lo + hi);
         }
 
-        const auto stringVelocity = 0.5 * (lo + hi);
+        const auto blendCoordinate = std::clamp(
+            (rawGripUtilization - microSlipBegin)
+                / (fullSlipBegin - microSlipBegin),
+            0.0, 1.0);
+        const auto slipBlend =
+            blendCoordinate * blendCoordinate
+            * (3.0 - 2.0 * blendCoordinate);
+        const auto stringVelocity =
+            bowVelocity + slipBlend * (slidingVelocity - bowVelocity);
+
         const auto frictionForce =
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
         const auto slip = stringVelocity - bowVelocity;
         lastSlipSpeedMps = slip;
+        sticking = slipBlend < 0.5;
 
         updateTemperature(
             slip,
