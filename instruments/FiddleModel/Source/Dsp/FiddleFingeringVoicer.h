@@ -16,6 +16,24 @@ struct FingeringLayout
 
 inline constexpr std::array<int, 4> openStringMidi { 55, 62, 69, 76 }; // G3 D4 A4 E5
 
+inline float singleStringFocusForLayout(const FingeringLayout& layout,
+                                        std::size_t noteCount) noexcept
+{
+    // In Fiddle Play, one held fingering note means "bow this string", not an
+    // implicit adjacent-string double stop. Keep a little hair compliance by
+    // stopping short of the absolute +/-1 endpoints. Multi-note fingerings
+    // deliberately return centre focus so the physical double-stop geometry
+    // remains available, and Drone Bow can explicitly request centre as well.
+    if (noteCount != 1)
+        return 0.0f;
+
+    if (layout.primaryString == layout.bowPairLowerString)
+        return -0.95f;
+    if (layout.primaryString == layout.bowPairLowerString + 1)
+        return +0.95f;
+    return 0.0f;
+}
+
 inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
                                       std::size_t noteCount,
                                       int newestNote,
