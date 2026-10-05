@@ -1,14 +1,21 @@
 if (NOT VSTIS_CORE_ONLY)
+    set(FIDDLE_SOURCE_SHA "" CACHE STRING
+        "Source branch commit SHA to display in the plugin UI")
     set(FIDDLE_BUILD_ID "local")
-    find_package(Git QUIET)
-    if (GIT_FOUND)
-        execute_process(
-            COMMAND ${GIT_EXECUTABLE} rev-parse --short=10 HEAD
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            OUTPUT_VARIABLE FIDDLE_BUILD_ID
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-        )
+
+    if (FIDDLE_SOURCE_SHA)
+        string(SUBSTRING "${FIDDLE_SOURCE_SHA}" 0 10 FIDDLE_BUILD_ID)
+    else()
+        find_package(Git QUIET)
+        if (GIT_FOUND)
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} rev-parse --short=10 HEAD
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE FIDDLE_BUILD_ID
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+        endif()
     endif()
 
     juce_add_plugin(FiddleModel
