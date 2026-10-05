@@ -253,6 +253,29 @@ struct FiddleEngine::Impl
         vibratoPace.setTarget(controlTargets.vibratoPace);
     }
 
+    [[nodiscard]] double fingerTerminationPhaseDelaySamples(
+        double frequencyHz) const noexcept
+    {
+        // Steady-state phase of the softened fingertip reflection used below.
+        // The transient fingerTouch term deliberately decays in a few ms, so
+        // speaking-length calibration follows the settled 0.12 damping mix.
+        constexpr double dampingMix = 0.12;
+        const auto omega =
+            2.0 * pi * std::max(20.0, frequencyHz) / sampleRate;
+        const auto pole = 1.0 - fingerTerminationAlpha;
+        const std::complex<double> z1 {
+            std::cos(omega), -std::sin(omega)
+        };
+        const auto lowpass =
+            fingerTerminationAlpha / (1.0 - pole * z1);
+        const auto response =
+            (1.0 - dampingMix) + dampingMix * lowpass;
+        auto phase = std::arg(response);
+        if (phase > 0.0)
+            phase -= 2.0 * pi;
+        return std::clamp(-phase / omega, 0.0, 0.25);
+    }
+
     [[nodiscard]] double bridgeReflectionPhaseDelaySamples(
         std::size_t stringIndex,
         double frequencyHz) const noexcept
@@ -894,20 +917,25 @@ struct FiddleEngine::Impl
         {
             currentFrequency[i] = std::max(20.0, speakingFrequency[i].next());
 
+            const auto fingered =
+                speakingFrequency[i].target > openFrequency[i] * 1.0005;
             const auto isFingeredPrimary =
-                static_cast<int>(i) == primaryString
-                && speakingFrequency[i].target > openFrequency[i] * 1.0005;
+                static_cast<int>(i) == primaryString && fingered;
             if (isFingeredPrimary && vibratoDepthCents > 1.0e-6)
             {
                 appliedVibratoCents = vibratoDepthCents * vibratoWave;
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
+            const auto fingerPhaseDelay = fingered
+                ? fingerTerminationPhaseDelaySamples(currentFrequency[i])
+                : 0.0;
             auto oneWay =
                 sampleRate / (2.0 * currentFrequency[i])
                 - 0.5 * (
                     filterPhaseDelay[i]
-                    + bridgeLoadPhaseDelay[i]);
+                    + bridgeLoadPhaseDelay[i]
+                    + fingerPhaseDelay);
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
