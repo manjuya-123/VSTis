@@ -252,4 +252,19 @@ if (BUILD_TESTING)
     target_include_directories(FiddleModelMaterialRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
     target_compile_features(FiddleModelMaterialRegression PRIVATE cxx_std_17)
     add_test(NAME FiddleModelMaterialRegression COMMAND FiddleModelMaterialRegression)
+
+    add_executable(FiddleModelLowStringPitchPresenceRegression
+        Tests/FiddleLowStringPitchPresenceRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelLowStringPitchPresenceRegression PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+    )
+    target_compile_features(FiddleModelLowStringPitchPresenceRegression PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleModelLowStringPitchPresenceRegression
+        COMMAND FiddleModelLowStringPitchPresenceRegression
+                ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
+    )
 endif()
