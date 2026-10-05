@@ -34,6 +34,29 @@ inline float singleStringFocusForLayout(const FingeringLayout& layout,
     return 0.0f;
 }
 
+inline std::size_t collapseMelodicBowOverlap(
+    std::array<int, 4>& notes,
+    std::size_t noteCount,
+    int newestNote,
+    bool bowActive,
+    bool monophonicPhrase,
+    bool fingeringHold) noexcept
+{
+    noteCount = std::min<std::size_t>(noteCount, notes.size());
+
+    if (bowActive
+        && monophonicPhrase
+        && !fingeringHold
+        && noteCount > 1)
+    {
+        notes.fill(-1);
+        notes[0] = newestNote;
+        return 1;
+    }
+
+    return noteCount;
+}
+
 inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
                                       std::size_t noteCount,
                                       int newestNote,
