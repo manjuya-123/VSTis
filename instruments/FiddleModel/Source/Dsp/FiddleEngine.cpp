@@ -273,7 +273,13 @@ struct FiddleEngine::Impl
         auto phase = std::arg(response);
         if (phase > 0.0)
             phase -= 2.0 * pi;
-        return std::clamp(-phase / omega, 0.0, 0.25);
+        // The ideal one-pole phase slightly over-corrects the full
+        // bowed loop once bridge/body loading and the existing dispersive
+        // string filter are present. Keep this as a proportional correction
+        // to the physical fingertip phase rather than a note/cents offset.
+        constexpr double loopPhaseParticipation = 0.90;
+        return loopPhaseParticipation
+            * std::clamp(-phase / omega, 0.0, 0.25);
     }
 
     [[nodiscard]] double bridgeReflectionPhaseDelaySamples(
