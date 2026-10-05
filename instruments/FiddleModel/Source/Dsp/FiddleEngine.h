@@ -71,6 +71,11 @@ struct DebugState
     std::array<float, 4> rosinNoiseVelocityMps{};
     std::array<float, 4> rosinTransitionEnvelope{};
     std::array<float, 4> rosinSurfaceCoordinate{};
+    // Internal physical probes used by regressions to distinguish string
+    // harmonic balance from bridge/body radiation. These are read-only
+    // diagnostics and never feed back into the model.
+    std::array<float, 4> incidentBridgeVelocityMps{};
+    std::array<float, 4> bowInjectionVelocityMps{};
     float bowSpeedMps = 0.0f;
     float bridgeVelocity = 0.0f;
     float bridgeRockingVelocity = 0.0f;
