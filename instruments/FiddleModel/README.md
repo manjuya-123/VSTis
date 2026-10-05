@@ -132,8 +132,11 @@ The body model now uses a denser, increasingly damped high-order modal tail abov
 Stereo output is not chorus or doubled strings: both channels share the same string/body
 mechanics. The bridge now has both vertical translation and a weaker rocking coordinate,
 so outer and inner strings load the body differently before two nearby directional
-radiation responses form the stereo output. The side signal is kept deliberately subtle
-so mono sum retains the instrument's center image.
+radiation responses form the stereo output. Rocking radiation is wavelength-dependent:
+low frequencies stay closer to the mono body core while upper body/air frequencies radiate
+a little more directionally. Regression checks require the 2.5-8 kHz Side/Mid ratio to be
+at least 1.4x the 100-800 Hz ratio while the broadband Side/Mid remains deliberately
+subtle, so mono sum retains the instrument's center image.
 
 The editor uses the four-string instrument view as its primary performance display.
 A compact piano-style Play Key Map is also shown as a controller legend so Fiddle Play's
