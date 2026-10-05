@@ -7,6 +7,10 @@
 #include <algorithm>
 #include <array>
 
+#ifndef FIDDLE_BUILD_ID
+#define FIDDLE_BUILD_ID "local"
+#endif
+
 namespace
 {
 juce::String bowActionName(int actionValue)
@@ -79,7 +83,7 @@ void PlayKeyMap::paint(juce::Graphics& g)
     g.setColour(juce::Colours::white.withAlpha(fiddlePlay ? 0.88f : 0.42f));
     g.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
     g.drawText(
-        "PLAY KEY MAP   |   low keys = bow hand   |   G3+ = left hand   |   CC64 = Fingering Hold",
+        "PLAY KEY MAP   |   MIDI 36-47 = bow hand   |   MIDI 55-108 = fingering   |   host octave names may differ",
         titleArea.toNearestInt(), juce::Justification::centredLeft);
 
     const auto actionWidth = area.getWidth() * 0.38f;
@@ -109,9 +113,9 @@ void PlayKeyMap::paint(juce::Graphics& g)
                        juce::Justification::centred);
         };
 
-    drawPanelHeading(actionPanel, "C2-B2   BOW ACTIONS");
+    drawPanelHeading(actionPanel, "C2-B2 / MIDI 36-47   BOW ACTIONS");
     drawPanelHeading(unusedPanel, "UNUSED");
-    drawPanelHeading(fingeringPanel, "G3-C8   FINGERING");
+    drawPanelHeading(fingeringPanel, "G3-C8 / MIDI 55-108   FINGERING");
 
     auto actionKeyboard = actionPanel.withTrimmedTop(18.0f);
     auto unusedBody = unusedPanel.withTrimmedTop(18.0f);
@@ -334,10 +338,9 @@ int PlayKeyMap::actionKeyAt(juce::Point<float> position) const noexcept
 
     const auto actionWidth = area.getWidth() * 0.38f;
     const auto gap = 7.0f;
-    auto actionPanel = juce::Rectangle<float>(
+    auto keyboard = juce::Rectangle<float>(
         area.getX(), area.getY(),
-        actionWidth - gap, area.getHeight());
-    auto keyboard = actionPanel.withTrimmedTop(18.0f);
+        actionWidth - gap, area.getHeight()).withTrimmedTop(18.0f);
 
     const auto isBlackKey = [](int note) noexcept
     {
@@ -391,8 +394,91 @@ int PlayKeyMap::actionKeyAt(juce::Point<float> position) const noexcept
                 + whiteWidth * static_cast<float>(whiteIndex),
             keyboard.getY(), whiteWidth, keyboard.getHeight());
 
-        if (key.contains(position)
-            && fiddle::isBowActionKey(note))
+        if (key.contains(position) && fiddle::isBowActionKey(note))
+            return note;
+    }
+
+    return -1;
+}
+
+int PlayKeyMap::fingeringKeyAt(juce::Point<float> position) const noexcept
+{
+    if (playMode_ != static_cast<int>(fiddle::PlayMode::FiddlePlay))
+        return -1;
+
+    auto outer = getLocalBounds().toFloat().reduced(2.0f);
+    auto area = outer.reduced(7.0f);
+    area.removeFromTop(20.0f);
+
+    const auto actionWidth = area.getWidth() * 0.38f;
+    const auto unusedWidth = area.getWidth() * 0.13f;
+    const auto gap = 7.0f;
+    auto actionPanel = juce::Rectangle<float>(
+        area.getX(), area.getY(),
+        actionWidth - gap, area.getHeight());
+    auto unusedPanel = juce::Rectangle<float>(
+        actionPanel.getRight() + gap, area.getY(),
+        unusedWidth - gap, area.getHeight());
+    auto keyboard = juce::Rectangle<float>(
+        unusedPanel.getRight() + gap, area.getY(),
+        area.getRight() - unusedPanel.getRight() - gap,
+        area.getHeight()).withTrimmedTop(18.0f);
+
+    constexpr int firstNote = fiddle::fiddleLowestNote;
+    constexpr int lastNote = fiddle::fiddleHighestNote;
+    const auto isBlackKey = [](int note) noexcept
+    {
+        const auto pitchClass = note % 12;
+        return pitchClass == 1 || pitchClass == 3
+            || pitchClass == 6 || pitchClass == 8
+            || pitchClass == 10;
+    };
+
+    int whiteCount = 0;
+    for (int note = firstNote; note <= lastNote; ++note)
+        if (!isBlackKey(note))
+            ++whiteCount;
+    if (whiteCount <= 0)
+        return -1;
+
+    const auto whiteWidth =
+        keyboard.getWidth() / static_cast<float>(whiteCount);
+    const auto blackWidth = whiteWidth * 0.62f;
+    const auto blackHeight = keyboard.getHeight() * 0.60f;
+
+    const auto whitesBefore = [&](int note)
+    {
+        int count = 0;
+        for (int n = firstNote; n < note; ++n)
+            if (!isBlackKey(n))
+                ++count;
+        return count;
+    };
+
+    for (int note = firstNote; note <= lastNote; ++note)
+    {
+        if (!isBlackKey(note))
+            continue;
+        const auto boundary = whitesBefore(note);
+        const auto key = juce::Rectangle<float>(
+            keyboard.getX()
+                + whiteWidth * static_cast<float>(boundary)
+                - blackWidth * 0.5f,
+            keyboard.getY(), blackWidth, blackHeight);
+        if (key.contains(position))
+            return note;
+    }
+
+    for (int note = firstNote; note <= lastNote; ++note)
+    {
+        if (isBlackKey(note))
+            continue;
+        const auto whiteIndex = whitesBefore(note);
+        const auto key = juce::Rectangle<float>(
+            keyboard.getX()
+                + whiteWidth * static_cast<float>(whiteIndex),
+            keyboard.getY(), whiteWidth, keyboard.getHeight());
+        if (key.contains(position))
             return note;
     }
 
@@ -402,15 +488,56 @@ int PlayKeyMap::actionKeyAt(juce::Point<float> position) const noexcept
 void PlayKeyMap::mouseDown(const juce::MouseEvent& event)
 {
     mouseActionKey_ = actionKeyAt(event.position);
-    if (mouseActionKey_ >= 0 && onActionKey)
-        onActionKey(mouseActionKey_, true);
+    if (mouseActionKey_ >= 0)
+    {
+        if (onActionKey)
+            onActionKey(mouseActionKey_, true);
+        return;
+    }
+
+    mouseFingeringKey_ = fingeringKeyAt(event.position);
+    if (mouseFingeringKey_ >= 0)
+    {
+        // Direct UI audition intentionally supplies a temporary Down Bow so the
+        // user can test pitch without depending on the host's octave naming.
+        mouseAuditionBow_ = true;
+        if (onActionKey)
+            onActionKey(36, true);
+        if (onFingeringKey)
+            onFingeringKey(mouseFingeringKey_, true);
+    }
+}
+
+void PlayKeyMap::mouseDrag(const juce::MouseEvent& event)
+{
+    if (mouseFingeringKey_ < 0)
+        return;
+
+    const auto nextKey = fingeringKeyAt(event.position);
+    if (nextKey < 0 || nextKey == mouseFingeringKey_)
+        return;
+
+    if (onFingeringKey)
+    {
+        onFingeringKey(mouseFingeringKey_, false);
+        onFingeringKey(nextKey, true);
+    }
+    mouseFingeringKey_ = nextKey;
 }
 
 void PlayKeyMap::mouseUp(const juce::MouseEvent&)
 {
+    if (mouseFingeringKey_ >= 0 && onFingeringKey)
+        onFingeringKey(mouseFingeringKey_, false);
+
+    if (mouseAuditionBow_ && onActionKey)
+        onActionKey(36, false);
+
     if (mouseActionKey_ >= 0 && onActionKey)
         onActionKey(mouseActionKey_, false);
 
+    mouseFingeringKey_ = -1;
+    mouseAuditionBow_ = false;
     mouseActionKey_ = -1;
 }
 
@@ -666,7 +793,8 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(title_);
 
     subtitle_.setText(
-        "Play the gesture, not the solver.  Mod Wheel: Vibrato  |  Aftertouch: Bow Pressure",
+        "Build " + juce::String(FIDDLE_BUILD_ID)
+            + "  |  Mod Wheel: Vibrato  |  Aftertouch: Bow Pressure",
         juce::dontSendNotification);
     subtitle_.setFont(juce::FontOptions(14.0f));
     subtitle_.setColour(juce::Label::textColourId,
@@ -698,7 +826,7 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(playMode_);
 
     playModeGuide_.setText(
-        "Fiddle Play uses two hands: the Key Map below shows bow commands and the G3+ fingering region.",
+        "MIDI 36 = Down Bow  |  MIDI 55+ = Fingering  |  host octave names may differ",
         juce::dontSendNotification);
     playModeGuide_.setFont(juce::FontOptions(12.5f));
     playModeGuide_.setColour(juce::Label::textColourId,
@@ -712,10 +840,14 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
     addAndMakeVisible(instrumentView_);
     addAndMakeVisible(playKeyMap_);
     playKeyMap_.setTooltip(
-        "Fiddle Play map. Click the C2-B2 bow-action keys; G3-C8 shows the left-hand fingering region.");
+        "Fiddle Play map. MIDI note numbers are authoritative because DAWs label octaves differently. Click/drag the fingering keyboard to audition it with a temporary Down Bow.");
     playKeyMap_.onActionKey = [this](int midiNote, bool pressed)
     {
         processor_.requestPlayActionFromUi(midiNote, pressed);
+    };
+    playKeyMap_.onFingeringKey = [this](int midiNote, bool pressed)
+    {
+        processor_.requestPlayFingeringFromUi(midiNote, pressed);
     };
     instrumentView_.setTooltip(
         "Drag left/right to move the bow between fingerboard and bridge. Drag toward either string to focus that string.");
@@ -951,6 +1083,17 @@ void FiddleModelAudioProcessorEditor::timerCallback()
     fingeringHoldButton_.setEnabled(fiddlePlay);
     fingeringHoldButton_.setAlpha(fiddlePlay ? 1.0f : 0.38f);
     playModeGuide_.setAlpha(fiddlePlay ? 1.0f : 0.42f);
+    if (fiddlePlay)
+    {
+        const auto lastNote = state.lastInputMidiNote;
+        const auto lastText = lastNote >= 0
+            ? midiNoteName(lastNote) + " / MIDI " + juce::String(lastNote)
+            : juce::String("none");
+        playModeGuide_.setText(
+            "MIDI 36 = Down Bow  |  MIDI 55+ = Fingering  |  Last input: "
+                + lastText,
+            juce::dontSendNotification);
+    }
 
     refreshHumanReadableValues();
 }
