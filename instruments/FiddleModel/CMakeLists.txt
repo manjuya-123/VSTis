@@ -101,6 +101,7 @@ if (NOT VSTIS_CORE_ONLY)
         add_test(
             NAME FiddleModelProcessorMidiRegression
             COMMAND FiddleModelProcessorMidiRegression
+                ${CMAKE_CURRENT_BINARY_DIR}/processor-midi-regression
         )
     endif()
 endif()
