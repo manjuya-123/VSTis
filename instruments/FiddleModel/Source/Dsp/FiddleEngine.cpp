@@ -1131,10 +1131,12 @@ struct FiddleEngine::Impl
             // Add a small passive loss only to non-primary strings while the
             // bow footprint is deliberately isolated. Drone/double-stop playing
             // keeps full resonance because singleStringIsolation is then zero.
+            const auto isUpperAdjacentSympathetic =
+                static_cast<int>(i) == primaryString + 1;
             const auto sympatheticLoss =
-                static_cast<int>(i) == primaryString
-                    ? 1.0
-                    : 1.0 - 0.015 * singleIsolation;
+                isUpperAdjacentSympathetic
+                    ? 1.0 - 0.008 * singleIsolation
+                    : 1.0;
             const auto reflectedNut =
                 -filtered
                 * fingerTerminationGain
