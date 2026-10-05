@@ -108,7 +108,12 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes 
     { 9250.0, 0.355, 0.00048 },
 }};
 
-inline constexpr double bodyDirectConductance = 0.0007;
+// Broadband mechanical mobility between the sparse resonant peaks. Keeping
+// this too small makes the fixed body modes dominate low-string perception,
+// so the moving stopped-string harmonic series can sound like a faint tone
+// behind a stationary synthetic resonance. This remains inside the mechanical
+// bridge/body admittance; it is not an output EQ or added oscillator.
+inline constexpr double bodyDirectConductance = 0.0014;
 
 // Representative bridge cross-section used by the v0.4b/v0.4c geometry model.
 inline constexpr double bridgeRadiusMm = 41.0;
