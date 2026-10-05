@@ -890,15 +890,7 @@ struct FiddleEngine::Impl
         // Only add the extra normal force required as the contact approaches the
         // stiffer bridge region. Reducing the fingerboard force made that end
         // slip/noise-rich rather than genuinely warm.
-        // Bridge-side stiffness needs extra usable normal force, but
-        // multiplying that compensation by the full exponential Pressure
-        // mapping made medium/high pressures jump too abruptly into a strongly
-        // stuck, dark regime. Taper only the *extra* compensation as the player
-        // already supplies more force; low-pressure bridge stability is kept.
-        const auto bridgeCompensationTaper =
-            1.0 - 0.28 * p;
-        const auto contactForceCompensation =
-            1.00 + 0.55 * pos * bridgeCompensationTaper;
+        const auto contactForceCompensation = 1.00 + 0.55 * pos;
         double strokeBiteGain = 1.0;
         if (strokeBiteSamplesRemaining > 0 && strokeBiteTotalSamples > 0)
         {
