@@ -4,8 +4,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 namespace
@@ -51,17 +55,13 @@ double correlationAtFrequency(const std::vector<float>& x,
     return dot / (std::sqrt(aa * bb) + 1.0e-30);
 }
 
-double estimateDominantPitch(const std::vector<float>& x)
+double estimateDominantPitch(const std::vector<float>& x,
+                             double lowHz,
+                             double highHz)
 {
-    // Search the whole G-string first-position region rather than only a
-    // narrow window around the expected note. The previous local estimator
-    // could "find" a weak moving stopped component while a much louder stale
-    // open string remained the perceptual main pitch.
-    constexpr int candidates = 1200;
-    constexpr double lowHz = 185.0;
-    constexpr double highHz = 305.0;
+    constexpr int candidates = 1400;
     const auto length = std::min<std::size_t>(
-        x.size(), static_cast<std::size_t>(0.12 * sampleRate));
+        x.size(), static_cast<std::size_t>(0.20 * sampleRate));
     const auto begin = x.size() - length;
     double bestFrequency = lowHz;
     double bestCorrelation = -2.0;
@@ -79,6 +79,48 @@ double estimateDominantPitch(const std::vector<float>& x)
         }
     }
     return bestFrequency;
+}
+
+double tonePower(const std::vector<float>& x, double frequency)
+{
+    const auto length = std::min<std::size_t>(
+        x.size(), static_cast<std::size_t>(0.20 * sampleRate));
+    const auto begin = x.size() - length;
+    if (length < 256)
+        return 0.0;
+
+    double re = 0.0;
+    double im = 0.0;
+    for (std::size_t n = 0; n < length; ++n)
+    {
+        const auto phase =
+            2.0 * 3.14159265358979323846 * frequency
+            * static_cast<double>(n) / sampleRate;
+        const auto window =
+            0.5 - 0.5 * std::cos(
+                2.0 * 3.14159265358979323846
+                * static_cast<double>(n)
+                / static_cast<double>(length - 1));
+        const auto sample =
+            static_cast<double>(x[begin + n]) * window;
+        re += sample * std::cos(phase);
+        im -= sample * std::sin(phase);
+    }
+    return re * re + im * im;
+}
+
+double harmonicCombPower(const std::vector<float>& x, double fundamental)
+{
+    double power = 0.0;
+    for (int harmonic = 1; harmonic <= 8; ++harmonic)
+    {
+        const auto frequency = fundamental * harmonic;
+        if (frequency >= 0.45 * sampleRate)
+            break;
+        power += tonePower(x, frequency)
+            / std::sqrt(static_cast<double>(harmonic));
+    }
+    return power;
 }
 
 double centsBetween(double measured, double target)
@@ -110,111 +152,284 @@ void renderBlocks(FiddleModelAudioProcessor& processor,
     }
 }
 
-bool checkPitch(const std::vector<float>& segment, int note)
+void appendBlock(const juce::AudioBuffer<float>& buffer,
+                 std::vector<float>& output)
+{
+    const auto* left = buffer.getReadPointer(0);
+    output.insert(output.end(), left, left + buffer.getNumSamples());
+}
+
+void writeU16(std::ofstream& out, std::uint16_t value)
+{
+    const char bytes[2] {
+        static_cast<char>(value & 0xffu),
+        static_cast<char>((value >> 8u) & 0xffu)
+    };
+    out.write(bytes, 2);
+}
+
+void writeU32(std::ofstream& out, std::uint32_t value)
+{
+    const char bytes[4] {
+        static_cast<char>(value & 0xffu),
+        static_cast<char>((value >> 8u) & 0xffu),
+        static_cast<char>((value >> 16u) & 0xffu),
+        static_cast<char>((value >> 24u) & 0xffu)
+    };
+    out.write(bytes, 4);
+}
+
+bool writeMonoWav(const std::filesystem::path& path,
+                  const std::vector<float>& samples)
+{
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec)
+        return false;
+
+    std::ofstream out(path, std::ios::binary);
+    if (!out)
+        return false;
+
+    float peak = 0.0f;
+    for (const auto sample : samples)
+        peak = std::max(peak, std::abs(sample));
+    const auto gain = peak > 0.92f ? 0.92f / peak : 1.0f;
+
+    constexpr std::uint16_t channels = 1;
+    constexpr std::uint16_t bits = 16;
+    const auto frames = static_cast<std::uint32_t>(samples.size());
+    const auto bytes = frames * channels * (bits / 8u);
+
+    out.write("RIFF", 4); writeU32(out, 36u + bytes);
+    out.write("WAVE", 4);
+    out.write("fmt ", 4); writeU32(out, 16u);
+    writeU16(out, 1u); writeU16(out, channels);
+    writeU32(out, static_cast<std::uint32_t>(sampleRate));
+    writeU32(out, static_cast<std::uint32_t>(sampleRate) * 2u);
+    writeU16(out, 2u); writeU16(out, bits);
+    out.write("data", 4); writeU32(out, bytes);
+
+    for (const auto sample : samples)
+    {
+        const auto clamped =
+            std::clamp(sample * gain, -1.0f, 1.0f);
+        const auto encoded = static_cast<std::int16_t>(
+            std::lrint(clamped * 32767.0f));
+        writeU16(out, static_cast<std::uint16_t>(encoded));
+    }
+    return static_cast<bool>(out);
+}
+
+bool checkPitch(const std::vector<float>& segment,
+                int note,
+                int openNote,
+                int stringIndex)
 {
     const auto target = static_cast<double>(midiToHz(note));
-    const auto measured = estimateDominantPitch(segment);
+    const auto openHz = static_cast<double>(midiToHz(openNote));
+    const auto lowHz = openHz * 0.94;
+    const auto highHz =
+        static_cast<double>(midiToHz(openNote + 7)) * 1.04;
+    const auto measured =
+        estimateDominantPitch(segment, lowHz, highHz);
     const auto cents = centsBetween(measured, target);
-    std::cout << "processor_bow_first_dominant_pitch note=" << note
+
+    double combAdvantageDb = 99.0;
+    if (note != openNote)
+    {
+        const auto targetPower =
+            harmonicCombPower(segment, target);
+        const auto staleOpenPower =
+            harmonicCombPower(segment, openHz);
+        combAdvantageDb = 10.0 * std::log10(
+            (targetPower + 1.0e-30)
+            / (staleOpenPower + 1.0e-30));
+    }
+
+    std::cout << "processor_bow_first_pitch"
+              << " string=" << stringIndex
+              << " note=" << note
               << " target=" << target
               << " measured=" << measured
-              << " cents=" << cents << '\n';
-    return std::abs(cents) <= 10.0;
-}
-} // namespace
+              << " cents=" << cents
+              << " target_vs_open_comb_db=" << combAdvantageDb
+              << '\n';
 
-int main()
+    return std::abs(cents) <= 10.0
+        && (note == openNote || combAdvantageDb >= 3.0);
+}
+
+bool runStringSequence(int stringIndex,
+                       int openNote,
+                       const std::filesystem::path* outputPath)
 {
     FiddleModelAudioProcessor processor;
     processor.prepareToPlay(sampleRate, blockSize);
 
-    // Exact reported workflow: hold C2 first, then move the left-hand
-    // fingering through G3..C#4. C2 must remain a live bow action even when
-    // fingering keys have small key-up gaps between them.
-    const auto downBow = juce::MidiMessage::noteOn(1, 36, 0.85f);
-    std::vector<float> scratch;
-    renderBlocks(processor, 4, scratch, &downBow);
+    const auto downBow =
+        juce::MidiMessage::noteOn(1, 36, 0.85f);
+    std::vector<float> fullOutput;
+    renderBlocks(processor, 4, fullOutput, &downBow);
 
-    // Bow-first is armed, not assigned to an arbitrary default string.
-    // Until the first fingering arrives there should be no radiated note.
     float armedPeak = 0.0f;
-    for (const auto sample : scratch)
+    for (const auto sample : fullOutput)
         armedPeak = std::max(armedPeak, std::abs(sample));
     if (armedPeak > 1.0e-5f)
     {
-        std::cerr << "FAIL: bow-first action excited a default string before fingering"
-                  << " peak=" << armedPeak << '\n';
-        return EXIT_FAILURE;
+        std::cerr
+            << "FAIL: bow-first action excited a default string before fingering"
+            << " string=" << stringIndex
+            << " peak=" << armedPeak << '\n';
+        return false;
     }
 
-    auto playNote = [&](int note, bool overlapPrevious, int previousNote)
+    const int notes[4] {
+        openNote,
+        openNote + 1,
+        openNote + 2,
+        openNote + 6
+    };
+
+    int previousNote = -1;
+    for (int noteIndex = 0; noteIndex < 4; ++noteIndex)
     {
+        const auto note = notes[noteIndex];
+        const bool overlapPrevious = noteIndex >= 2;
+
         juce::AudioBuffer<float> eventBuffer(2, blockSize);
         juce::MidiBuffer events;
 
         if (overlapPrevious)
         {
-            events.addEvent(juce::MidiMessage::noteOn(1, note, 0.82f), 0);
+            events.addEvent(
+                juce::MidiMessage::noteOn(1, note, 0.82f), 0);
             if (previousNote >= 0)
-                events.addEvent(juce::MidiMessage::noteOff(1, previousNote), 32);
+                events.addEvent(
+                    juce::MidiMessage::noteOff(1, previousNote), 32);
         }
         else
         {
             if (previousNote >= 0)
-                events.addEvent(juce::MidiMessage::noteOff(1, previousNote), 0);
-            events.addEvent(juce::MidiMessage::noteOn(1, note, 0.82f), 96);
+                events.addEvent(
+                    juce::MidiMessage::noteOff(1, previousNote), 0);
+            events.addEvent(
+                juce::MidiMessage::noteOn(1, note, 0.82f), 96);
         }
 
         processor.processBlock(eventBuffer, events);
+        appendBlock(eventBuffer, fullOutput);
 
         std::vector<float> segment;
-        const auto* first = eventBuffer.getReadPointer(0);
-        segment.insert(segment.end(), first, first + blockSize);
+        appendBlock(eventBuffer, segment);
         renderBlocks(processor, 52, segment);
+        fullOutput.insert(
+            fullOutput.end(),
+            segment.begin() + blockSize,
+            segment.end());
 
         const auto state = processor.visualState();
-        if (state.primaryString != 0)
+        if (state.primaryString != stringIndex)
         {
-            std::cerr << "FAIL: bow-first G-string phrase left primary string\n";
+            std::cerr
+                << "FAIL: bow-first phrase moved to wrong physical string"
+                << " expected=" << stringIndex
+                << " actual=" << state.primaryString << '\n';
             return false;
         }
-        if (state.stringFocus > -0.85f)
+        if (std::abs(state.stringFocus) < 0.85f)
         {
-            std::cerr << "FAIL: bow-first fingering did not reapply single-string focus"
-                      << " focus=" << state.stringFocus << '\n';
+            std::cerr
+                << "FAIL: bow-first fingering did not apply single-string focus"
+                << " string=" << stringIndex
+                << " focus=" << state.stringFocus << '\n';
             return false;
         }
         if (std::abs(
-                state.speakingFrequencyHz[0]
+                state.speakingFrequencyHz[
+                    static_cast<std::size_t>(stringIndex)]
                 - midiToHz(note)) > 2.0f)
         {
-            std::cerr << "FAIL: visual/engine speaking frequency did not follow MIDI"
-                      << " note=" << note
-                      << " speaking=" << state.speakingFrequencyHz[0] << '\n';
+            std::cerr
+                << "FAIL: speaking frequency did not follow MIDI"
+                << " string=" << stringIndex
+                << " note=" << note
+                << " speaking="
+                << state.speakingFrequencyHz[
+                    static_cast<std::size_t>(stringIndex)]
+                << '\n';
             return false;
         }
-        if (!checkPitch(segment, note))
+        if (!checkPitch(segment, note, openNote, stringIndex))
         {
-            std::cerr << "FAIL: radiated pitch did not follow bow-first fingering\n";
+            std::cerr
+                << "FAIL: audible dominant pitch/energy did not follow fingering"
+                << " string=" << stringIndex
+                << " note=" << note << '\n';
             return false;
         }
-        return true;
-    };
 
-    if (!playNote(55, false, -1))
-        return EXIT_FAILURE;
-    if (!playNote(56, false, 55))
-        return EXIT_FAILURE;
-    if (!playNote(57, true, 56))
-        return EXIT_FAILURE;
-    if (!playNote(61, true, 57))
-        return EXIT_FAILURE;
+        previousNote = note;
+    }
 
     juce::AudioBuffer<float> releaseBuffer(2, blockSize);
     juce::MidiBuffer releaseMidi;
-    releaseMidi.addEvent(juce::MidiMessage::noteOff(1, 36), 0);
+    releaseMidi.addEvent(
+        juce::MidiMessage::noteOff(1, 36), 0);
     processor.processBlock(releaseBuffer, releaseMidi);
+    appendBlock(releaseBuffer, fullOutput);
 
-    std::cout << "PASS processor bow-first fingering regression\n";
+    if (outputPath != nullptr
+        && !writeMonoWav(*outputPath, fullOutput))
+    {
+        std::cerr
+            << "FAIL: could not write processor MIDI regression WAV\n";
+        return false;
+    }
+
+    return true;
+}
+} // namespace
+
+int main(int argc, char** argv)
+{
+    const std::filesystem::path outputDirectory =
+        argc >= 2
+            ? std::filesystem::path(argv[1])
+            : std::filesystem::path {};
+
+    struct StringCase
+    {
+        int index;
+        int openNote;
+        const char* name;
+    };
+
+    constexpr StringCase cases[] {
+        { 0, 55, "G" },
+        { 1, 62, "D" },
+        { 2, 69, "A" },
+        { 3, 76, "E" }
+    };
+
+    for (const auto& item : cases)
+    {
+        std::filesystem::path outputPath;
+        const std::filesystem::path* outputPtr = nullptr;
+        if (!outputDirectory.empty())
+        {
+            outputPath = outputDirectory
+                / (std::string("processor_bow_first_")
+                   + item.name + ".wav");
+            outputPtr = &outputPath;
+        }
+
+        if (!runStringSequence(
+                item.index, item.openNote, outputPtr))
+            return EXIT_FAILURE;
+    }
+
+    std::cout
+        << "PASS processor bow-first fingering regression on G/D/A/E\n";
     return EXIT_SUCCESS;
 }
