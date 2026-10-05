@@ -113,7 +113,7 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes 
 // so the moving stopped-string harmonic series can sound like a faint tone
 // behind a stationary synthetic resonance. This remains inside the mechanical
 // bridge/body admittance; it is not an output EQ or added oscillator.
-inline constexpr double bodyDirectConductance = 0.0010;
+inline constexpr double bodyDirectConductance = 0.0007;
 
 // Representative bridge cross-section used by the v0.4b/v0.4c geometry model.
 inline constexpr double bridgeRadiusMm = 41.0;
