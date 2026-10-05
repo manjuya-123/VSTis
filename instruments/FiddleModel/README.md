@@ -292,8 +292,11 @@ Left hand:
 - One to four held notes are voiced across G/D/A/E with continuity preference.
 - With one held fingering note and the String Focus control left at its centred/default
   position, Fiddle Play automatically leans the physical bow toward the primary string
-  (about +/-0.95 focus). Moving String Focus away from centre is an explicit manual
-  override. Multi-note fingerings keep centre balance available.
+  (about +/-0.95 focus). In that deliberate single-string posture the effective hair
+  footprint narrows: direct normal force on the neighbouring string is strongly reduced
+  while that string remains present through the shared bridge/body for sympathetic
+  resonance. Moving String Focus away from centre is an explicit manual override.
+  Multi-note fingerings keep centre balance available.
 - Sustain pedal (CC64) is Fingering Hold: the current left-hand shape stays on the
   strings after the fingering keys are released, so bow actions can be sequenced
   independently. Releasing the pedal removes only fingers whose keys are no longer held.
@@ -317,8 +320,10 @@ The regression artifacts include `16_single_focus_vs_drone.wav`, ordered
 **automatic single-string focus -> Drone Bow**, so the difference can be auditioned
 without changing the left-hand E4-on-D fingering. `15_string_identity_pair_side.wav`
 also compares stopped D-string A4 approached from the D/A side, the same stopped note
-approached from the G/D side, and open A4; this isolates how adjacent-pair choice and
-the open-A unison contribute to colour.
+approached from the G/D side, and open A4. Regression now requires the two approaches
+to the same stopped D string to stay close in spectral colour, so a resonant neighbouring
+open A cannot dominate merely because it shares the bow pair. The open-A unison still
+remains physically coupled and audibly distinct.
 
 
 ### Direct performance UI
