@@ -163,6 +163,19 @@ if (BUILD_TESTING)
                 ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
     )
 
+    add_executable(FiddleModelControlSurfaceRegression
+        Tests/FiddleControlSurfaceRegression.cpp
+        Source/Dsp/FiddleEngine.cpp
+        Source/Dsp/FiddleEngine.h
+    )
+    target_include_directories(FiddleModelControlSurfaceRegression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleModelControlSurfaceRegression PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleModelControlSurfaceRegression
+        COMMAND FiddleModelControlSurfaceRegression
+                ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
+    )
+
     add_executable(FiddleModelMaterialRegression
         Tests/FiddleMaterialRegression.cpp
         Source/Dsp/FiddleEngine.cpp
