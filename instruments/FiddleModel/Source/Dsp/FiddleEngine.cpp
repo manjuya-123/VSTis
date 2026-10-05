@@ -1122,8 +1122,24 @@ struct FiddleEngine::Impl
 
             const auto chopTerminationGain =
                 chopDampingActive ? 0.960 : 1.0;
+
+            // The rigid two-coordinate bridge is intentionally economical, but
+            // it otherwise gives unused open strings an unrealistically high-Q
+            // cross-string drive. In monophonic single-string play, a real
+            // instrument still has sympathetic resonance, but it must not grow
+            // until the adjacent open string becomes the perceptual main note.
+            // Add a small passive loss only to non-primary strings while the
+            // bow footprint is deliberately isolated. Drone/double-stop playing
+            // keeps full resonance because singleStringIsolation is then zero.
+            const auto sympatheticLoss =
+                static_cast<int>(i) == primaryString
+                    ? 1.0
+                    : 1.0 - 0.015 * singleIsolation;
             const auto reflectedNut =
-                -filtered * fingerTerminationGain * chopTerminationGain;
+                -filtered
+                * fingerTerminationGain
+                * chopTerminationGain
+                * sympatheticLoss;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
             double injection = 0.0;
