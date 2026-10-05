@@ -263,7 +263,9 @@ int main(int argc, char** argv)
         if ((item.stringIndex == 0
              && radiatedMetrics.low3Fraction < 0.36)
             || (item.stringIndex == 1
-                && radiatedMetrics.low3Fraction < 0.56))
+                && radiatedMetrics.low3Fraction < 0.56)
+            || (item.stringIndex == 2
+                && radiatedMetrics.low3Fraction < 0.32))
         {
             std::cerr
                 << "FAIL: low-string pitch harmonics are masked by body/formant energy"
