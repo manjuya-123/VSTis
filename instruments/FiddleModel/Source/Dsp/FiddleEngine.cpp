@@ -258,8 +258,8 @@ struct FiddleEngine::Impl
     {
         // Steady-state phase of the softened fingertip reflection used below.
         // The transient fingerTouch term deliberately decays in a few ms, so
-        // speaking-length calibration follows the settled 0.12 damping mix.
-        constexpr double dampingMix = 0.12;
+        // speaking-length calibration follows the settled 0.09 damping mix.
+        constexpr double dampingMix = 0.09;
         const auto omega =
             2.0 * pi * std::max(20.0, frequencyHz) / sampleRate;
         const auto pole = 1.0 - fingerTerminationAlpha;
@@ -1074,7 +1074,7 @@ struct FiddleEngine::Impl
                 fingerTerminationState[i] += fingerTerminationAlpha
                     * (filtered - fingerTerminationState[i]);
                 const auto dampingMix =
-                    0.12 + 0.08 * fingerTouch[i];
+                    0.09 + 0.06 * fingerTouch[i];
                 fingerTerminationSample =
                     (1.0 - dampingMix) * filtered
                     + dampingMix * fingerTerminationState[i];
