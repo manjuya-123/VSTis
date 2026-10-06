@@ -80,7 +80,7 @@ jobs:
           ctest --test-dir build/vs2022-x64
           -C Release
           -R FiddleModelProcessorMidiRegression
-          --output-on-failure
+          --verbose --output-on-failure
 
       # Keep failing integration output available for listening without
       # publishing a failed build as a valid VST3 release.
