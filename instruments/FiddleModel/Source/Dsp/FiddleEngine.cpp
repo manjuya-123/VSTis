@@ -1187,6 +1187,46 @@ struct FiddleEngine::Impl
                 * sympatheticLoss;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
+
+            // A real bow presses a short *width* of hair against the string.
+            // Sampling only the midpoint gives a mathematically sharp,
+            // almost perfectly repeating stick/slip velocity waveform which
+            // can sound more like an electronic buzzer than a fiddle.
+            // Estimate the average incoming wave velocity across a ~9 mm
+            // contact patch in the EXISTING travelling-wave rails, before
+            // the nonlinear friction solve. No oscillator or output EQ:
+            // changes act through the actual bow/string feedback loop.
+            //
+            // The transverse wave speed is set by the open string's
+            // tension and mass/length; stopping the string changes its
+            // speaking length, not the wave propagation speed. The patch
+            // shrinks naturally near a termination.
+            constexpr double speakingLengthM = 0.33;
+            constexpr double hairHalfWidthM = 0.0045;
+            const auto transverseWaveSpeed =
+                2.0 * speakingLengthM * openFrequency[i];
+            const auto physicalHalfWidthSamples =
+                sampleRate * hairHalfWidthM / transverseWaveSpeed;
+            const auto contactHalfWidthSamples =
+                std::min({
+                    physicalHalfWidthSamples,
+                    std::max(0.0, bridgeDelay[i] - 1.3),
+                    std::max(0.0, nutDelay[i] - 1.3)
+                });
+            const auto patchAverageVelocity = 0.5 * (
+                fromBridge[i].read(
+                    bridgeDelay[i] - contactHalfWidthSamples)
+                + fromBridge[i].read(
+                    bridgeDelay[i] + contactHalfWidthSamples)
+                + fromNut[i].read(
+                    nutDelay[i] - contactHalfWidthSamples)
+                + fromNut[i].read(
+                    nutDelay[i] + contactHalfWidthSamples));
+            // A midpoint component retains local Helmholtz capture, while
+            // the distributed component represents finite hair contact.
+            // Both weights sum to unity (including DC and long waves).
+            const auto distributedContactVelocity =
+                0.64 * incomingVelocity + 0.36 * patchAverageVelocity;
             double injection = 0.0;
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
@@ -1230,7 +1270,8 @@ struct FiddleEngine::Impl
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
+                    distributedContactVelocity, bowSpeed, bowForce[i],
+                    stringImpedance[i], sampleRate,
                     localStaticGrip, localSlidingGrip, contactStateRateScale);
                 injection = stringVelocity - incomingVelocity;
 
