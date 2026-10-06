@@ -224,7 +224,8 @@ bool writeMonoWav(const std::filesystem::path& path,
 bool checkPitch(const std::vector<float>& segment,
                 int note,
                 int openNote,
-                int stringIndex)
+                int stringIndex,
+                int upperAdjacentOpenNote)
 {
     const auto target = static_cast<double>(midiToHz(note));
     const auto openHz = static_cast<double>(midiToHz(openNote));
@@ -236,6 +237,7 @@ bool checkPitch(const std::vector<float>& segment,
     const auto cents = centsBetween(measured, target);
 
     double combAdvantageDb = 99.0;
+    double adjacentCombAdvantageDb = 99.0;
     if (note != openNote)
     {
         const auto targetPower =
@@ -245,6 +247,17 @@ bool checkPitch(const std::vector<float>& segment,
         combAdvantageDb = 10.0 * std::log10(
             (targetPower + 1.0e-30)
             / (staleOpenPower + 1.0e-30));
+
+        if (upperAdjacentOpenNote >= 0)
+        {
+            const auto adjacentOpenHz =
+                static_cast<double>(midiToHz(upperAdjacentOpenNote));
+            const auto adjacentOpenPower =
+                harmonicCombPower(segment, adjacentOpenHz);
+            adjacentCombAdvantageDb = 10.0 * std::log10(
+                (targetPower + 1.0e-30)
+                / (adjacentOpenPower + 1.0e-30));
+        }
     }
 
     std::cout << "processor_bow_first_pitch"
@@ -254,10 +267,19 @@ bool checkPitch(const std::vector<float>& segment,
               << " measured=" << measured
               << " cents=" << cents
               << " target_vs_open_comb_db=" << combAdvantageDb
+              << " target_vs_upper_adjacent_comb_db="
+              << adjacentCombAdvantageDb
               << '\n';
 
+    // Player-reported low-string failure mode: a stopped G/D note could be
+    // present but sit behind a nearly fixed neighbouring open string. Keep
+    // ordinary sympathetic coupling, but in monophonic single-string play the
+    // stopped-note comb must remain perceptually in front of that neighbour.
     return std::abs(cents) <= 10.0
-        && (note == openNote || combAdvantageDb >= 3.0);
+        && (note == openNote || combAdvantageDb >= 3.0)
+        && (note == openNote
+            || upperAdjacentOpenNote < 0
+            || adjacentCombAdvantageDb >= 8.0);
 }
 
 bool runStringSequence(int stringIndex,
@@ -290,6 +312,9 @@ bool runStringSequence(int stringIndex,
         openNote + 2,
         openNote + 6
     };
+
+    const auto upperAdjacentOpenNote =
+        stringIndex < 3 ? openNote + 7 : -1;
 
     int previousNote = -1;
     for (int noteIndex = 0; noteIndex < 4; ++noteIndex)
@@ -360,7 +385,12 @@ bool runStringSequence(int stringIndex,
                 << '\n';
             return false;
         }
-        if (!checkPitch(segment, note, openNote, stringIndex))
+        if (!checkPitch(
+                segment,
+                note,
+                openNote,
+                stringIndex,
+                upperAdjacentOpenNote))
         {
             std::cerr
                 << "FAIL: audible dominant pitch/energy did not follow fingering"
