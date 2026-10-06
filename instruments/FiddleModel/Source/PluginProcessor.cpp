@@ -1003,6 +1003,20 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
             0.0f, 1.0f);
     }
 
+    if (monoMelodicBow && primary == 0)
+    {
+        // The real Processor G3 onset sweep after the travel correction
+        // favoured Bow Contact 0.35 over 0.45: its first-three-harmonic
+        // fraction rose from 0.20 to 0.46, with pitch-specific G energy
+        // 18 dB above the adjacent D comb. Change the *bowing point* on
+        // the physical waveguide, not the output spectrum. Keep a smooth
+        // monotonic 0..1 control with unchanged endpoints.
+        constexpr float piF = 3.14159265358979323846f;
+        controls.position = std::clamp(
+            controls.position - 0.10f * std::sin(piF * controls.position),
+            0.0f, 1.0f);
+    }
+
     if (playModeFocusOverride_)
     {
         controls.balance = playModeFocusValue_;
