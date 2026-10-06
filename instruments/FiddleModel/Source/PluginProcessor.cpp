@@ -576,6 +576,23 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
     {
         const auto armedAction =
             fiddle::bowActionForMidiNote(activeBowActionNote_);
+
+        // A bow action may be armed long before the first fingering arrives.
+        // Because the engine processes silence while armed, its short rosin
+        // grip preload expires without contacting a string. Re-trigger the
+        // physical normal-force catch at the moment the selected string is
+        // actually bowed. This is not an output gain or attack envelope.
+        if (armedAction == fiddle::BowAction::DownBow
+            || armedAction == fiddle::BowAction::UpBow
+            || armedAction == fiddle::BowAction::Tremolo
+            || armedAction == fiddle::BowAction::Shuffle)
+        {
+            const auto gesture = fiddle::makeBowGestureProfile(
+                armedAction, playModeGestureStrength_);
+            engine_.setStrokeBite(
+                gesture.biteBoost, gesture.biteDurationSeconds);
+        }
+
         switch (armedAction)
         {
             case fiddle::BowAction::DownBow:
