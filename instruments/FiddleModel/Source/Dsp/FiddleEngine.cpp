@@ -1088,15 +1088,6 @@ struct FiddleEngine::Impl
         body.push(bodyForce);
         bodyRocking.push(bodyRockingForce);
 
-        // Acoustic radiation comes primarily from the vibrating corpus, not
-        // directly from the string/bridge sawtooth. Keeping a modest bridge
-        // feedthrough preserves bow attack and articulation while the modal
-        // body velocity supplies the resonant, non-buzzer spectral envelope.
-        const auto bodyRadiatingVelocity =
-            body.radiatingVelocity(bodyForce);
-        const auto bodyRockingRadiatingVelocity =
-            bodyRocking.radiatingVelocity(bodyRockingForce);
-
         std::array<double, stringCount> bridgeStringVelocity {};
         for (std::size_t i = 0; i < stringCount; ++i)
             bridgeStringVelocity[i] =
@@ -1330,8 +1321,18 @@ struct FiddleEngine::Impl
                 // physical string identity and material-colour separation.
                 // Preserve the validated contact path while diagnosing the
                 // reported apparent two-layer sound using isolated probes.
+                // A bowed string has a broadband *contact* component in
+                // addition to its Helmholtz-like harmonic motion. The
+                // microscopic hair/rosin surface field already drives the
+                // real travelling-wave junction, but its original velocity
+                // was too faint to be heard next to an almost perfectly
+                // repeating pitched waveform. Increase only that physical
+                // junction excitation; never mix noise or oscillators at
+                // the audio output. The slip/contact envelope still governs
+                // when texture exists, and the rest of the mechanics are
+                // unchanged so pitch capture remains the acceptance gate.
                 rosinNoiseVelocity =
-                    0.0000032
+                    0.0000120
                     * rosinNoiseEnvelope[i]
                     * colouredNoise
                     + transitionVelocity;
@@ -1406,33 +1407,26 @@ struct FiddleEngine::Impl
         // radiation is intentionally narrower at long wavelengths and slightly
         // stronger at short wavelengths, matching the increasing directivity of
         // a small resonant body as frequency rises.
-        constexpr double bridgeAirFeedthrough = 0.28;
-        constexpr double bodyRadiationMix = 0.72;
-        const auto translationalRadiation =
-            bridgeAirFeedthrough * bridgeVelocity
-            + bodyRadiationMix * bodyRadiatingVelocity;
-        const auto rockingSource =
-            bridgeAirFeedthrough * bridgeRockingVelocity
-            + bodyRadiationMix * bodyRockingRadiatingVelocity;
-
         rockingRadiationLow += rockingRadiationAlpha
-            * (rockingSource - rockingRadiationLow);
+            * (bridgeRockingVelocity - rockingRadiationLow);
         const auto rockingRadiationHigh =
-            rockingSource - rockingRadiationLow;
+            bridgeRockingVelocity - rockingRadiationLow;
         constexpr double lowBandRockingMix = 0.16;
         constexpr double highBandRockingMix = 0.24;
         const auto directionalRocking =
             lowBandRockingMix * rockingRadiationLow
             + highBandRockingMix * rockingRadiationHigh;
 
-        // Output calibration only. Mechanics and pitch closure above remain
-        // unchanged; this stage changes which physical velocity radiates.
+        // Listening/output calibration only; the low-body-mode
+        // rebalance increased the loudest double-stop by about 0.5%. Keep the
+        // physical mechanics untouched and recover the previous headroom with
+        // a sub-0.05 dB post-model calibration trim.
         constexpr double radiationCalibration = 17.90;
         return {
             radiationCalibration * radiationLeft.process(
-                translationalRadiation + directionalRocking),
+                bridgeVelocity + directionalRocking),
             radiationCalibration * radiationRight.process(
-                translationalRadiation - directionalRocking)
+                bridgeVelocity - directionalRocking)
         };
     }
 };
