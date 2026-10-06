@@ -752,8 +752,17 @@ struct FiddleEngine::Impl
         // through the shared bridge/body waveguide. The earlier 15% residual
         // could become perceptually dominant on low strings once the body
         // fundamentals were restored.
+        // The G string is the outside string of the bridge. During an
+        // intentional monophonic G stroke the hair cannot also directly bow
+        // open D: even the old 3% residue may sustain a second audible
+        // stationary pitch. Preserve D's sympathetic motion through the
+        // bridge/rocking junction. Keep the small residual compliance for
+        // the other string pairs, where the same-string identity regression
+        // has shown that removing it globally is not acceptable.
+        const auto residualContact =
+            primaryString == 0 ? 0.0 : 0.03;
         const auto neighbourScale =
-            1.0 - 0.97 * isolationAmount;
+            1.0 - (1.0 - residualContact) * isolationAmount;
         const auto removed =
             forces[neighbour] * (1.0 - neighbourScale);
         forces[neighbour] *= neighbourScale;
