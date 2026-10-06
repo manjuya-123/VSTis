@@ -588,6 +588,104 @@ bool runStringSequence(int stringIndex,
 
     return allPitchesPassed;
 }
+// Audition through the exact requests sent by the GUI key map, rather than
+// inferring Standalone behaviour from separate MIDI bow-first Note Ons.
+bool runUiAuditionRegression(int stringIndex,
+                            int openNote,
+                            const std::filesystem::path* outputPath)
+{
+    FiddleModelAudioProcessor processor;
+    processor.prepareToPlay(sampleRate, blockSize);
+
+    std::vector<float> silent;
+    renderBlocks(processor, 4, silent);
+
+    processor.requestPlayActionFromUi(36, true);
+    processor.requestPlayFingeringFromUi(openNote, true);
+
+    std::vector<float> opened;
+    renderBlocks(processor, 53, opened);
+    const auto firstState = processor.visualState();
+    const auto firstOk = firstState.midiNote == openNote
+        && firstState.primaryString == stringIndex
+        && firstState.fingeringMask == fiddle::fingeringMaskBit(openNote);
+
+    std::cout << "processor_ui_click"
+              << " string=" << stringIndex
+              << " note=" << openNote
+              << " state_note=" << firstState.midiNote
+              << " focus=" << firstState.stringFocus
+              << " bow_action=" << firstState.bowAction
+              << '\n';
+    const auto openingPitchOk =
+        checkPitch(opened, openNote, openNote, -1,
+                   stringIndex, stringIndex < 3 ? openNote + 7 : -1);
+
+    // A GUI drag may cross several narrow keys before a single audio block.
+    // Replaying lossy press/release mailboxes used to leave old notes held.
+    // Only the final key should be active, with no overlap or stale string.
+    processor.requestPlayFingeringFromUi(openNote, false);
+    processor.requestPlayFingeringFromUi(openNote + 1, true);
+    processor.requestPlayFingeringFromUi(openNote + 1, false);
+    processor.requestPlayFingeringFromUi(openNote + 2, true);
+
+    std::vector<float> dragged;
+    renderBlocks(processor, 53, dragged);
+    const auto dragState = processor.visualState();
+    const auto dragOk = dragState.midiNote == openNote + 2
+        && dragState.primaryString == stringIndex
+        && dragState.fingeringMask
+            == fiddle::fingeringMaskBit(openNote + 2);
+
+    std::cout << "processor_ui_drag"
+              << " string=" << stringIndex
+              << " note=" << openNote + 2
+              << " state_note=" << dragState.midiNote
+              << " mask=" << dragState.fingeringMask
+              << " focus=" << dragState.stringFocus
+              << '\n';
+    const auto dragPitchOk = checkPitch(
+        dragged, openNote + 2, openNote, openNote,
+        stringIndex, stringIndex < 3 ? openNote + 7 : -1);
+
+    processor.requestPlayFingeringFromUi(openNote + 2, false);
+    processor.requestPlayActionFromUi(36, false);
+    std::vector<float> released;
+    renderBlocks(processor, 4, released);
+    const auto releasedState = processor.visualState();
+    const auto releaseOk =
+        releasedState.midiNote == -1 && releasedState.fingeringMask == 0;
+
+    if (outputPath != nullptr)
+    {
+        std::vector<float> full;
+        full.reserve(opened.size() + dragged.size() + released.size());
+        full.insert(full.end(), opened.begin(), opened.end());
+        full.insert(full.end(), dragged.begin(), dragged.end());
+        full.insert(full.end(), released.begin(), released.end());
+        if (!writeMonoWav(*outputPath, full))
+        {
+            std::cerr << "FAIL: cannot write GUI audition WAV\n";
+            return false;
+        }
+    }
+
+    if (!(firstOk && openingPitchOk && dragOk
+          && dragPitchOk && releaseOk))
+    {
+        std::cerr << "FAIL: GUI mouse click/drag audible fingering divergence"
+                  << " string=" << stringIndex
+                  << " initial_state=" << firstOk
+                  << " initial_pitch=" << openingPitchOk
+                  << " dragged_state=" << dragOk
+                  << " dragged_pitch=" << dragPitchOk
+                  << " release=" << releaseOk
+                  << '\n';
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -656,7 +754,31 @@ int main(int argc, char** argv)
     if (!allStringsPassed)
         return EXIT_FAILURE;
 
+    // Verify the Standalone's Play Key Map shortcut separately. It presses
+    // Down Bow and the first fingering in the *same* processBlock, unlike the
+    // earlier MIDI-only bow-first test, and can traverse multiple notes before
+    // a single callback.
+    bool uiPassed = true;
+    for (const auto& item : cases)
+    {
+        std::filesystem::path outputPath;
+        const std::filesystem::path* outputPtr = nullptr;
+        if (!outputDirectory.empty())
+        {
+            outputPath = outputDirectory
+                / (std::string("processor_ui_click_drag_")
+                   + item.name + ".wav");
+            outputPtr = &outputPath;
+        }
+        if (!runUiAuditionRegression(
+                item.index, item.openNote, outputPtr))
+            uiPassed = false;
+    }
+
+    if (!uiPassed)
+        return EXIT_FAILURE;
+
     std::cout
-        << "PASS processor bow-first fingering regression on G/D/A/E\n";
+        << "PASS processor MIDI and GUI click/drag fingering on G/D/A/E\n";
     return EXIT_SUCCESS;
 }
