@@ -837,6 +837,31 @@ FiddleModelAudioProcessorEditor::FiddleModelAudioProcessorEditor(
         "Latch the current left-hand fingering. Sustain pedal (CC64) controls the same effective hold state.");
     addAndMakeVisible(fingeringHoldButton_);
 
+    // JUCE Standalone can restore parameter values saved by an older build,
+    // silently overriding newer physical bow defaults. Expose an explicit
+    // one-click reference reset so live GUI audition can be compared with the
+    // clean Processor regression using identical material and bow controls.
+    resetAuditionButton_.setTooltip(
+        "Restore all reference test defaults, including physical bow controls,"
+        " materials, String Focus, Play Mode and output level. This also"
+        " overrides any parameters restored from an older Standalone session.");
+    resetAuditionButton_.onClick = [this]
+    {
+        auto& state = processor_.parameterState();
+        constexpr std::array<const char*, 16> ids {
+            "playMode", "pressure", "speed", "attack",
+            "position", "balance", "vibratoWidth", "vibratoPace",
+            "fingeringHold", "strokeMode", "bodyMaterial",
+            "bowMaterial", "contactMaterial", "stringMaterial",
+            "bendRange", "outputLevelDb"
+        };
+        for (const auto* id : ids)
+            if (auto* parameter = state.getParameter(id))
+                parameter->setValueNotifyingHost(
+                    parameter->getDefaultValue());
+    };
+    addAndMakeVisible(resetAuditionButton_);
+
     addAndMakeVisible(instrumentView_);
     addAndMakeVisible(playKeyMap_);
     playKeyMap_.setTooltip(
@@ -1013,6 +1038,8 @@ void FiddleModelAudioProcessorEditor::resized()
     playMode_.setBounds(playModeRow.removeFromLeft(180).reduced(4, 7));
     fingeringHoldButton_.setBounds(
         playModeRow.removeFromLeft(150).reduced(8, 9));
+    resetAuditionButton_.setBounds(
+        playModeRow.removeFromLeft(128).reduced(5, 6));
     playModeGuide_.setBounds(playModeRow.reduced(8, 3));
 
     playKeyMap_.setBounds(area.removeFromTop(108).reduced(4, 2));
