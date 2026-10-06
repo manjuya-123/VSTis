@@ -255,6 +255,76 @@ bool writeMonoWav(const std::filesystem::path& path,
     return static_cast<bool>(out);
 }
 
+// The direct engine onset probe can show excellent G/D fundamentals while
+// the real MIDI Processor route still produces a weak first note. Sweep the
+// *actual* C2-first Processor path (including JUCE parameter/gesture routing)
+// so tuning is based on its measured sound, not on a simplified engine setup.
+void printProcessorBowOnsetProbe(int stringIndex,
+                                float pressure,
+                                float speed,
+                                float attack,
+                                float position)
+{
+    FiddleModelAudioProcessor processor;
+    processor.prepareToPlay(sampleRate, blockSize);
+    for (auto* parameter : processor.getParameters())
+    {
+        const auto name = parameter->getName(64);
+        if (name == "Bow Pressure")
+            parameter->setValueNotifyingHost(pressure);
+        else if (name == "Bow Speed")
+            parameter->setValueNotifyingHost(speed);
+        else if (name == "Bow Response")
+            parameter->setValueNotifyingHost(attack);
+        else if (name == "Bow Contact")
+            parameter->setValueNotifyingHost(position);
+    }
+
+    const auto downBow = juce::MidiMessage::noteOn(1, 36, 0.85f);
+    std::vector<float> discard;
+    renderBlocks(processor, 4, discard, &downBow);
+
+    const int note = stringIndex == 0 ? 55 : 62;
+    juce::AudioBuffer<float> eventBuffer(2, blockSize);
+    juce::MidiBuffer events;
+    events.addEvent(juce::MidiMessage::noteOn(1, note, 0.82f), 96);
+    processor.processBlock(eventBuffer, events);
+
+    std::vector<float> segment;
+    appendBlock(eventBuffer, segment);
+    renderBlocks(processor, 52, segment);
+
+    const auto target = static_cast<double>(midiToHz(note));
+    const auto neighbour = static_cast<double>(midiToHz(note + 7));
+    double firstEightPower = 0.0;
+    double firstThreePower = 0.0;
+    for (int harmonic = 1; harmonic <= 8; ++harmonic)
+    {
+        const auto power = tonePower(segment, target * harmonic);
+        firstEightPower += power;
+        if (harmonic <= 3)
+            firstThreePower += power;
+    }
+    const auto fundamental =
+        tonePower(segment, target) / (firstEightPower + 1.0e-30);
+    const auto lowThree =
+        firstThreePower / (firstEightPower + 1.0e-30);
+    const auto unsharedAdvantage = 10.0 * std::log10(
+        (unsharedHarmonicCombPower(segment, target, neighbour) + 1.0e-30)
+        / (unsharedHarmonicCombPower(segment, neighbour, target) + 1.0e-30));
+
+    std::cout << "processor_bow_onset_sweep"
+              << " string=" << stringIndex
+              << " pressure=" << pressure
+              << " speed=" << speed
+              << " attack=" << attack
+              << " position=" << position
+              << " fundamental_fraction=" << fundamental
+              << " low3_fraction=" << lowThree
+              << " target_vs_upper_unshared_db=" << unsharedAdvantage
+              << '\\n';
+}
+
 bool checkPitch(const std::vector<float>& segment,
                 int note,
                 int openNote,
@@ -542,6 +612,30 @@ int main(int argc, char** argv)
     };
 
     bool allStringsPassed = true;
+    // Diagnostic-only (no pass/fail threshold changes): identify parameter
+    // ranges where the real Processor begins with a strong pitched low string.
+    // One parameter varies at a time so physical causes stay interpretable.
+    constexpr float probeControls[][4] {
+        { 0.50f, 0.50f, 0.50f, 0.45f },
+        { 0.50f, 0.50f, 0.35f, 0.45f },
+        { 0.50f, 0.50f, 0.65f, 0.45f },
+        { 0.50f, 0.50f, 0.80f, 0.45f },
+        { 0.50f, 0.35f, 0.50f, 0.45f },
+        { 0.50f, 0.40f, 0.50f, 0.45f },
+        { 0.50f, 0.60f, 0.50f, 0.45f },
+        { 0.50f, 0.75f, 0.50f, 0.45f },
+        { 0.35f, 0.50f, 0.50f, 0.45f },
+        { 0.65f, 0.50f, 0.50f, 0.45f },
+        { 0.80f, 0.50f, 0.50f, 0.45f },
+        { 0.50f, 0.50f, 0.50f, 0.30f },
+        { 0.50f, 0.50f, 0.50f, 0.35f },
+        { 0.50f, 0.50f, 0.50f, 0.55f }
+    };
+    for (int lowString = 0; lowString <= 1; ++lowString)
+        for (const auto& c : probeControls)
+            printProcessorBowOnsetProbe(
+                lowString, c[0], c[1], c[2], c[3]);
+
     for (const auto& item : cases)
     {
         std::filesystem::path outputPath;
