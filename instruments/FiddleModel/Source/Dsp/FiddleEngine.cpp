@@ -1321,18 +1321,8 @@ struct FiddleEngine::Impl
                 // physical string identity and material-colour separation.
                 // Preserve the validated contact path while diagnosing the
                 // reported apparent two-layer sound using isolated probes.
-                // A bowed string has a broadband *contact* component in
-                // addition to its Helmholtz-like harmonic motion. The
-                // microscopic hair/rosin surface field already drives the
-                // real travelling-wave junction, but its original velocity
-                // was too faint to be heard next to an almost perfectly
-                // repeating pitched waveform. Increase only that physical
-                // junction excitation; never mix noise or oscillators at
-                // the audio output. The slip/contact envelope still governs
-                // when texture exists, and the rest of the mechanics are
-                // unchanged so pitch capture remains the acceptance gate.
                 rosinNoiseVelocity =
-                    0.0000120
+                    0.0000032
                     * rosinNoiseEnvelope[i]
                     * colouredNoise
                     + transitionVelocity;
