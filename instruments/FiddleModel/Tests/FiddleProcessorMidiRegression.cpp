@@ -127,11 +127,27 @@ double harmonicCombPower(const std::vector<float>& x, double fundamental)
     return power;
 }
 
-// Fifth-related G/D/A/E fundamentals share real harmonics at e.g. 588 Hz
-// (G3 harmonic 3 == D4 harmonic 2). Those shared partials cannot prove that
-// either string is being bowed. Compare only the non-overlapping comb lines
-// when evaluating unwanted neighbour dominance. The same +8 dB requirement
-// still applies to the string-specific spectral evidence.
+// Fifth-related G/D/A/E strings share real partials at multiples of
+// 588 Hz. Do NOT stop comparing the other string at its eighth harmonic:
+// D4 harmonic 6 (~1762 Hz) is G3 harmonic 9, and D4 harmonic 8 (~2349 Hz)
+// is G3 harmonic 12. Both are excluded from the unshared evidence even
+// though this metric measures only each candidate's first eight lines.
+// The +8 dB *unshared* string-identity acceptance floor stays unchanged.
+bool overlapsOtherStringHarmonic(double frequency,
+                                 double otherFundamental)
+{
+    if (frequency <= 0.0 || otherFundamental <= 0.0)
+        return false;
+
+    const auto nearest = std::llround(frequency / otherFundamental);
+    if (nearest < 1
+        || nearest * otherFundamental >= 0.45 * sampleRate)
+        return false;
+
+    return std::abs(frequency - nearest * otherFundamental)
+        <= std::max(2.0, 0.005 * frequency);
+}
+
 double unsharedHarmonicCombPower(const std::vector<float>& x,
                                  double fundamental,
                                  double otherFundamental)
@@ -143,18 +159,8 @@ double unsharedHarmonicCombPower(const std::vector<float>& x,
         if (frequency >= 0.45 * sampleRate)
             break;
 
-        bool overlapsOther = false;
-        for (int otherHarmonic = 1; otherHarmonic <= 8; ++otherHarmonic)
-        {
-            const auto otherFrequency = otherFundamental * otherHarmonic;
-            if (std::abs(frequency - otherFrequency)
-                <= std::max(2.0, 0.005 * frequency))
-            {
-                overlapsOther = true;
-                break;
-            }
-        }
-        if (!overlapsOther)
+        if (!overlapsOtherStringHarmonic(
+                frequency, otherFundamental))
             power += tonePower(x, frequency)
                 / std::sqrt(static_cast<double>(harmonic));
     }
@@ -694,6 +700,19 @@ bool runUiAuditionRegression(int stringIndex,
 
 int main(int argc, char** argv)
 {
+    // Guard the G/D harmonic-aliasing trap that produced false "open D"
+    // failures in the actual GUI WAV while the 9th/12th G partials were
+    // strongly radiating near 1.76/2.35 kHz.
+    const auto g3 = static_cast<double>(midiToHz(55));
+    const auto d4 = static_cast<double>(midiToHz(62));
+    if (!overlapsOtherStringHarmonic(8.0 * d4, g3)
+        || !overlapsOtherStringHarmonic(6.0 * d4, g3)
+        || overlapsOtherStringHarmonic(7.0 * d4, g3))
+    {
+        std::cerr << "FAIL: adjacent-string harmonic ownership regression\n";
+        return EXIT_FAILURE;
+    }
+
     const std::filesystem::path outputDirectory =
         argc >= 2
             ? std::filesystem::path(argv[1])
