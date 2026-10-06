@@ -237,40 +237,53 @@ bool checkPitch(const std::vector<float>& segment,
         estimateDominantPitch(segment, lowHz, highHz);
     const auto cents = centsBetween(measured, target);
 
+    const auto targetPower =
+        harmonicCombPower(segment, target);
+
+    double firstEightPower = 0.0;
+    double lowThreePower = 0.0;
+    for (int harmonic = 1; harmonic <= 8; ++harmonic)
+    {
+        const auto power = tonePower(segment, target * harmonic);
+        firstEightPower += power;
+        if (harmonic <= 3)
+            lowThreePower += power;
+    }
+    const auto lowThreeFraction =
+        lowThreePower / (firstEightPower + 1.0e-30);
+
     double combAdvantageDb = 99.0;
     double previousCombAdvantageDb = 99.0;
     double adjacentCombAdvantageDb = 99.0;
     if (note != openNote)
     {
-        const auto targetPower =
-            harmonicCombPower(segment, target);
         const auto staleOpenPower =
             harmonicCombPower(segment, openHz);
         combAdvantageDb = 10.0 * std::log10(
             (targetPower + 1.0e-30)
             / (staleOpenPower + 1.0e-30));
+    }
 
-        if (previousNote >= 0 && previousNote != note)
-        {
-            const auto previousHz =
-                static_cast<double>(midiToHz(previousNote));
-            const auto previousPower =
-                harmonicCombPower(segment, previousHz);
-            previousCombAdvantageDb = 10.0 * std::log10(
-                (targetPower + 1.0e-30)
-                / (previousPower + 1.0e-30));
-        }
+    if (previousNote >= 0 && previousNote != note)
+    {
+        const auto previousHz =
+            static_cast<double>(midiToHz(previousNote));
+        const auto previousPower =
+            harmonicCombPower(segment, previousHz);
+        previousCombAdvantageDb = 10.0 * std::log10(
+            (targetPower + 1.0e-30)
+            / (previousPower + 1.0e-30));
+    }
 
-        if (upperAdjacentOpenNote >= 0)
-        {
-            const auto adjacentOpenHz =
-                static_cast<double>(midiToHz(upperAdjacentOpenNote));
-            const auto adjacentOpenPower =
-                harmonicCombPower(segment, adjacentOpenHz);
-            adjacentCombAdvantageDb = 10.0 * std::log10(
-                (targetPower + 1.0e-30)
-                / (adjacentOpenPower + 1.0e-30));
-        }
+    if (upperAdjacentOpenNote >= 0)
+    {
+        const auto adjacentOpenHz =
+            static_cast<double>(midiToHz(upperAdjacentOpenNote));
+        const auto adjacentOpenPower =
+            harmonicCombPower(segment, adjacentOpenHz);
+        adjacentCombAdvantageDb = 10.0 * std::log10(
+            (targetPower + 1.0e-30)
+            / (adjacentOpenPower + 1.0e-30));
     }
 
     std::cout << "processor_bow_first_pitch"
@@ -284,17 +297,19 @@ bool checkPitch(const std::vector<float>& segment,
               << previousCombAdvantageDb
               << " target_vs_upper_adjacent_comb_db="
               << adjacentCombAdvantageDb
+              << " low3_fraction=" << lowThreeFraction
               << '\n';
 
-    // Player-reported low-string failure mode: a stopped G/D note could be
-    // present but sit behind a nearly fixed neighbouring open string. Keep
-    // ordinary sympathetic coupling, but in monophonic single-string play the
-    // stopped-note comb must remain perceptually in front of that neighbour.
+    // Player-reported failure mode: low strings can contain the requested
+    // pitch yet perceptually split into a fixed bowed/body sound plus a weak
+    // pitch core. Guard both causes directly: the target comb must beat the
+    // neighbouring open string even for an open primary string, and G/D must
+    // keep meaningful energy in their first three note-locked harmonics.
     return std::abs(cents) <= 10.0
         && (note == openNote || combAdvantageDb >= 3.0)
-        && (note == openNote
-            || upperAdjacentOpenNote < 0
-            || adjacentCombAdvantageDb >= 8.0);
+        && (upperAdjacentOpenNote < 0
+            || adjacentCombAdvantageDb >= 8.0)
+        && (stringIndex > 1 || lowThreeFraction >= 0.25);
 }
 
 bool runStringSequence(int stringIndex,
