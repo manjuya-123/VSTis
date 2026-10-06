@@ -106,6 +106,7 @@ private:
     juce::ComboBox playMode_;
     juce::Label playModeGuide_;
     juce::ToggleButton fingeringHoldButton_ { "Fingering Hold" };
+    juce::TextButton resetAuditionButton_ { "Reset Audition" };
     juce::Label strokeLabel_;
     juce::ComboBox strokeMode_;
     juce::Label bodyMaterialLabel_;
