@@ -973,20 +973,28 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
     auto controls = baseControls_;
     controls.singleStringIsolation = 0.0f;
 
-    // Compare the actual GUI audition to physical bow parameter sweeps,
-    // rather than the independently prepared MIDI bow-first render. Four
-    // (44.1k/48k x click/drag) G and D measurements found that raw bow
-    // pressure=0.40 and bow contact=0.34 prevent the 9th-16th partials
-    // from masking the low string core. G's optimum raw bow speed was 0.62,
-    // while D's was 0.50. These MONOTONIC curves pass exactly through those
-    // reference values at the GUI default controls 0.5/0.5/0.45, leave the
-    // player-facing 0 and 1 endpoints unchanged, and tune the actual
-    // physical bow force, travel and contact position (never output EQ).
+    const auto activeAction = static_cast<fiddle::BowAction>(
+        visualBowAction_.load(std::memory_order_relaxed));
+    const bool monoMelodicBow =
+        playModeAutoFocusEnabled_
+        && !playModeFocusOverride_
+        && (activeAction == fiddle::BowAction::DownBow
+            || activeAction == fiddle::BowAction::UpBow);
+
+    // Long, genuine 1.45-second bow-held MIDI notes exposed an audible
+    // failure that the 0.28-second onset regression had not tested:
+    // on G, MIDI's low-three-harmonic fraction fell to 0.13..0.26 while
+    // the GUI's physical bow parameters kept it around 0.76..0.89.
+    // Use the same endpoint-preserving PHYSICAL bow-pressure / speed /
+    // contact curves for both monophonic MIDI and GUI performances, not
+    // a private "good-sounding" GUI audition branch. This changes neither
+    // the output signal nor the user's control endpoints.
     //
-    // While a GUI bow is armed before the first fingering, resolve its intended
-    // physical string from the desired GUI note. The preparation therefore
-    // primes the same bow parameters that will reach the first string.
-    if (uiAuditionBowActive_)
+    // When a GUI bow is armed before its first note, infer the intended
+    // string from the pending GUI fingering and prime the identical
+    // physical control states before contact. The MIDI bow-first pathway
+    // applies this calibration when the first fingering actually arrives.
+    if (uiAuditionBowActive_ || monoMelodicBow)
     {
         auto uiPrimary = playModePreferredPrimaryString_;
         if (uiPrimary < 0)
@@ -1025,13 +1033,7 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
     // core and suppresses adjacent D, while the D bow needs a lighter normal
     // load and quicker acceleration. These are physical bow commands, not an
     // extra oscillator, output EQ or a note-dependent audio gain.
-    const auto activeAction = static_cast<fiddle::BowAction>(
-        visualBowAction_.load(std::memory_order_relaxed));
-    const bool monoMelodicBow =
-        playModeAutoFocusEnabled_
-        && !playModeFocusOverride_
-        && (activeAction == fiddle::BowAction::DownBow
-            || activeAction == fiddle::BowAction::UpBow);
+
     const auto primary = std::clamp(
         playModePreferredPrimaryString_, 0, 3);
     if (monoMelodicBow)
