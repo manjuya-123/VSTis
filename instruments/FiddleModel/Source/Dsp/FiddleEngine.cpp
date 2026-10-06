@@ -556,6 +556,33 @@ struct FiddleEngine::Impl
         refreshBridgeLoadPhaseDelay(primary, requested);
     }
 
+    void primeUncontactedBowGesture(double seconds) noexcept
+    {
+        // A held MIDI bow action prepares its force/travel/response controls
+        // while no string is selected. Standalone's mouse audition instead
+        // sends bow and fingering together, otherwise meeting the string
+        // before those physical controls have settled. Advance *only* their
+        // uncontacted controller states through the same pre-bow preparation
+        // interval. Do not advance the waveguide, rosin surface or time-domain
+        // audio; the musician has only prepared the bow before contact.
+        if (gate.target > 0.5)
+            return;
+
+        const auto steps = static_cast<int>(
+            std::clamp(seconds, 0.0, 0.040) * sampleRate);
+        for (int step = 0; step < steps; ++step)
+        {
+            pressure.next();
+            speed.next();
+            attack.next();
+            position.next();
+            balance.next();
+            singleStringIsolation.next();
+            vibratoWidth.next();
+            vibratoPace.next();
+        }
+    }
+
     void setStrokeBite(double amount, double durationSeconds) noexcept
     {
         strokeBiteAmount = std::clamp(amount, 0.0, 0.80);
@@ -1403,6 +1430,11 @@ void FiddleEngine::setFingeringLayout(const std::array<float, 4>& frequencyHz,
     impl_->setFingeringLayout(frequencyHz, primaryString, bowPairLowerString, velocity);
 }
 void FiddleEngine::retune(float frequencyHz) { impl_->retune(frequencyHz); }
+void FiddleEngine::primeUncontactedBowGesture(float preparationSeconds) noexcept
+{
+    impl_->primeUncontactedBowGesture(preparationSeconds);
+}
+
 void FiddleEngine::setStrokeBite(float amount, float durationSeconds) noexcept
 {
     impl_->setStrokeBite(amount, durationSeconds);
