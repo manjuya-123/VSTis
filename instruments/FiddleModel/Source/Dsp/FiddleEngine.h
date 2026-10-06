@@ -111,6 +111,11 @@ public:
                             float velocity);
     void retune(float frequencyHz);
 
+    // Prepare physical bow controller smoothers before first contact when
+    // a GUI audition presses bow + fingering within one audio block.
+    // No audio is synthesized, no waveguide advances, and no bow moves.
+    void primeUncontactedBowGesture(float preparationSeconds) noexcept;
+
     void setStrokeBite(float amount, float durationSeconds = 0.008f) noexcept;
     void startBow(int direction) noexcept;
     void startShortStroke(int direction,
