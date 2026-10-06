@@ -396,6 +396,7 @@ int main(int argc, char** argv)
     }};
 
     std::ofstream csv;
+    std::ofstream contactCsv;
     if (argc >= 2)
     {
         const std::filesystem::path outputDirectory(argv[1]);
@@ -412,6 +413,16 @@ int main(int argc, char** argv)
             std::cerr << "FAIL: cannot create low-string probe CSV\n";
             return EXIT_FAILURE;
         }
+        contactCsv.open(outputDirectory / "bow_startup_contact.csv");
+        if (!contactCsv)
+        {
+            std::cerr << "FAIL: cannot create contact diagnostics CSV\n";
+            return EXIT_FAILURE;
+        }
+        contactCsv
+            << "case,sticking_fraction,mean_normal_force_n,"
+               "mean_grip_utilization,mean_bow_speed_mps\n"
+            << std::setprecision(9);
         csv
             << "case,point,fundamental_fraction,low3_fraction,"
                "high4to8_fraction,harmonic_comb_power,"
@@ -448,6 +459,14 @@ int main(int argc, char** argv)
             << " mean_grip_utilization=" << startup.meanGripUtilization
             << " mean_bow_speed_mps=" << startup.meanBowSpeedMps
             << '\n';
+        if (contactCsv)
+        {
+            contactCsv << item.name << ','
+                       << startup.stickingFraction << ','
+                       << startup.meanNormalForceN << ','
+                       << startup.meanGripUtilization << ','
+                       << startup.meanBowSpeedMps << '\n';
+        }
 
         const auto incidentMetrics =
             measure(incident, item.targetHz);
