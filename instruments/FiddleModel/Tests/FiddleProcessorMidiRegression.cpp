@@ -15,7 +15,10 @@
 
 namespace
 {
-constexpr double sampleRate = 48000.0;
+// Use the actual audio-device rate for every pitch/spectral calculation.
+// Standalone commonly runs at 44.1 kHz while the original regression only
+// exercised 48 kHz, making otherwise identical gestures sound different.
+double sampleRate = 48000.0;
 constexpr int blockSize = 256;
 
 double correlationAtFrequency(const std::vector<float>& x,
@@ -760,26 +763,34 @@ int main(int argc, char** argv)
     // earlier MIDI-only bow-first test, and can traverse multiple notes before
     // a single callback.
     bool uiPassed = true;
-    for (const auto& item : cases)
+    for (const auto rate : { 48000.0, 44100.0 })
     {
-        std::filesystem::path outputPath;
-        const std::filesystem::path* outputPtr = nullptr;
-        if (!outputDirectory.empty())
+        sampleRate = rate;
+        for (const auto& item : cases)
         {
-            outputPath = outputDirectory
-                / (std::string("processor_ui_click_drag_")
-                   + item.name + ".wav");
-            outputPtr = &outputPath;
+            std::filesystem::path outputPath;
+            const std::filesystem::path* outputPtr = nullptr;
+            if (!outputDirectory.empty())
+            {
+                outputPath = outputDirectory
+                    / (std::string("processor_ui_click_drag_")
+                       + item.name + "_"
+                       + std::to_string(static_cast<int>(rate))
+                       + "hz.wav");
+                outputPtr = &outputPath;
+            }
+            std::cout << "processor_ui_sample_rate=" << rate
+                      << " string=" << item.index << '\n';
+            if (!runUiAuditionRegression(
+                    item.index, item.openNote, outputPtr))
+                uiPassed = false;
         }
-        if (!runUiAuditionRegression(
-                item.index, item.openNote, outputPtr))
-            uiPassed = false;
     }
 
     if (!uiPassed)
         return EXIT_FAILURE;
 
     std::cout
-        << "PASS processor MIDI and GUI click/drag fingering on G/D/A/E\n";
+        << "PASS processor MIDI 48k and GUI click/drag 48k/44.1k on G/D/A/E\n";
     return EXIT_SUCCESS;
 }
