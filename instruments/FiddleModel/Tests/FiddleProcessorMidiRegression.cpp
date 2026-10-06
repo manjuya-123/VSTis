@@ -393,6 +393,7 @@ bool runStringSequence(int stringIndex,
     const auto upperAdjacentOpenNote =
         stringIndex < 3 ? openNote + 7 : -1;
 
+    bool allPitchesPassed = true;
     int previousNote = -1;
     for (int noteIndex = 0; noteIndex < 4; ++noteIndex)
     {
@@ -491,7 +492,10 @@ bool runStringSequence(int stringIndex,
                 << "FAIL: audible dominant pitch/energy did not follow fingering"
                 << " string=" << stringIndex
                 << " note=" << note << '\n';
-            return false;
+            // Continue to collect all fingerings and all strings. Preserve
+            // the original strict overall failure rather than allowing the
+            // first bad open-string note to hide all later evidence.
+            allPitchesPassed = false;
         }
 
         previousNote = note;
@@ -512,7 +516,7 @@ bool runStringSequence(int stringIndex,
         return false;
     }
 
-    return true;
+    return allPitchesPassed;
 }
 } // namespace
 
@@ -537,6 +541,7 @@ int main(int argc, char** argv)
         { 3, 76, "E" }
     };
 
+    bool allStringsPassed = true;
     for (const auto& item : cases)
     {
         std::filesystem::path outputPath;
@@ -551,8 +556,11 @@ int main(int argc, char** argv)
 
         if (!runStringSequence(
                 item.index, item.openNote, outputPtr))
-            return EXIT_FAILURE;
+            allStringsPassed = false;
     }
+
+    if (!allStringsPassed)
+        return EXIT_FAILURE;
 
     std::cout
         << "PASS processor bow-first fingering regression on G/D/A/E\n";
