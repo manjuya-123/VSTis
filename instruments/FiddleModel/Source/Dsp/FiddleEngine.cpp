@@ -866,6 +866,24 @@ struct FiddleEngine::Impl
         const auto pos = position.next();
         const auto bal = balance.next();
         const auto singleIsolation = singleStringIsolation.next();
+
+        // Fiddle Play's Bow Contact is a performance intent, not a literal
+        // identical beta on every string. Thick low strings need a slightly
+        // farther-from-bridge contact for the same ordinary bowed colour;
+        // otherwise the reduced contact/body model over-emphasises upper
+        // partials and the pitch core can sound detached. Warp only the
+        // monophonic isolated contact, preserve 0/1 endpoints, and keep
+        // double-stop/drone geometry untouched.
+        constexpr std::array<double, stringCount> monoContactGamma {
+            1.70, 1.42, 1.14, 1.00
+        };
+        const auto contactGamma =
+            monoContactGamma[static_cast<std::size_t>(
+                std::clamp(primaryString, 0, stringCount - 1))];
+        const auto warpedPos = std::pow(
+            std::clamp(pos, 0.0, 1.0), contactGamma);
+        const auto physicalPos =
+            pos + singleIsolation * (warpedPos - pos);
         const auto vibWidth = vibratoWidth.next();
         const auto vibPace = vibratoPace.next();
         const auto gateValue = gate.next();
@@ -905,7 +923,7 @@ struct FiddleEngine::Impl
         // Only add the extra normal force required as the contact approaches the
         // stiffer bridge region. Reducing the fingerboard force made that end
         // slip/noise-rich rather than genuinely warm.
-        const auto contactForceCompensation = 1.00 + 0.55 * pos;
+        const auto contactForceCompensation = 1.00 + 0.55 * physicalPos;
         double strokeBiteGain = 1.0;
         if (strokeBiteSamplesRemaining > 0 && strokeBiteTotalSamples > 0)
         {
@@ -927,7 +945,7 @@ struct FiddleEngine::Impl
             * strokeBiteGain
             * gateValue
             * oneShotLiftGain;
-        const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
+        const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * physicalPos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection)
@@ -1170,14 +1188,14 @@ struct FiddleEngine::Impl
                 const auto speedColour = std::clamp(
                     std::abs(bowSpeed) / 0.65, 0.0, 1.0);
                 const auto brightness = std::clamp(
-                    0.16 + 0.60 * pos + 0.10 * speedColour,
+                    0.16 + 0.60 * physicalPos + 0.10 * speedColour,
                     0.0, 0.92);
                 const auto colouredNoise =
                     (1.0 - brightness) * 0.58 * rawNoise
                     + brightness * 0.34 * differentiated;
 
                 const auto roughnessDepth =
-                    0.008 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                    0.008 * rosinNoiseScale * (0.85 + 0.30 * physicalPos);
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
                 const auto localStaticGrip =
@@ -1237,7 +1255,7 @@ struct FiddleEngine::Impl
                         + 0.007
                             * (contacts[i].contactTemperatureC() - 20.0),
                     0.72, 1.20);
-                const auto positionLevel = 0.86 + 0.18 * pos;
+                const auto positionLevel = 0.86 + 0.18 * physicalPos;
 
                 const auto targetEnvelope =
                     rosinNoiseScale
@@ -1269,7 +1287,7 @@ struct FiddleEngine::Impl
                     * std::clamp(
                         0.55 + 0.65 * bowSpeedScale,
                         0.55, 1.35)
-                    * (0.84 + 0.28 * pos)
+                    * (0.84 + 0.28 * physicalPos)
                     * transitionTexture;
 
                 rosinNoiseVelocity =
