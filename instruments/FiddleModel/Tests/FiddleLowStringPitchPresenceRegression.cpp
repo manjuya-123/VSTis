@@ -206,6 +206,10 @@ void renderProbe(int stringIndex,
                  int pairLower,
                  float balance,
                  float targetHz,
+                 float pressure,
+                 float speed,
+                 float position,
+                 bool bowCatch,
                  std::vector<float>& incident,
                  std::vector<float>& injection,
                  std::vector<float>& radiated)
@@ -214,10 +218,10 @@ void renderProbe(int stringIndex,
     engine.prepare(sampleRate);
 
     fiddle::Controls controls;
-    controls.pressure = 0.55f;
-    controls.speed = 0.60f;
+    controls.pressure = pressure;
+    controls.speed = speed;
     controls.attack = 0.55f;
-    controls.position = 0.45f;
+    controls.position = position;
     controls.balance = balance;
     controls.singleStringIsolation = 1.0f;
     controls.vibratoWidth = 0.0f;
@@ -228,6 +232,8 @@ void renderProbe(int stringIndex,
     layout[static_cast<std::size_t>(stringIndex)] = targetHz;
     engine.setFingeringLayout(
         layout, stringIndex, pairLower, 0.85f);
+    if (bowCatch)
+        engine.setStrokeBite(0.064f, 0.007f);
     engine.startBow(+1);
 
     const auto totalSamples =
@@ -284,20 +290,36 @@ int main(int argc, char** argv)
         float balance;
         float targetHz;
         bool diagnosticOnly;
+        float pressure = 0.55f;
+        float speed = 0.60f;
+        float position = 0.45f;
+        bool bowCatch = false;
     };
 
-    // Include real open-string reference notes. Earlier low-string probes
-    // covered stopped notes but missed the particularly weak D4 open-string
-    // pitch core heard in the end-to-end Processor audition. Do not infer a
-    // suitable new pass/fail threshold until the physical-path data is known.
-    // The established four stopped-note gates are unchanged.
-    constexpr std::array<Case, 6> cases {{
+    // Compare the validated reference controls with individual Play defaults
+    // and their combined physical bow gesture. This diagnoses why identical
+    // G/D speaking lengths can sound pitched in the direct engine probe but
+    // bright and detached in the actual Processor MIDI audition. All original
+    // stopped-note acceptance conditions remain unchanged.
+    constexpr std::array<Case, 12> cases {{
         { "G_open3", 0, 0, -0.95f, 195.9977f, true },
         { "G_Gsharp3", 0, 0, -0.95f, 207.65235f, false },
         { "D_open4", 1, 1, -0.95f, 293.6648f, true },
         { "D_E4", 1, 1, -0.95f, 329.62756f, false },
         { "A_Bflat4", 2, 2, -0.95f, 466.16376f, false },
-        { "E_F5", 3, 2, +0.95f, 698.45646f, false }
+        { "E_F5", 3, 2, +0.95f, 698.45646f, false },
+        { "G_open3_position050", 0, 0, -0.95f, 195.9977f,
+          true, 0.55f, 0.60f, 0.50f, false },
+        { "D_open4_position050", 1, 1, -0.95f, 293.6648f,
+          true, 0.55f, 0.60f, 0.50f, false },
+        { "G_open3_pressure0504", 0, 0, -0.95f, 195.9977f,
+          true, 0.504f, 0.60f, 0.45f, false },
+        { "D_open4_pressure0529", 1, 1, -0.95f, 293.6648f,
+          true, 0.529f, 0.60f, 0.45f, false },
+        { "G_open3_play_bow", 0, 0, -0.95f, 195.9977f,
+          true, 0.504f, 0.598f, 0.50f, true },
+        { "D_open4_play_bow", 1, 1, -0.95f, 293.6648f,
+          true, 0.529f, 0.598f, 0.50f, true }
     }};
 
     std::ofstream csv;
@@ -335,6 +357,10 @@ int main(int argc, char** argv)
             item.pairLower,
             item.balance,
             item.targetHz,
+            item.pressure,
+            item.speed,
+            item.position,
+            item.bowCatch,
             incident,
             injection,
             radiated);
