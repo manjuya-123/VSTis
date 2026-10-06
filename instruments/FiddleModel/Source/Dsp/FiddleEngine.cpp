@@ -206,12 +206,7 @@ struct FiddleEngine::Impl
         gate.reset(0.0);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
-        {
             speakingFrequency[i].reset(openFrequency[i]);
-            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
-                sampleRate, openFrequency[i], runtimeLossGain[i],
-                lossAlpha[i], runtimeAllpassA[i]);
-        }
         fastFingeringSamplesRemaining.fill(0);
 
         velocityScale = 1.0;
@@ -1012,9 +1007,6 @@ struct FiddleEngine::Impl
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
-            // Preserve the established physical contact geometry; the
-            // short-speaking-length stiffness and finger-pad loss are now
-            // applied to the boundary instead of retuning the bow position.
             auto oneWay =
                 sampleRate / (2.0 * currentFrequency[i])
                 - 0.5 * (
@@ -1154,23 +1146,8 @@ struct FiddleEngine::Impl
             double fingerTerminationGain = 1.0;
             if (fingered)
             {
-                // The fingertip is a compliant, dissipative termination:
-                // stronger transverse wave impacts transmit a little more
-                // energy into the soft pad than weak vibration. This is
-                // *nonlinear boundary dissipation*, not an audio effect or
-                // a separate oscillator. Keep the established allpass
-                // dispersion calibration: tiny stiffness changes had
-                // switched D-E4 into the wrong stick/slip harmonic regime.
-                const auto shortenedFraction = std::clamp(
-                    1.0 - openFrequency[i]
-                        / std::max(speakingFrequency[i].target,
-                                   openFrequency[i]), 0.0, 1.0);
-                const auto contactSpeed = std::abs(incidentNut[i]);
-                const auto padDeformation = contactSpeed
-                    / (0.035 + contactSpeed);
                 fingerTerminationGain =
-                    0.9975 * (1.0 - 0.0060 * fingerTouch[i])
-                    * (1.0 - 0.009 * shortenedFraction * padDeformation);
+                    0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
                 const auto touchDecay =
                     std::exp(-1.0 / (sampleRate * 0.005));
                 fingerTouch[i] *= touchDecay;
