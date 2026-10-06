@@ -1213,7 +1213,7 @@ struct FiddleEngine::Impl
                     std::max(0.0, bridgeDelay[i] - 1.3),
                     std::max(0.0, nutDelay[i] - 1.3)
                 });
-            const auto patchAverageVelocity = 0.5 * (
+            const auto patchAverageVelocity = 0.25 * (
                 fromBridge[i].read(
                     bridgeDelay[i] - contactHalfWidthSamples)
                 + fromBridge[i].read(
