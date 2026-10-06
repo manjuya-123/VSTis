@@ -322,7 +322,7 @@ void printProcessorBowOnsetProbe(int stringIndex,
               << " fundamental_fraction=" << fundamental
               << " low3_fraction=" << lowThree
               << " target_vs_upper_unshared_db=" << unsharedAdvantage
-              << '\\n';
+              << '\n';
 }
 
 bool checkPitch(const std::vector<float>& segment,
