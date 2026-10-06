@@ -345,7 +345,12 @@ FiddleModelAudioProcessor::createParameterLayout()
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "attack", "Bow Response", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "position", "Bow Contact", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+        // Default a little toward the fingerboard: with the reduced
+        // low-string contact model, 0.50 excites an excessive 6th/8th-partial
+        // regime on open G/D. 0.45 keeps the physical fundamental/low
+        // harmonics in front without processing the output or affecting the
+        // full playable range of the Bow Contact control.
+        "position", "Bow Contact", juce::NormalisableRange<float>(0.0f, 1.0f), 0.45f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "balance", "String Focus", juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
