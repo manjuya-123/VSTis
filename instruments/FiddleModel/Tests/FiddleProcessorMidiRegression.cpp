@@ -355,16 +355,28 @@ bool checkPitch(const std::vector<float>& segment,
         harmonicCombPower(segment, target);
 
     double firstEightPower = 0.0;
+    double firstSixteenPower = 0.0;
     double lowThreePower = 0.0;
-    for (int harmonic = 1; harmonic <= 8; ++harmonic)
+    for (int harmonic = 1; harmonic <= 16; ++harmonic)
     {
+        if (target * harmonic >= 0.45 * sampleRate)
+            break;
         const auto power = tonePower(segment, target * harmonic);
-        firstEightPower += power;
+        firstSixteenPower += power;
+        if (harmonic <= 8)
+            firstEightPower += power;
         if (harmonic <= 3)
             lowThreePower += power;
     }
     const auto lowThreeFraction =
         lowThreePower / (firstEightPower + 1.0e-30);
+    // The original eight-line denominator overlooks the deliberately strong
+    // 9th-12th string harmonics around the 2 kHz bridge hill. In a GUI G3
+    // onset, low3/8 can look healthy (>0.6) while low3/16 is <0.25 and the
+    // player hears only a weak moving pitch behind a nearly fixed bright
+    // bowed timbre. Measure both without dropping the old acceptance gate.
+    const auto lowThreeWithinSixteenFraction =
+        lowThreePower / (firstSixteenPower + 1.0e-30);
 
     double combAdvantageDb = 99.0;
     double previousCombAdvantageDb = 99.0;
@@ -425,6 +437,7 @@ bool checkPitch(const std::vector<float>& segment,
               << " fundamental_fraction="
               << tonePower(segment, target) / (firstEightPower + 1.0e-30)
               << " low3_fraction=" << lowThreeFraction
+              << " low3_over16_fraction=" << lowThreeWithinSixteenFraction
               << '\n';
 
     // Player-reported failure mode: low strings can contain the requested
@@ -436,7 +449,9 @@ bool checkPitch(const std::vector<float>& segment,
         && (note == openNote || combAdvantageDb >= 3.0)
         && (upperAdjacentOpenNote < 0
             || adjacentUnsharedCombAdvantageDb >= 8.0)
-        && (stringIndex > 1 || lowThreeFraction >= 0.25);
+        && (stringIndex > 1
+            || (lowThreeFraction >= 0.25
+                && lowThreeWithinSixteenFraction >= 0.25));
 }
 
 bool runStringSequence(int stringIndex,
