@@ -606,6 +606,14 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
     if (playModeBowArmed_)
     {
+        // Prime the physical force/speed/position smoothers only for a MIDI
+        // G-string first contact. GUI has already primed its audition bow.
+        // This avoids the incompatible pre-fingering control ramp that made
+        // the MIDI low G string lose its voiced core over held notes.
+        if (!uiAuditionBowActive_
+            && playModePreferredPrimaryString_ == 0)
+            engine_.primeUncontactedBowGesture(0.02133f);
+
         const auto armedAction =
             fiddle::bowActionForMidiNote(activeBowActionNote_);
 
@@ -986,7 +994,20 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
     // While a GUI bow is armed before the first fingering, resolve its intended
     // physical string from the desired GUI note. The preparation therefore
     // primes the same bow parameters that will reach the first string.
-    if (uiAuditionBowActive_)
+    // Use the same measured G-string physical bow gesture on MIDI C2
+    // melodies as on the GUI key map. The old MIDI-only G calibration settled
+    // into a strong 9th-16th-partial regime during 1.45s notes. Do not extend
+    // the adjustment to D: doing so failed D's sustained-note regression.
+    const auto visualAction = static_cast<fiddle::BowAction>(
+        visualBowAction_.load(std::memory_order_relaxed));
+    const bool midiMelodicG =
+        !uiAuditionBowActive_
+        && playModeAutoFocusEnabled_
+        && !playModeFocusOverride_
+        && playModePreferredPrimaryString_ == 0
+        && (visualAction == fiddle::BowAction::DownBow
+            || visualAction == fiddle::BowAction::UpBow);
+    if (uiAuditionBowActive_ || midiMelodicG)
     {
         auto uiPrimary = playModePreferredPrimaryString_;
         if (uiPrimary < 0)
