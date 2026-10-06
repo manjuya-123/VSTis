@@ -23,8 +23,49 @@ struct ProbeMetrics
     double harmonicCombPower = 0.0;
     double fixedBodyFormantPower = 0.0;
     double movingVsFixedDb = 0.0;
+    double periodicity = 0.0;
+    double harmonicLineFraction = 0.0;
     int strongestHarmonic = 1;
 };
+
+double periodicityAtFrequency(const std::vector<float>& x,
+                              std::size_t begin,
+                              std::size_t end,
+                              double frequency)
+{
+    begin = std::min(begin, x.size());
+    end = std::min(end, x.size());
+    if (frequency <= 0.0 || end <= begin + 100)
+        return 0.0;
+
+    const auto lag = sampleRate / frequency;
+    const auto lagInt = static_cast<std::size_t>(std::floor(lag));
+    const auto frac = lag - static_cast<double>(lagInt);
+    if (begin + lagInt + 2 >= end)
+        return 0.0;
+
+    double mean = 0.0;
+    for (std::size_t i = begin; i < end; ++i)
+        mean += x[i];
+    mean /= static_cast<double>(end - begin);
+
+    double dot = 0.0;
+    double aa = 0.0;
+    double bb = 0.0;
+    const auto last = end - lagInt - 1;
+    for (std::size_t i = begin; i < last; ++i)
+    {
+        const auto a = static_cast<double>(x[i]) - mean;
+        const auto d0 = static_cast<double>(x[i + lagInt]) - mean;
+        const auto d1 = static_cast<double>(x[i + lagInt + 1]) - mean;
+        const auto b = (1.0 - frac) * d0 + frac * d1;
+        dot += a * b;
+        aa += a * a;
+        bb += b * b;
+    }
+
+    return dot / (std::sqrt(aa * bb) + 1.0e-30);
+}
 
 double goertzelPower(const std::vector<float>& x,
                      std::size_t begin,
@@ -114,6 +155,49 @@ ProbeMetrics measure(const std::vector<float>& x,
         10.0 * std::log10(
             (metrics.harmonicCombPower + 1.0e-30)
             / (metrics.fixedBodyFormantPower + 1.0e-30));
+
+    metrics.periodicity =
+        periodicityAtFrequency(x, begin, end, fundamental);
+
+    // Unlike the earlier harmonic fractions, this denominator includes the
+    // entire audible low/mid spectrum. It therefore exposes the player-
+    // reported failure mode where a weak pitched comb sits behind a much
+    // louder bow/string-like broadband component.
+    constexpr std::size_t spectralLength = 4096;
+    const auto spectralBegin =
+        end > spectralLength ? end - spectralLength : begin;
+    const auto spectralEnd =
+        std::min(end, spectralBegin + spectralLength);
+    const auto actualLength = spectralEnd - spectralBegin;
+    double totalSpectralPower = 0.0;
+    double harmonicLinePower = 0.0;
+    if (actualLength >= 512)
+    {
+        const auto binHz =
+            sampleRate / static_cast<double>(actualLength);
+        const auto firstBin = static_cast<int>(std::ceil(80.0 / binHz));
+        const auto lastBin = static_cast<int>(std::floor(8000.0 / binHz));
+
+        for (int bin = firstBin; bin <= lastBin; ++bin)
+        {
+            const auto frequency = static_cast<double>(bin) * binHz;
+            const auto powerAtBin =
+                goertzelPower(x, spectralBegin, spectralEnd, frequency);
+            totalSpectralPower += powerAtBin;
+
+            const auto harmonic =
+                static_cast<int>(std::llround(frequency / fundamental));
+            if (harmonic >= 1 && harmonic <= 16
+                && std::abs(
+                    frequency - fundamental * static_cast<double>(harmonic))
+                    <= 1.5 * binHz)
+            {
+                harmonicLinePower += powerAtBin;
+            }
+        }
+    }
+    metrics.harmonicLineFraction =
+        harmonicLinePower / (totalSpectralPower + 1.0e-30);
     metrics.strongestHarmonic = strongestHarmonic;
     return metrics;
 }
@@ -183,6 +267,8 @@ void printMetrics(const char* name,
         << " harmonic_comb_power=" << m.harmonicCombPower
         << " fixed_body_formant_power=" << m.fixedBodyFormantPower
         << " moving_vs_fixed_db=" << m.movingVsFixedDb
+        << " periodicity=" << m.periodicity
+        << " harmonic_line_fraction=" << m.harmonicLineFraction
         << " strongest_harmonic=" << m.strongestHarmonic
         << '\n';
 }
@@ -227,7 +313,7 @@ int main(int argc, char** argv)
             << "case,point,fundamental_fraction,low3_fraction,"
                "high4to8_fraction,harmonic_comb_power,"
                "fixed_body_formant_power,moving_vs_fixed_db,"
-               "strongest_harmonic\n"
+               "periodicity,harmonic_line_fraction,strongest_harmonic\n"
             << std::setprecision(9);
     }
 
@@ -269,6 +355,8 @@ int main(int argc, char** argv)
                     << m.harmonicCombPower << ','
                     << m.fixedBodyFormantPower << ','
                     << m.movingVsFixedDb << ','
+                    << m.periodicity << ','
+                    << m.harmonicLineFraction << ','
                     << m.strongestHarmonic << '\n';
             };
             write("incident_bridge", incidentMetrics);
@@ -278,7 +366,9 @@ int main(int argc, char** argv)
 
         if (!(std::isfinite(radiatedMetrics.low3Fraction)
               && radiatedMetrics.low3Fraction > 0.0
-              && std::isfinite(radiatedMetrics.movingVsFixedDb)))
+              && std::isfinite(radiatedMetrics.movingVsFixedDb)
+              && std::isfinite(radiatedMetrics.periodicity)
+              && std::isfinite(radiatedMetrics.harmonicLineFraction)))
         {
             std::cerr << "FAIL: low-string probe produced invalid spectrum\n";
             return EXIT_FAILURE;
