@@ -59,6 +59,10 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> bridgeLoadPhaseDelay{};
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
+    // Shorter stopped speaking lengths increase bending stiffness and
+    // hence dispersion. Track the active physical allpass per string instead
+    // of treating every left-hand note as the same ideal scale oscillator.
+    std::array<double, stringCount> speakingAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
     std::array<BowContact, stringCount> contacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
@@ -206,7 +210,13 @@ struct FiddleEngine::Impl
         gate.reset(0.0);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
+        {
             speakingFrequency[i].reset(openFrequency[i]);
+            speakingAllpassA[i] = runtimeAllpassA[i];
+            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
+                sampleRate, openFrequency[i], runtimeLossGain[i],
+                lossAlpha[i], speakingAllpassA[i]);
+        }
         fastFingeringSamplesRemaining.fill(0);
 
         velocityScale = 1.0;
@@ -328,6 +338,27 @@ struct FiddleEngine::Impl
             bridgeReflectionPhaseDelaySamples(stringIndex, frequencyHz);
     }
 
+    void refreshFingeringDispersion(std::size_t stringIndex,
+                                   double requestedHz) noexcept
+    {
+        // For constant string material/tension the effective bending
+        // stiffness (partial inharmonicity) increases as speaking length
+        // shortens. A stopped note should not have perfectly identical
+        // dispersion to its open string. Keep changes bounded so the real
+        // bow/bridge interaction remains stable, and compensate the phase
+        // at the requested fundamental rather than detuning the played note.
+        const auto ratio = std::clamp(
+            requestedHz / openFrequency[stringIndex], 1.0, 2.0);
+        const auto increasedStiffness =
+            1.0 + 0.26 * (ratio * ratio - 1.0);
+        speakingAllpassA[stringIndex] = std::clamp(
+            runtimeAllpassA[stringIndex] * increasedStiffness,
+            -0.20, 0.20);
+        filterPhaseDelay[stringIndex] = reflectionPhaseDelaySamples(
+            sampleRate, requestedHz, runtimeLossGain[stringIndex],
+            lossAlpha[stringIndex], speakingAllpassA[stringIndex]);
+    }
+
     void setMaterials(const MaterialSettings& materials) noexcept
     {
         const bool unchanged =
@@ -440,14 +471,11 @@ struct FiddleEngine::Impl
             runtimeAllpassA[i] = std::clamp(
                 allpassA[i] * dispersionScale, -0.20, 0.20);
 
-            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
-                sampleRate, openFrequency[i],
-                runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
-
             const auto currentTarget =
                 speakingFrequency[i].target > 20.0
                     ? speakingFrequency[i].target
                     : openFrequency[i];
+            refreshFingeringDispersion(i, currentTarget);
             refreshBridgeLoadPhaseDelay(i, currentTarget);
         }
     }
@@ -519,6 +547,7 @@ struct FiddleEngine::Impl
                         static_cast<std::int64_t>(0.012 * sampleRate));
             }
 
+            refreshFingeringDispersion(i, target);
             refreshBridgeLoadPhaseDelay(i, target);
             if (newlyStopped)
                 fingerTouch[i] = 1.0;
@@ -553,6 +582,7 @@ struct FiddleEngine::Impl
         const auto requested = std::clamp(
             frequencyHz, openFrequency[primary], 2500.0);
         speakingFrequency[primary].setTarget(requested);
+        refreshFingeringDispersion(primary, requested);
         refreshBridgeLoadPhaseDelay(primary, requested);
     }
 
@@ -1007,31 +1037,17 @@ struct FiddleEngine::Impl
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
-            const bool stopped =
-                speakingFrequency[i].target > openFrequency[i] * 1.0005;
-            // A stopped string reflects at the fingertip instead of the nut.
-            // Its physical bow-to-bridge distance is almost unchanged by
-            // moving the left hand; the vibrating length on the NUT side of
-            // the bow gets shorter. Previous versions kept beta fixed, which
-            // moved the bowing *point* with every keyboard pitch and made
-            // stopped tones resemble separately synthesised oscillators.
-            //
-            // Keep the established loss/phase calibration while isolating
-            // the bow-to-bridge geometry change for physical regressions.
+            // Preserve the established physical contact geometry; the
+            // short-speaking-length stiffness and finger-pad loss are now
+            // applied to the boundary instead of retuning the bow position.
             auto oneWay =
                 sampleRate / (2.0 * currentFrequency[i])
                 - 0.5 * (
                     filterPhaseDelay[i]
                     + bridgeLoadPhaseDelay[i]);
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
-            const auto openOneWay =
-                sampleRate / (2.0 * openFrequency[i])
-                - 0.5 * (
-                    filterPhaseDelay[i] + bridgeLoadPhaseDelay[i]);
-            // At extreme bends preserve a nonzero finger-side segment.
-            bridgeDelay[i] = std::clamp(
-                openOneWay * beta, 1.2, 0.72 * oneWay);
-            nutDelay[i] = std::max(1.2, oneWay - bridgeDelay[i]);
+            bridgeDelay[i] = std::max(1.2, oneWay * beta);
+            nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
         }
 
         std::array<double, stringCount> incidentBridge{};
@@ -1147,9 +1163,9 @@ struct FiddleEngine::Impl
                 * ((1.0 - lossAlpha[i]) * incidentNut[i] + lossAlpha[i] * lossX1[i]);
             lossX1[i] = incidentNut[i];
 
-            const auto filtered = runtimeAllpassA[i] * lossFiltered
+            const auto filtered = speakingAllpassA[i] * lossFiltered
                                 + allpassX1[i]
-                                - runtimeAllpassA[i] * allpassY1[i];
+                                - speakingAllpassA[i] * allpassY1[i];
             allpassX1[i] = lossFiltered;
             allpassY1[i] = filtered;
 
@@ -1163,8 +1179,23 @@ struct FiddleEngine::Impl
             double fingerTerminationGain = 1.0;
             if (fingered)
             {
+                // The fingertip is a compliant, dissipative termination:
+                // stronger transverse wave impacts transmit a little more
+                // energy into the soft pad than weak vibration. This is
+                // *nonlinear boundary dissipation*, not an audio effect or
+                // a separate oscillator. Stop-dependent bending dispersion
+                // above supplies the different phase history of a shorter
+                // vibrating string.
+                const auto shortenedFraction = std::clamp(
+                    1.0 - openFrequency[i]
+                        / std::max(speakingFrequency[i].target,
+                                   openFrequency[i]), 0.0, 1.0);
+                const auto contactSpeed = std::abs(incidentNut[i]);
+                const auto padDeformation = contactSpeed
+                    / (0.035 + contactSpeed);
                 fingerTerminationGain =
-                    0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
+                    0.9975 * (1.0 - 0.0060 * fingerTouch[i])
+                    * (1.0 - 0.009 * shortenedFraction * padDeformation);
                 const auto touchDecay =
                     std::exp(-1.0 / (sampleRate * 0.005));
                 fingerTouch[i] *= touchDecay;
