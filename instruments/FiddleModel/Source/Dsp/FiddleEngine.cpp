@@ -1213,7 +1213,10 @@ struct FiddleEngine::Impl
                     std::max(0.0, bridgeDelay[i] - 1.3),
                     std::max(0.0, nutDelay[i] - 1.3)
                 });
-            const auto patchAverageVelocity = 0.25 * (
+            // The two sides each receive TWO travelling waves. One half of
+            // their four-wave sum equals the center's bridge+nut velocity
+            // when the patch width tends to zero.
+            const auto patchAverageVelocity = 0.5 * (
                 fromBridge[i].read(
                     bridgeDelay[i] - contactHalfWidthSamples)
                 + fromBridge[i].read(
