@@ -1034,14 +1034,14 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
             0.0f, 1.0f);
     }
 
-    if (monoMelodicBow && primary <= 1)
+    if (monoMelodicBow && primary == 0)
     {
-        // The monophonic G reference bowed cleanly closer to the fingerboard,
-        // and the new *real GUI* regression caught D4->E4 sliding into a
-        // high-6th-partial state (low-three fraction 0.209). Earlier physical
-        // D contact sweeps showed a substantially stronger early low-string
-        // core at 0.30..0.40 than at 0.45. Keep a passive, physical bowing-
-        // point gesture with unchanged 0/1 endpoints on both lower strings.
+        // Keep the previously validated G-string physical bow-point curve.
+        // Extending the same fingerboard-side offset to D caused the real
+        // Processor D#4 MIDI low-three-harmonic fraction to fall to 0.240,
+        // violating the unchanged 0.25 gate. D keeps its literal bow point
+        // until its own GUI/legato physical control sweep identifies a stable
+        // region shared with MIDI playing.
         constexpr float piF = 3.14159265358979323846f;
         controls.position = std::clamp(
             controls.position - 0.10f * std::sin(piF * controls.position),
