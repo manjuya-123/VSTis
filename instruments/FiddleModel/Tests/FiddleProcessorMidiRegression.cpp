@@ -423,10 +423,31 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
             static_cast<double>(midiToHz(openNote + 7)) * 1.04);
         const auto cents = centsBetween(measured, target);
 
+        // The earlier 282ms pitch checks caught the fingering transition
+        // but not the player's actual complaint: a bow-held G string
+        // settled into a bright, nearly fixed scratch spectrum while the
+        // moving pitched part became faint. Retain the established >=0.25
+        // low-3 / first-16 harmonic power floor for EVERY sustained note,
+        // including returns to the open string after a long held bow.
+        double firstSixteenPower = 0.0;
+        double lowThreePower = 0.0;
+        for (int harmonic = 1; harmonic <= 16; ++harmonic)
+        {
+            if (target * harmonic >= 0.45 * sampleRate)
+                break;
+            const auto power = tonePower(segment, target * harmonic);
+            firstSixteenPower += power;
+            if (harmonic <= 3)
+                lowThreePower += power;
+        }
+        const auto sustainedLowThreeFraction =
+            lowThreePower / (firstSixteenPower + 1.0e-30);
+
         const bool noteValid = state.midiNote == note
             && state.primaryString == stringIndex
             && std::isfinite(cents)
-            && std::abs(cents) <= 10.0;
+            && std::abs(cents) <= 10.0
+            && sustainedLowThreeFraction >= 0.25;
         passed &= noteValid;
 
         const double beginning = firstFrame / sampleRate;
@@ -437,6 +458,7 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                  << target << ',' << measured << ',' << cents << ','
                  << beginning << ',' << ending << ','
                  << state.primaryString << ','
+                 << sustainedLowThreeFraction << ','
                  << (noteValid ? "PASS" : "FAIL") << '\n';
         std::cout << "processor_pitch_motion"
                   << " route=" << (gui ? "GUI" : "MIDI")
@@ -447,6 +469,7 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                   << " target=" << target
                   << " measured=" << measured
                   << " cents=" << cents
+                  << " low3_over16_fraction=" << sustainedLowThreeFraction
                   << " correct_string=" << (state.primaryString == stringIndex)
                   << '\n';
         previousNote = note;
@@ -1153,7 +1176,7 @@ int main(int argc, char** argv)
         motionPassed = false;
     timeline << "route,string,sample_rate,step,midi_note,target_hz,"
                 "estimated_hz,cents,start_seconds,end_seconds,"
-                "physical_string,validation\n";
+                "physical_string,low3_over16_fraction,validation\n";
     for (const auto rate : { 48000.0, 44100.0 })
     {
         sampleRate = rate;
@@ -1187,7 +1210,8 @@ int main(int argc, char** argv)
            "the same C2 bow is held. This is expressly for checking "
            "whether a stationary/raspy foreground masks the moving pitch.\n"
         << "Open processor_pitch_motion_timeline.csv for measured "
-           "frequency, cents, exact step boundaries and primary string.\n"
+           "frequency, cents, low-three-harmonic fraction and exact "
+           "step boundaries on the chosen physical string.\n"
         << "Even if the automated pitch checks PASS, the report of "
            "separate bowed/pitched layers must be judged by hearing.\n";
     if (!instructions)
