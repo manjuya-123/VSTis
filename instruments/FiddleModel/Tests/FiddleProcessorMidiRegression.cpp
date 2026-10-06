@@ -237,6 +237,7 @@ bool checkPitch(const std::vector<float>& segment,
     const auto cents = centsBetween(measured, target);
 
     double combAdvantageDb = 99.0;
+    double previousCombAdvantageDb = 99.0;
     double adjacentCombAdvantageDb = 99.0;
     if (note != openNote)
     {
@@ -247,6 +248,17 @@ bool checkPitch(const std::vector<float>& segment,
         combAdvantageDb = 10.0 * std::log10(
             (targetPower + 1.0e-30)
             / (staleOpenPower + 1.0e-30));
+
+        if (previousNote >= 0 && previousNote != note)
+        {
+            const auto previousHz =
+                static_cast<double>(midiToHz(previousNote));
+            const auto previousPower =
+                harmonicCombPower(segment, previousHz);
+            previousCombAdvantageDb = 10.0 * std::log10(
+                (targetPower + 1.0e-30)
+                / (previousPower + 1.0e-30));
+        }
 
         if (upperAdjacentOpenNote >= 0)
         {
@@ -267,6 +279,8 @@ bool checkPitch(const std::vector<float>& segment,
               << " measured=" << measured
               << " cents=" << cents
               << " target_vs_open_comb_db=" << combAdvantageDb
+              << " target_vs_previous_comb_db="
+              << previousCombAdvantageDb
               << " target_vs_upper_adjacent_comb_db="
               << adjacentCombAdvantageDb
               << '\n';
@@ -389,6 +403,7 @@ bool runStringSequence(int stringIndex,
                 segment,
                 note,
                 openNote,
+                previousNote,
                 stringIndex,
                 upperAdjacentOpenNote))
         {
