@@ -1289,11 +1289,15 @@ struct FiddleEngine::Impl
                     * (0.84 + 0.28 * pos)
                     * transitionTexture;
 
-                rosinNoiseVelocity =
-                    0.0000032
-                    * rosinNoiseEnvelope[i]
-                    * colouredNoise
-                    + transitionVelocity;
+                // Continuous hair/rosin roughness already changes the
+                // nonlinear friction limits through gripPerturbation above.
+                // Adding the same roughness again as an independent velocity
+                // source can perceptually split the output into a stationary
+                // bowed/noise layer plus a weaker pitched string motion.
+                // Keep only the brief texture tied to real stick/slip state
+                // transitions; the sustained roughness remains in the solved
+                // contact dynamics instead of being mixed in a second time.
+                rosinNoiseVelocity = transitionVelocity;
                 injection += rosinNoiseVelocity;
             }
             else
