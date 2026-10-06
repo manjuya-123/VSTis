@@ -20,6 +20,9 @@ struct ProbeMetrics
     double fundamentalFraction = 0.0;
     double low3Fraction = 0.0;
     double high4to8Fraction = 0.0;
+    double harmonicCombPower = 0.0;
+    double fixedBodyFormantPower = 0.0;
+    double movingVsFixedDb = 0.0;
     int strongestHarmonic = 1;
 };
 
@@ -94,6 +97,23 @@ ProbeMetrics measure(const std::vector<float>& x,
         metrics.high4to8Fraction =
             1.0 - metrics.low3Fraction;
     }
+    metrics.harmonicCombPower = total;
+
+    // Track the stationary body/bridge-formant region separately from the
+    // note-locked harmonic comb. These are the unchanged upper translation
+    // modes that can perceptually read as a fixed "front" pitch/timbre while
+    // the stopped-string pitch survives only behind them.
+    constexpr std::array<double, 6> fixedBodyFormants {
+        1180.0, 1500.0, 1900.0, 2350.0, 2850.0, 3500.0
+    };
+    for (const auto frequency : fixedBodyFormants)
+        metrics.fixedBodyFormantPower +=
+            goertzelPower(x, begin, end, frequency);
+
+    metrics.movingVsFixedDb =
+        10.0 * std::log10(
+            (metrics.harmonicCombPower + 1.0e-30)
+            / (metrics.fixedBodyFormantPower + 1.0e-30));
     metrics.strongestHarmonic = strongestHarmonic;
     return metrics;
 }
@@ -160,6 +180,9 @@ void printMetrics(const char* name,
         << " fundamental_fraction=" << m.fundamentalFraction
         << " low3_fraction=" << m.low3Fraction
         << " high4to8_fraction=" << m.high4to8Fraction
+        << " harmonic_comb_power=" << m.harmonicCombPower
+        << " fixed_body_formant_power=" << m.fixedBodyFormantPower
+        << " moving_vs_fixed_db=" << m.movingVsFixedDb
         << " strongest_harmonic=" << m.strongestHarmonic
         << '\n';
 }
@@ -202,7 +225,9 @@ int main(int argc, char** argv)
         }
         csv
             << "case,point,fundamental_fraction,low3_fraction,"
-               "high4to8_fraction,strongest_harmonic\n"
+               "high4to8_fraction,harmonic_comb_power,"
+               "fixed_body_formant_power,moving_vs_fixed_db,"
+               "strongest_harmonic\n"
             << std::setprecision(9);
     }
 
@@ -241,6 +266,9 @@ int main(int argc, char** argv)
                     << m.fundamentalFraction << ','
                     << m.low3Fraction << ','
                     << m.high4to8Fraction << ','
+                    << m.harmonicCombPower << ','
+                    << m.fixedBodyFormantPower << ','
+                    << m.movingVsFixedDb << ','
                     << m.strongestHarmonic << '\n';
             };
             write("incident_bridge", incidentMetrics);
@@ -249,7 +277,8 @@ int main(int argc, char** argv)
         }
 
         if (!(std::isfinite(radiatedMetrics.low3Fraction)
-              && radiatedMetrics.low3Fraction > 0.0))
+              && radiatedMetrics.low3Fraction > 0.0
+              && std::isfinite(radiatedMetrics.movingVsFixedDb)))
         {
             std::cerr << "FAIL: low-string probe produced invalid spectrum\n";
             return EXIT_FAILURE;
