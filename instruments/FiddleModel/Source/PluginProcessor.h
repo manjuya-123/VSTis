@@ -114,8 +114,11 @@ private:
     std::atomic<std::uint64_t> visualFingeringMask_ { 0 };
     std::atomic<int> pendingUiActionPress_ { -1 };
     std::atomic<int> pendingUiActionRelease_ { -1 };
-    std::atomic<int> pendingUiFingeringPress_ { -1 };
-    std::atomic<int> pendingUiFingeringRelease_ { -1 };
+    // The GUI keyboard is monophonic while dragging. A desired key state is
+    // lossless under mouse moves faster than audio blocks: unlike separate
+    // single-slot press/release mailboxes, no superseded key can get stuck.
+    std::atomic<int> uiFingeringRequestedNote_ { -1 };
+    int uiFingeringAppliedNote_ = -1;
     std::atomic<int> visualLastInputMidiNote_ { -1 };
     std::array<std::atomic<float>, 4> visualSpeakingFrequencyHz_{};
     std::array<std::atomic<float>, 4> visualContactTemperatureC_{};
