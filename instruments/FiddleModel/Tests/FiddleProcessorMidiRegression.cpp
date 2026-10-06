@@ -336,6 +336,78 @@ bool writeStereoWav(const std::filesystem::path& path,
     return static_cast<bool>(out);
 }
 
+// Diagnostic for the player-reported "constant buzzer" timbre. Adjacent
+// sample difference energy / sample energy measures the time-local high
+// frequency content without an FFT, while the window-to-window coefficient
+// of variation reveals unnaturally static spectra. It is an AUDIT, not a
+// claim that a single numerical threshold defines a realistic violin.
+struct SustainedTimbreAudit
+{
+    double brightnessMean = 0.0;
+    double brightnessCv = 0.0;
+    double rmsCv = 0.0;
+    int validWindows = 0;
+};
+
+SustainedTimbreAudit measureSustainedTimbre(
+    const std::vector<float>& playedSamples) noexcept
+{
+    constexpr double secondsPerWindow = 0.050;
+    const auto windowLength = std::max<std::size_t>(
+        16, static_cast<std::size_t>(secondsPerWindow * sampleRate));
+    const auto skipOnset = static_cast<std::size_t>(0.30 * sampleRate);
+    const auto skipRelease = static_cast<std::size_t>(0.10 * sampleRate);
+    std::array<double, 2> sum {};
+    std::array<double, 2> sumSq {};
+    int count = 0;
+    for (auto start = skipOnset;
+         start + windowLength + skipRelease <= playedSamples.size();
+         start += windowLength)
+    {
+        double energy = 0.0;
+        double differenceEnergy = 0.0;
+        auto prev = static_cast<double>(playedSamples[start]);
+        for (std::size_t i = start; i < start + windowLength; ++i)
+        {
+            const auto y = static_cast<double>(playedSamples[i]);
+            energy += y * y;
+            const auto dy = y - prev;
+            differenceEnergy += dy * dy;
+            prev = y;
+        }
+        if (energy < 1.0e-16)
+            continue;
+        const auto rms = std::sqrt(energy / windowLength);
+        const auto brightness = std::sqrt(
+            differenceEnergy / (energy + 1.0e-30));
+        const std::array<double, 2> values { brightness, rms };
+        for (int i = 0; i < 2; ++i)
+        {
+            sum[static_cast<std::size_t>(i)] += values[static_cast<std::size_t>(i)];
+            sumSq[static_cast<std::size_t>(i)] +=
+                values[static_cast<std::size_t>(i)] *
+                values[static_cast<std::size_t>(i)];
+        }
+        ++count;
+    }
+
+    SustainedTimbreAudit out;
+    out.validWindows = count;
+    if (count < 3)
+        return out;
+    const auto cv = [&](int i)
+    {
+        const auto idx = static_cast<std::size_t>(i);
+        const auto mean = sum[idx] / count;
+        const auto variance = std::max(0.0, sumSq[idx] / count - mean * mean);
+        return std::sqrt(variance) / (mean + 1.0e-20);
+    };
+    out.brightnessMean = sum[0] / count;
+    out.brightnessCv = cv(0);
+    out.rmsCv = cv(1);
+    return out;
+}
+
 bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                               int stringIndex,
                               bool gui,
@@ -447,6 +519,7 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
         }
         const auto sustainedLowThreeFraction =
             lowThreePower / (firstSixteenPower + 1.0e-30);
+        const auto timbre = measureSustainedTimbre(segment);
 
         const bool noteValid = state.midiNote == note
             && state.primaryString == stringIndex
@@ -464,6 +537,9 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                  << beginning << ',' << ending << ','
                  << state.primaryString << ','
                  << sustainedLowThreeFraction << ','
+                 << timbre.brightnessMean << ','
+                 << timbre.brightnessCv << ','
+                 << timbre.rmsCv << ','
                  << (noteValid ? "PASS" : "FAIL") << '\n';
         std::cout << "processor_pitch_motion"
                   << " route=" << (gui ? "GUI" : "MIDI")
@@ -475,6 +551,8 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                   << " measured=" << measured
                   << " cents=" << cents
                   << " low3_over16_fraction=" << sustainedLowThreeFraction
+                  << " brightness_cv=" << timbre.brightnessCv
+                  << " rms_cv=" << timbre.rmsCv
                   << " correct_string=" << (state.primaryString == stringIndex)
                   << '\n';
         previousNote = note;
@@ -1181,7 +1259,8 @@ int main(int argc, char** argv)
         motionPassed = false;
     timeline << "route,string,sample_rate,step,midi_note,target_hz,"
                 "estimated_hz,cents,start_seconds,end_seconds,"
-                "physical_string,low3_over16_fraction,validation\n";
+                "physical_string,low3_over16_fraction,"
+                "brightness_proxy,brightness_cv,rms_cv,validation\n";
     for (const auto rate : { 48000.0, 44100.0 })
     {
         sampleRate = rate;
@@ -1221,8 +1300,15 @@ int main(int argc, char** argv)
         << "Open processor_pitch_motion_timeline.csv for measured "
            "frequency, cents, low-three-harmonic fraction and exact "
            "step boundaries on the chosen physical string.\n"
+        << "The timeline CSV includes brightness_proxy: RMS of the "
+           "first sample difference divided by RMS signal. brightness_cv "
+           "and rms_cv are the coefficients of variation across 50-ms "
+           "windows after the onset. Very small brightness_cv signals "
+           "an unusually static sustained spectrum, but these fields are "
+           "AUDIT ONLY: no arbitrary threshold can prove fiddle realism.\n"
         << "Even if the automated pitch checks PASS, the report of "
-           "separate bowed/pitched layers must be judged by hearing.\n";
+           "separate bowed/pitched layers or buzzy synthetic timbre "
+           "must be judged by hearing.\n";
     if (!instructions)
         motionPassed = false;
 
