@@ -93,6 +93,9 @@ jobs:
           path: |
             build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/processor_failed_*.wav
             build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/processor_ui_click_drag_*.wav
+            build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/processor_pitch_motion_*.wav
+            build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/processor_pitch_motion_timeline.csv
+            build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/READ_ME_pitch_motion.txt
 
       - name: Upload validated VST3 and Standalone
         if: success()
