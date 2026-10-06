@@ -746,14 +746,14 @@ struct FiddleEngine::Impl
         const auto primary = static_cast<std::size_t>(
             std::clamp(primaryString, pairLower, pairLower + 1));
         const auto neighbour = primary == lower ? upper : lower;
-        // A deliberate monophonic lean means the hair is physically
-        // contacting only the selected string. Do not keep a hidden direct
-        // bow drive on the neighbouring open string: even a very small
-        // sustained normal force can establish a second, stationary Helmholtz
-        // motion and be heard as a separate fixed note. Sympathetic vibration
-        // is still fully present through the shared bridge/body mechanics.
+        // A player leaning the hair onto one string should not keep
+        // directly driving the neighbouring open string. Leave only a tiny
+        // residual footprint for hair width; sympathetic motion still travels
+        // through the shared bridge/body waveguide. The earlier 15% residual
+        // could become perceptually dominant on low strings once the body
+        // fundamentals were restored.
         const auto neighbourScale =
-            1.0 - isolationAmount;
+            1.0 - 0.97 * isolationAmount;
         const auto removed =
             forces[neighbour] * (1.0 - neighbourScale);
         forces[neighbour] *= neighbourScale;
