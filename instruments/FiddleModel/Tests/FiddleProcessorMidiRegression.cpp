@@ -711,6 +711,91 @@ bool runUiAuditionRegression(int stringIndex,
     return true;
 }
 
+// Diagnostic-only physical control sweep through the *exact* Standalone
+// key-map callback path. Earlier controls were optimized for MIDI bow-first
+// and the strong G9..G12 bridge-hill partials in GUI audition were missed by
+// the old eight-line score. Sweep controller gestures without weakening or
+// changing any pass/fail threshold, then choose a stable physical region for
+// both click and legato drag at 44.1 and 48 kHz.
+void printGuiBowContactSweep(int stringIndex,
+                             float pressure, float speed, float position)
+{
+    FiddleModelAudioProcessor processor;
+    processor.prepareToPlay(sampleRate, blockSize);
+    for (auto* parameter : processor.getParameters())
+    {
+        const auto name = parameter->getName(64);
+        if (name == "Bow Pressure")
+            parameter->setValueNotifyingHost(pressure);
+        else if (name == "Bow Speed")
+            parameter->setValueNotifyingHost(speed);
+        else if (name == "Bow Contact")
+            parameter->setValueNotifyingHost(position);
+    }
+
+    const int note = stringIndex == 0 ? 55 : 62;
+    std::vector<float> initialSilence;
+    renderBlocks(processor, 4, initialSilence);
+    processor.requestPlayActionFromUi(36, true);
+    processor.requestPlayFingeringFromUi(note, true);
+
+    const auto print = [&](int soundingNote, const char* phase,
+                           const std::vector<float>& segment)
+    {
+        const auto hz = static_cast<double>(midiToHz(soundingNote));
+        const auto neighbourHz =
+            static_cast<double>(midiToHz(note + 7));
+        double low3 = 0.0;
+        double first8 = 0.0;
+        double first16 = 0.0;
+        for (int partial = 1; partial <= 16; ++partial)
+        {
+            if (partial * hz >= 0.45 * sampleRate)
+                break;
+            const auto energy = tonePower(segment, partial * hz);
+            first16 += energy;
+            if (partial <= 8)
+                first8 += energy;
+            if (partial <= 3)
+                low3 += energy;
+        }
+        const auto targetUnshared =
+            unsharedHarmonicCombPower(segment, hz, neighbourHz);
+        const auto neighbourUnshared =
+            unsharedHarmonicCombPower(segment, neighbourHz, hz);
+        const auto margin = 10.0 * std::log10(
+            (targetUnshared + 1.0e-30)
+            / (neighbourUnshared + 1.0e-30));
+        std::cout << "processor_gui_physics_sweep"
+                  << " sample_rate=" << sampleRate
+                  << " string=" << stringIndex
+                  << " phase=" << phase
+                  << " note=" << soundingNote
+                  << " pressure=" << pressure
+                  << " speed=" << speed
+                  << " position=" << position
+                  << " low3_over8_fraction="
+                  << low3 / (first8 + 1.0e-30)
+                  << " low3_over16_fraction="
+                  << low3 / (first16 + 1.0e-30)
+                  << " unshared_db=" << margin
+                  << '\n';
+    };
+
+    std::vector<float> first;
+    renderBlocks(processor, 53, first);
+    print(note, "click", first);
+
+    processor.requestPlayFingeringFromUi(note, false);
+    processor.requestPlayFingeringFromUi(note + 1, true);
+    processor.requestPlayFingeringFromUi(note + 1, false);
+    processor.requestPlayFingeringFromUi(note + 2, true);
+
+    std::vector<float> next;
+    renderBlocks(processor, 53, next);
+    print(note + 2, "drag", next);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -822,7 +907,23 @@ int main(int argc, char** argv)
     }
 
     if (!uiPassed)
+    {
+        // Only spend diagnostic time when the strict GUI regression fails.
+        // Re-run complete real Processor gestures with changes to the
+        // *physical* bowing controls; these logs guide the next calibration
+        // instead of guessing from indirect engine-only results.
+        for (const auto rate : { 48000.0, 44100.0 })
+        {
+            sampleRate = rate;
+            for (const auto stringIndex : { 0, 1 })
+                for (const auto contact : { 0.27f, 0.34f, 0.41f, 0.48f })
+                    for (const auto travel : { 0.38f, 0.50f, 0.62f })
+                        for (const auto force : { 0.40f, 0.50f, 0.60f })
+                            printGuiBowContactSweep(
+                                stringIndex, force, travel, contact);
+        }
         return EXIT_FAILURE;
+    }
 
     std::cout
         << "PASS processor MIDI 48k and GUI click/drag 48k/44.1k on G/D/A/E\n";
