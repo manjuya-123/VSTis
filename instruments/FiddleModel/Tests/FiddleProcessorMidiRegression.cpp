@@ -224,6 +224,7 @@ bool writeMonoWav(const std::filesystem::path& path,
 bool checkPitch(const std::vector<float>& segment,
                 int note,
                 int openNote,
+                int previousNote,
                 int stringIndex,
                 int upperAdjacentOpenNote)
 {
