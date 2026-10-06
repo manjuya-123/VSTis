@@ -265,6 +265,235 @@ bool writeMonoWav(const std::filesystem::path& path,
     return static_cast<bool>(out);
 }
 
+// Long-form, real-processor stereo recordings for a HUMAN pitch-motion check.
+// The original <0.3-second notes were too brief to audit the reported
+// "stationary bowed foreground + faint moving pitch" by listening. These
+// are NOT looped, transposed or oscillator-generated: every sample comes
+// from a running FiddleModelAudioProcessor with one sustained physical bow.
+struct StereoRecording
+{
+    std::vector<float> left;
+    std::vector<float> right;
+};
+
+void renderStereoBlocks(FiddleModelAudioProcessor& processor,
+                        int blocks, StereoRecording& output,
+                        const juce::MidiMessage* firstNote = nullptr)
+{
+    for (int block = 0; block < blocks; ++block)
+    {
+        juce::AudioBuffer<float> buffer(2, blockSize);
+        juce::MidiBuffer midi;
+        if (block == 0 && firstNote != nullptr)
+            midi.addEvent(*firstNote, 0);
+        processor.processBlock(buffer, midi);
+        const auto* left = buffer.getReadPointer(0);
+        const auto* right = buffer.getReadPointer(1);
+        output.left.insert(output.left.end(), left, left + blockSize);
+        output.right.insert(output.right.end(), right, right + blockSize);
+    }
+}
+
+bool writeStereoWav(const std::filesystem::path& path,
+                    const StereoRecording& output)
+{
+    if (output.left.size() != output.right.size())
+        return false;
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec)
+        return false;
+    std::ofstream out(path, std::ios::binary);
+    if (!out)
+        return false;
+
+    float peak = 0.0f;
+    for (std::size_t i = 0; i < output.left.size(); ++i)
+        peak = std::max(peak,
+            std::max(std::abs(output.left[i]), std::abs(output.right[i])));
+    // Keep the processor's real two-channel level and relative note
+    // dynamics. Only avoid actual PCM clipping if this recording peaks >.92.
+    const auto gain = peak > 0.92f ? 0.92f / peak : 1.0f;
+    const auto frames = static_cast<std::uint32_t>(output.left.size());
+    const auto dataBytes = frames * 4u;
+    out.write("RIFF", 4); writeU32(out, 36u + dataBytes);
+    out.write("WAVE", 4);
+    out.write("fmt ", 4); writeU32(out, 16u);
+    writeU16(out, 1u); writeU16(out, 2u);
+    writeU32(out, static_cast<std::uint32_t>(sampleRate));
+    writeU32(out, static_cast<std::uint32_t>(sampleRate) * 4u);
+    writeU16(out, 4u); writeU16(out, 16u);
+    out.write("data", 4); writeU32(out, dataBytes);
+    for (std::size_t i = 0; i < output.left.size(); ++i)
+    {
+        for (const auto sample : { output.left[i], output.right[i] })
+        {
+            const auto y = static_cast<std::int16_t>(
+                std::lrint(std::clamp(sample * gain, -1.0f, 1.0f) * 32767.0f));
+            writeU16(out, static_cast<std::uint16_t>(y));
+        }
+    }
+    return static_cast<bool>(out);
+}
+
+bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
+                              int stringIndex,
+                              bool gui,
+                              std::ofstream& timeline)
+{
+    const int openNote = stringIndex == 0 ? 55 : 62;
+    constexpr std::array<int, 5> intervals { 0, 5, 7, 2, 0 };
+    constexpr int actionNote = 36; // C2 Down Bow
+    constexpr float fingeringVelocity = 0.82f;
+    FiddleModelAudioProcessor processor;
+    processor.prepareToPlay(sampleRate, blockSize);
+
+    // Start from clean state, just as the built-in Reset Audition button.
+    StereoRecording recording;
+    StereoRecording discarded;
+    const auto bow = juce::MidiMessage::noteOn(1, actionNote, 0.85f);
+    if (gui)
+    {
+        renderStereoBlocks(processor, 4, discarded);
+        processor.requestPlayActionFromUi(actionNote, true);
+    }
+    else
+    {
+        renderStereoBlocks(processor, 4, discarded, &bow);
+    }
+
+    const auto blocksPerNote = static_cast<int>(
+        std::ceil(1.45 * sampleRate / static_cast<double>(blockSize)));
+    bool passed = true;
+    int previousNote = -1;
+    for (std::size_t i = 0; i < intervals.size(); ++i)
+    {
+        const int note = openNote + intervals[i];
+        const std::size_t firstFrame = recording.left.size();
+
+        if (gui)
+        {
+            if (previousNote >= 0)
+                processor.requestPlayFingeringFromUi(previousNote, false);
+            processor.requestPlayFingeringFromUi(note, true);
+            renderStereoBlocks(processor, blocksPerNote, recording);
+        }
+        else
+        {
+            // Keep C2 held across EVERY pitch change. This is a real note
+            // switch, not pitch-shifting a sample or retriggering the bow.
+            if (previousNote >= 0)
+            {
+                juce::AudioBuffer<float> transition(2, blockSize);
+                juce::MidiBuffer midi;
+                midi.addEvent(juce::MidiMessage::noteOff(
+                    1, previousNote), 0);
+                midi.addEvent(juce::MidiMessage::noteOn(
+                    1, note, fingeringVelocity), 0);
+                processor.processBlock(transition, midi);
+                const auto* l = transition.getReadPointer(0);
+                const auto* r = transition.getReadPointer(1);
+                recording.left.insert(recording.left.end(),
+                                      l, l + blockSize);
+                recording.right.insert(recording.right.end(),
+                                       r, r + blockSize);
+                renderStereoBlocks(
+                    processor, blocksPerNote - 1, recording);
+            }
+            else
+            {
+                const auto event = juce::MidiMessage::noteOn(
+                    1, note, fingeringVelocity);
+                renderStereoBlocks(processor, blocksPerNote,
+                                   recording, &event);
+            }
+        }
+
+        const auto state = processor.visualState();
+        // Last 0.2s is a physically sustained tone; the earlier 0.28s clips
+        // never let the listener hear settled bow motion.
+        const std::vector<float> segment(
+            recording.left.begin()
+                + static_cast<std::ptrdiff_t>(firstFrame),
+            recording.left.end());
+        const auto target = static_cast<double>(midiToHz(note));
+        const auto measured = estimateDominantPitch(
+            segment,
+            static_cast<double>(midiToHz(openNote)) * 0.94,
+            static_cast<double>(midiToHz(openNote + 7)) * 1.04);
+        const auto cents = centsBetween(measured, target);
+
+        const bool noteValid = state.midiNote == note
+            && state.primaryString == stringIndex
+            && std::isfinite(cents)
+            && std::abs(cents) <= 10.0;
+        passed &= noteValid;
+
+        const double beginning = firstFrame / sampleRate;
+        const double ending = recording.left.size() / sampleRate;
+        timeline << (gui ? "GUI" : "MIDI") << ','
+                 << (stringIndex == 0 ? 'G' : 'D') << ','
+                 << sampleRate << ',' << i << ',' << note << ','
+                 << target << ',' << measured << ',' << cents << ','
+                 << beginning << ',' << ending << ','
+                 << state.primaryString << ','
+                 << (noteValid ? "PASS" : "FAIL") << '\n';
+        std::cout << "processor_pitch_motion"
+                  << " route=" << (gui ? "GUI" : "MIDI")
+                  << " string=" << (stringIndex == 0 ? "G" : "D")
+                  << " rate=" << sampleRate
+                  << " note=" << note
+                  << " duration=" << (ending - beginning)
+                  << " target=" << target
+                  << " measured=" << measured
+                  << " cents=" << cents
+                  << " correct_string=" << (state.primaryString == stringIndex)
+                  << '\n';
+        previousNote = note;
+    }
+
+    if (gui)
+    {
+        processor.requestPlayFingeringFromUi(previousNote, false);
+        processor.requestPlayActionFromUi(actionNote, false);
+        renderStereoBlocks(
+            processor, static_cast<int>(
+                std::ceil(0.35 * sampleRate / blockSize)), recording);
+    }
+    else
+    {
+        juce::AudioBuffer<float> release(2, blockSize);
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOff(1, previousNote), 0);
+        midi.addEvent(juce::MidiMessage::noteOff(1, actionNote), 0);
+        processor.processBlock(release, midi);
+        const auto* l = release.getReadPointer(0);
+        const auto* r = release.getReadPointer(1);
+        recording.left.insert(recording.left.end(), l, l + blockSize);
+        recording.right.insert(recording.right.end(), r, r + blockSize);
+        renderStereoBlocks(
+            processor, static_cast<int>(
+                std::ceil(0.35 * sampleRate / blockSize)), recording);
+    }
+
+    const auto file = outputDirectory
+        / (std::string("processor_pitch_motion_")
+            + (gui ? "GUI_" : "MIDI_")
+            + (stringIndex == 0 ? "G_" : "D_")
+            + std::to_string(static_cast<int>(sampleRate)) + "hz.wav");
+    if (!writeStereoWav(file, recording))
+    {
+        std::cerr << "FAIL: cannot export full pitch-motion reference WAV\n";
+        return false;
+    }
+    if (!passed)
+        std::cerr << "FAIL: long-form audible pitch-motion and physical string"
+                  << " test route=" << (gui ? "GUI" : "MIDI")
+                  << " string=" << stringIndex
+                  << " rate=" << sampleRate << '\n';
+    return passed;
+}
+
 // The direct engine onset probe can show excellent G/D fundamentals while
 // the real MIDI Processor route still produces a weak first note. Sweep the
 // *actual* C2-first Processor path (including JUCE parameter/gesture routing)
