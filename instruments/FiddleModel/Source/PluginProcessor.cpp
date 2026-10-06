@@ -941,27 +941,34 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
             + playModePressureBoost_,
         0.0f, 1.0f);
 
-    // Continuous single-string Fiddle Play should land in a playable
-    // Helmholtz region by default instead of driving G/D into a bright
-    // high-partial regime. This trims the physical normal-force command,
-    // not the audio output, and only for ordinary Down/Up bowing while
-    // monophonic auto-focus is active. Manual pressure, channel pressure,
-    // drones, double stops and one-shot articulations keep their full range.
+    // The real Processor bow-first G3 WAV exposed a 588 Hz partial over
+    // 20 dB louder than its 196 Hz fundamental. Contact instrumentation
+    // explains the split: low G spends only ~29% of the first 282 ms sticking,
+    // compared with ~61% on D. A direct physical-bow sweep found better early
+    // pitch capture at G pressure/speed 0.85/0.45 and D 0.65/0.45.
+    // Apply this only to the intentionally isolated ordinary melodic bow.
+    // No oscillator, harmonic EQ, output gain or artificial attack is added:
+    // these are the actual normal-force and bow-travel controls.
     const auto activeAction = static_cast<fiddle::BowAction>(
         visualBowAction_.load(std::memory_order_relaxed));
-    if (playModeAutoFocusEnabled_
+    const bool monoMelodicBow =
+        playModeAutoFocusEnabled_
         && !playModeFocusOverride_
         && (activeAction == fiddle::BowAction::DownBow
-            || activeAction == fiddle::BowAction::UpBow))
+            || activeAction == fiddle::BowAction::UpBow);
+    const auto primary = std::clamp(
+        playModePreferredPrimaryString_, 0, 3);
+    if (monoMelodicBow)
     {
-        constexpr std::array<float, 4> monoPressureTrim {
-            0.080f, 0.055f, 0.015f, 0.0f
+        // Preserve the full pressure knob range through the final clamp.
+        // Nominal MIDI-velocity 0.85 yields 0.584 before this calibration;
+        // the G and D commands become 0.85 and 0.65 respectively.
+        constexpr std::array<float, 4> monoPressureCorrection {
+            0.266f, 0.066f, -0.015f, 0.0f
         };
-        const auto primary = std::clamp(
-            playModePreferredPrimaryString_, 0, 3);
         controls.pressure = std::clamp(
             controls.pressure
-                - monoPressureTrim[static_cast<std::size_t>(primary)],
+                + monoPressureCorrection[static_cast<std::size_t>(primary)],
             0.0f, 1.0f);
     }
 
@@ -969,6 +976,14 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         controls.vibratoWidth, modWheelNormalized_);
     controls.speed = std::clamp(
         controls.speed * playModeSpeedScale_, 0.0f, 1.0f);
+    if (monoMelodicBow && primary <= 1)
+    {
+        // Slow down the physical bow travel through a continuous endpoint-
+        // preserving control curve; full manual range 0..1 remains available.
+        // At the nominal 0.598 gesture this gives ~0.45, the tested
+        // low-string Helmholtz capture region.
+        controls.speed = std::pow(controls.speed, 1.55f);
+    }
     controls.attack = std::clamp(
         controls.attack + playModeResponseBoost_, 0.0f, 1.0f);
 
