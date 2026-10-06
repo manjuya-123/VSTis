@@ -94,10 +94,13 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const auto uiActionPress =
             pendingUiActionPress_.exchange(-1, std::memory_order_relaxed);
         if (uiActionPress >= 0)
-            // GUI audition should use the same neutral bow-gesture
-            // strength as the MIDI regression (0.85), not a different
-            // stick/slip regime caused by an arbitrary 0.82 gesture.
+        {
+            // Distinguish deliberate GUI audition from host MIDI; the latter
+            // keeps its previously validated physical bow contact mapping.
+            uiAuditionBowActive_ =
+                uiActionPress == 36 || uiActionPress == 38;
             triggerFiddlePlayAction(uiActionPress, 0.85f);
+        }
 
         // The live GUI sends its temporary Down Bow and fingering together.
         // MIDI bow-first playback prepared the physical bow controller
@@ -146,7 +149,10 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const auto uiActionRelease =
             pendingUiActionRelease_.exchange(-1, std::memory_order_relaxed);
         if (uiActionRelease >= 0)
+        {
+            uiAuditionBowActive_ = false;
             releaseFiddlePlayAction(uiActionRelease);
+        }
     }
 
     auto* left = buffer.getWritePointer(0);
@@ -888,6 +894,7 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     playModeResponseBoost_ = 0.0f;
     playModeOneShotLatched_ = false;
     playModeBowArmed_ = false;
+    uiAuditionBowActive_ = false;
     playModeMonophonicPhrase_ = false;
     playModeGestureStrength_ = 0.5f;
     playModePreferredPrimaryString_ = -1;
@@ -965,6 +972,46 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
 {
     auto controls = baseControls_;
     controls.singleStringIsolation = 0.0f;
+
+    // Compare the actual GUI audition to physical bow parameter sweeps,
+    // rather than the independently prepared MIDI bow-first render. Four
+    // (44.1k/48k x click/drag) G and D measurements found that raw bow
+    // pressure=0.40 and bow contact=0.34 prevent the 9th-16th partials
+    // from masking the low string core. G's optimum raw bow speed was 0.62,
+    // while D's was 0.50. These MONOTONIC curves pass exactly through those
+    // reference values at the GUI default controls 0.5/0.5/0.45, leave the
+    // player-facing 0 and 1 endpoints unchanged, and tune the actual
+    // physical bow force, travel and contact position (never output EQ).
+    //
+    // While a GUI bow is armed before the first fingering, resolve its intended
+    // physical string from the desired GUI note. The preparation therefore
+    // primes the same bow parameters that will reach the first string.
+    if (uiAuditionBowActive_)
+    {
+        auto uiPrimary = playModePreferredPrimaryString_;
+        if (uiPrimary < 0)
+        {
+            const auto uiNote =
+                uiFingeringRequestedNote_.load(std::memory_order_relaxed);
+            uiPrimary = uiNote >= 76 ? 3
+                      : uiNote >= 69 ? 2
+                      : uiNote >= 62 ? 1 : 0;
+        }
+        if (uiPrimary <= 1)
+        {
+            constexpr float piF = 3.14159265358979323846f;
+            controls.pressure = std::clamp(
+                controls.pressure - 0.10f * std::sin(piF * controls.pressure),
+                0.0f, 1.0f);
+            if (uiPrimary == 0)
+                controls.speed = std::clamp(
+                    controls.speed + 0.12f * std::sin(piF * controls.speed),
+                    0.0f, 1.0f);
+            controls.position = std::clamp(
+                controls.position - 0.1114f * std::sin(piF * controls.position),
+                0.0f, 1.0f);
+        }
+    }
 
     controls.pressure = std::clamp(
         controls.pressure
