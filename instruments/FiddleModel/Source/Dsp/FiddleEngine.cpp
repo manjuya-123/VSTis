@@ -1170,19 +1170,15 @@ struct FiddleEngine::Impl
             // keeps full resonance because singleStringIsolation is then zero.
             const auto isUpperAdjacentSympathetic =
                 static_cast<int>(i) == primaryString + 1;
-            // The real GUI C2+G3 simultaneous-onset regression exposed the
-            // open D neighbour just 5.2 dB below G's unshared harmonic comb,
-            // despite zero direct bow force on D. The shared rocking bridge
-            // still pumps D's high-Q open modes. A deliberately isolated G
-            // stroke uses extra *passive termination loss* on unplayed D,
-            // retaining actual bridge sympathetic coupling and leaving
-            // double stops/drones unchanged. Other pairs retain the existing
-            // gentle 3.5% damping so string identity stays distinct.
-            const auto upperNeighbourLoss =
-                primaryString == 0 ? 0.075 : 0.035;
+            // Keep the established gentle 3.5% passive loss on an
+            // unplayed adjacent string. The apparent louder open D in the
+            // GUI G3 regression came from *shared upper G partials* (G9/D6
+            // and G12/D8) being wrongly counted as separate D energy.
+            // Fix the detector instead of artificially muting sympathetic
+            // physical coupling to chase a misleading score.
             const auto sympatheticLoss =
                 isUpperAdjacentSympathetic
-                    ? 1.0 - upperNeighbourLoss * singleIsolation
+                    ? 1.0 - 0.035 * singleIsolation
                     : 1.0;
             const auto reflectedNut =
                 -filtered
