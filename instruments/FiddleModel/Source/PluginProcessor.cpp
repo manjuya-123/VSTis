@@ -960,15 +960,20 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         playModePreferredPrimaryString_, 0, 3);
     if (monoMelodicBow)
     {
-        // Preserve the full pressure knob range through the final clamp.
-        // Nominal MIDI-velocity 0.85 yields 0.584 before this calibration;
-        // the G and D commands become 0.85 and 0.65 respectively.
+        // Preserve zero pressure and full pressure as physical endpoints.
+        // The sinusoidal middle-range compensation is monotonic, so the
+        // player can still sweep the entire bow force range. With nominal
+        // MIDI-velocity 0.85, pre-calibration pressure is 0.584 and the G/D
+        // commands become approximately 0.85/0.65.
         constexpr std::array<float, 4> monoPressureCorrection {
-            0.266f, 0.066f, -0.015f, 0.0f
+            0.276f, 0.0684f, -0.0155f, 0.0f
         };
+        const auto middleRange =
+            std::sin(3.14159265358979323846f * controls.pressure);
         controls.pressure = std::clamp(
             controls.pressure
-                + monoPressureCorrection[static_cast<std::size_t>(primary)],
+                + monoPressureCorrection[static_cast<std::size_t>(primary)]
+                    * middleRange,
             0.0f, 1.0f);
     }
 
