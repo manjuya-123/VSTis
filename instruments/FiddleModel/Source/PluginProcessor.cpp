@@ -96,24 +96,31 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         if (uiActionPress >= 0)
             triggerFiddlePlayAction(uiActionPress, 0.82f);
 
-        const auto uiFingeringRelease =
-            pendingUiFingeringRelease_.exchange(-1, std::memory_order_relaxed);
-        if (uiFingeringRelease >= 0)
+        // The GUI keyboard is a single moving finger, not an unordered MIDI
+        // event queue. Apply its latest requested position atomically once
+        // per block, releasing the *previously applied* note (not merely the
+        // most recent queued release). Mouse movement can otherwise overwrite
+        // release messages between callbacks and leave an old physical string
+        // singing underneath the current fingering.
+        const auto uiDesiredNote =
+            uiFingeringRequestedNote_.load(std::memory_order_relaxed);
+        if (uiDesiredNote != uiFingeringAppliedNote_)
         {
-            fingeringKeyDown_[static_cast<std::size_t>(uiFingeringRelease)] = false;
-            if (!fingeringHold_)
+            if (uiFingeringAppliedNote_ >= 0)
             {
-                noteStack_.noteOff(uiFingeringRelease);
-                updateFiddlePlayFingering();
+                const auto oldNote = uiFingeringAppliedNote_;
+                fingeringKeyDown_[static_cast<std::size_t>(oldNote)] = false;
+                if (!fingeringHold_)
+                    noteStack_.noteOff(oldNote);
             }
-        }
-
-        const auto uiFingeringPress =
-            pendingUiFingeringPress_.exchange(-1, std::memory_order_relaxed);
-        if (uiFingeringPress >= 0)
-        {
-            fingeringKeyDown_[static_cast<std::size_t>(uiFingeringPress)] = true;
-            noteStack_.noteOn(uiFingeringPress, 0.82f);
+            uiFingeringAppliedNote_ = uiDesiredNote;
+            if (uiDesiredNote >= 0)
+            {
+                fingeringKeyDown_[static_cast<std::size_t>(uiDesiredNote)] = true;
+                noteStack_.noteOn(uiDesiredNote, 0.82f);
+            }
+            // One layout calculation avoids an intermediate unvoiced/open
+            // string as the mouse crosses keys within a single audio block.
             updateFiddlePlayFingering();
         }
 
@@ -850,6 +857,11 @@ void FiddleModelAudioProcessor::resetPerformanceModeState() noexcept
     fingeringHold_ = false;
     fingeringPedalHold_ = false;
     fingeringKeyDown_.fill(false);
+    uiFingeringAppliedNote_ = -1;
+    // Retain a newly pressed UI key when this is the initial prepare block;
+    // later mode changes explicitly discard any stale GUI drag request.
+    if (lastPlayMode_ >= 0)
+        uiFingeringRequestedNote_.store(-1, std::memory_order_relaxed);
     playModeFocusValue_ = 0.0f;
     playModeAutoFocusValue_ = 0.0f;
     playModePressureBoost_ = 0.0f;
@@ -1058,9 +1070,17 @@ void FiddleModelAudioProcessor::requestPlayFingeringFromUi(
 
     visualLastInputMidiNote_.store(midiNote, std::memory_order_relaxed);
     if (pressed)
-        pendingUiFingeringPress_.store(midiNote, std::memory_order_relaxed);
+    {
+        uiFingeringRequestedNote_.store(midiNote, std::memory_order_relaxed);
+    }
     else
-        pendingUiFingeringRelease_.store(midiNote, std::memory_order_relaxed);
+    {
+        // An obsolete release from a key the pointer already left must not
+        // clear a newer press on a different key.
+        int expected = midiNote;
+        uiFingeringRequestedNote_.compare_exchange_strong(
+            expected, -1, std::memory_order_relaxed);
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
