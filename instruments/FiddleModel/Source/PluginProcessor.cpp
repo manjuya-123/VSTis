@@ -941,14 +941,12 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
             + playModePressureBoost_,
         0.0f, 1.0f);
 
-    // The real Processor bow-first G3 WAV exposed a 588 Hz partial over
-    // 20 dB louder than its 196 Hz fundamental. Contact instrumentation
-    // explains the split: low G spends only ~29% of the first 282 ms sticking,
-    // compared with ~61% on D. A direct physical-bow sweep found better early
-    // pitch capture at G pressure/speed 0.85/0.45 and D 0.65/0.45.
-    // Apply this only to the intentionally isolated ordinary melodic bow.
-    // No oscillator, harmonic EQ, output gain or artificial attack is added:
-    // these are the actual normal-force and bow-travel controls.
+    // Tune the *actual* MIDI/Processor bow path instead of extrapolating from
+    // a direct DSP probe: the two can settle on different stick/slip regimes.
+    // C2-first Processor sweeps showed that a slower G bow reveals the pitched
+    // core and suppresses adjacent D, while the D bow needs a lighter normal
+    // load and quicker acceleration. These are physical bow commands, not an
+    // extra oscillator, output EQ or a note-dependent audio gain.
     const auto activeAction = static_cast<fiddle::BowAction>(
         visualBowAction_.load(std::memory_order_relaxed));
     const bool monoMelodicBow =
@@ -960,13 +958,12 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         playModePreferredPrimaryString_, 0, 3);
     if (monoMelodicBow)
     {
-        // Preserve zero pressure and full pressure as physical endpoints.
-        // The sinusoidal middle-range compensation is monotonic, so the
-        // player can still sweep the entire bow force range. With nominal
-        // MIDI-velocity 0.85, pre-calibration pressure is 0.584 and the G/D
-        // commands become approximately 0.85/0.65.
+        // Preserve exact 0/1 player-pressure endpoints and a monotonic
+        // gesture curve. The previous D pressure boost put its first note
+        // into a high-partial regime (low3 fraction 0.127); the measured
+        // lower-force Processor probe gave 0.746. G stays unmodified here.
         constexpr std::array<float, 4> monoPressureCorrection {
-            0.0f, 0.0684f, -0.0155f, 0.0f
+            0.0f, -0.10f, -0.0155f, 0.0f
         };
         const auto middleRange =
             std::sin(3.14159265358979323846f * controls.pressure);
@@ -983,14 +980,28 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         controls.speed * playModeSpeedScale_, 0.0f, 1.0f);
     if (monoMelodicBow && primary <= 1)
     {
-        // Slow down the physical bow travel through a continuous endpoint-
-        // preserving control curve; full manual range 0..1 remains available.
-        // At the nominal 0.598 gesture this gives ~0.45, the tested
-        // low-string Helmholtz capture region.
-        controls.speed = std::pow(controls.speed, 1.55f);
+        // At the nominal 0.598 travel gesture, the previous 1.55 exponent
+        // produced ~0.45 for both low strings. In the *real Processor* test
+        // G needs ~0.26: the lower-speed probe made its pitch-specific comb
+        // 13.2 dB stronger than the adjacent D comb. D retains ~0.45.
+        // Both curves preserve 0 and 1, including the full manual range.
+        const auto exponent = primary == 0 ? 2.65f : 1.55f;
+        controls.speed = std::pow(controls.speed, exponent);
     }
     controls.attack = std::clamp(
         controls.attack + playModeResponseBoost_, 0.0f, 1.0f);
+    if (monoMelodicBow && primary == 1)
+    {
+        // D's physical bow catch needs quicker initial acceleration. In the
+        // Processor sweep 0.65 Bow Response restored 69% of the first eight
+        // harmonics to the first three, versus 13% at the old 0.50. Apply
+        // an endpoint-preserving monotonic response curve rather than
+        // forcing a fixed attack value or changing the audio envelope.
+        constexpr float piF = 3.14159265358979323846f;
+        controls.attack = std::clamp(
+            controls.attack + 0.15f * std::sin(piF * controls.attack),
+            0.0f, 1.0f);
+    }
 
     if (playModeFocusOverride_)
     {
