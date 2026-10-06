@@ -145,18 +145,6 @@ struct ModalBank
         for (auto& mode : modes)
             mode.push(force);
     }
-
-    [[nodiscard]] double radiatingVelocity(double force) const noexcept
-    {
-        // The listener should hear the resonant plate/body velocity, not a
-        // near-raw copy of the bridge/string velocity. y1 is each mode's
-        // current velocity response after push(); retain only the small
-        // broadband structural mobility as the non-modal feedthrough.
-        double velocity = bodyDirectConductance * admittanceScale * force;
-        for (const auto& mode : modes)
-            velocity += mode.y1;
-        return velocity;
-    }
 };
 
 struct RadiationFilter
