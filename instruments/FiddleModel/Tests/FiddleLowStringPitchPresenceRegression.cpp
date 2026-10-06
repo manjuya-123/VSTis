@@ -301,7 +301,7 @@ int main(int argc, char** argv)
     // G/D speaking lengths can sound pitched in the direct engine probe but
     // bright and detached in the actual Processor MIDI audition. All original
     // stopped-note acceptance conditions remain unchanged.
-    constexpr std::array<Case, 12> cases {{
+    constexpr std::array<Case, 30> cases {{
         { "G_open3", 0, 0, -0.95f, 195.9977f, true },
         { "G_Gsharp3", 0, 0, -0.95f, 207.65235f, false },
         { "D_open4", 1, 1, -0.95f, 293.6648f, true },
@@ -319,7 +319,47 @@ int main(int argc, char** argv)
         { "G_open3_play_bow", 0, 0, -0.95f, 195.9977f,
           true, 0.504f, 0.598f, 0.50f, true },
         { "D_open4_play_bow", 1, 1, -0.95f, 293.6648f,
-          true, 0.529f, 0.598f, 0.50f, true }
+          true, 0.529f, 0.598f, 0.50f, true },
+
+        // Isolate physical parameters during the actual first 282 ms,
+        // where open-G and open-D currently favor higher string harmonics.
+        // These diagnostic probes do not replace or relax any pass/fail gate.
+        { "G_open3_pos030", 0, 0, -0.95f, 195.9977f,
+          true, 0.55f, 0.60f, 0.30f, false },
+        { "G_open3_pos035", 0, 0, -0.95f, 195.9977f,
+          true, 0.55f, 0.60f, 0.35f, false },
+        { "G_open3_pos040", 0, 0, -0.95f, 195.9977f,
+          true, 0.55f, 0.60f, 0.40f, false },
+        { "D_open4_pos030", 1, 1, -0.95f, 293.6648f,
+          true, 0.55f, 0.60f, 0.30f, false },
+        { "D_open4_pos035", 1, 1, -0.95f, 293.6648f,
+          true, 0.55f, 0.60f, 0.35f, false },
+        { "D_open4_pos040", 1, 1, -0.95f, 293.6648f,
+          true, 0.55f, 0.60f, 0.40f, false },
+        { "G_open3_pressure065", 0, 0, -0.95f, 195.9977f,
+          true, 0.65f, 0.60f, 0.45f, false },
+        { "G_open3_pressure075", 0, 0, -0.95f, 195.9977f,
+          true, 0.75f, 0.60f, 0.45f, false },
+        { "G_open3_pressure085", 0, 0, -0.95f, 195.9977f,
+          true, 0.85f, 0.60f, 0.45f, false },
+        { "D_open4_pressure065", 1, 1, -0.95f, 293.6648f,
+          true, 0.65f, 0.60f, 0.45f, false },
+        { "D_open4_pressure075", 1, 1, -0.95f, 293.6648f,
+          true, 0.75f, 0.60f, 0.45f, false },
+        { "D_open4_pressure085", 1, 1, -0.95f, 293.6648f,
+          true, 0.85f, 0.60f, 0.45f, false },
+        { "G_open3_speed035", 0, 0, -0.95f, 195.9977f,
+          true, 0.55f, 0.35f, 0.45f, false },
+        { "G_open3_speed045", 0, 0, -0.95f, 195.9977f,
+          true, 0.55f, 0.45f, 0.45f, false },
+        { "D_open4_speed035", 1, 1, -0.95f, 293.6648f,
+          true, 0.55f, 0.35f, 0.45f, false },
+        { "D_open4_speed045", 1, 1, -0.95f, 293.6648f,
+          true, 0.55f, 0.45f, 0.45f, false },
+        { "G_open3_pos035_pressure075", 0, 0, -0.95f, 195.9977f,
+          true, 0.75f, 0.60f, 0.35f, false },
+        { "D_open4_pos035_pressure075", 1, 1, -0.95f, 293.6648f,
+          true, 0.75f, 0.60f, 0.35f, false }
     }};
 
     std::ofstream csv;
