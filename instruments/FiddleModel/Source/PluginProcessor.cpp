@@ -606,6 +606,19 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
     if (playModeBowArmed_)
     {
+        // Long-form 1.45s held-bow regression revealed that matching raw
+        // bow pressure/speed/contact alone is not sufficient. The MIDI
+        // bow-first path prepares the OLD pre-fingering controls while C2
+        // is held, then hits the chosen string with unsmoothed new physical
+        // controls. Nonlinear friction can settle into a high-partial
+        // regime for the entire D4/G4 note (low3/16: 0.08..0.16), whereas
+        // the GUI path primes its selected-string bow before touching.
+        // Prepare the already chosen physical bow parameters without
+        // advancing any string waveguide, then make the real bow contact.
+        // This is not audio pre-rendering, pitch overlay or output gain.
+        if (!uiAuditionBowActive_)
+            engine_.primeUncontactedBowGesture(0.02133f);
+
         const auto armedAction =
             fiddle::bowActionForMidiNote(activeBowActionNote_);
 
