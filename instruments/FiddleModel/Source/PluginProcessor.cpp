@@ -966,7 +966,7 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
         // MIDI-velocity 0.85, pre-calibration pressure is 0.584 and the G/D
         // commands become approximately 0.85/0.65.
         constexpr std::array<float, 4> monoPressureCorrection {
-            0.276f, 0.0684f, -0.0155f, 0.0f
+            0.0f, 0.0684f, -0.0155f, 0.0f
         };
         const auto middleRange =
             std::sin(3.14159265358979323846f * controls.pressure);
