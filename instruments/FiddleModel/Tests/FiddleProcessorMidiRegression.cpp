@@ -1135,8 +1135,68 @@ int main(int argc, char** argv)
         }
     }
 
-    if (!uiPassed || !allStringsPassed)
+    // Produce genuine long-form pitch movement from BOTH real plugin input
+    // paths even when a stricter short regression failed. Ship exact note
+    // boundaries, not an ambiguous <1-second sound snippet or a pitch-shifted
+    // rendered sample. The MIDI recording sustains C2 for all five notes;
+    // the GUI recording holds its temporary Down Bow throughout a mouse drag.
+    const auto motionDirectory = outputDirectory.empty()
+        ? std::filesystem::path { "." }
+        : outputDirectory;
+    std::error_code motionDirectoryError;
+    std::filesystem::create_directories(
+        motionDirectory, motionDirectoryError);
+    bool motionPassed = !motionDirectoryError;
+    std::ofstream timeline(
+        motionDirectory / "processor_pitch_motion_timeline.csv");
+    if (!timeline)
+        motionPassed = false;
+    timeline << "route,string,sample_rate,step,midi_note,target_hz,"
+                "estimated_hz,cents,start_seconds,end_seconds,"
+                "physical_string,validation\n";
+    for (const auto rate : { 48000.0, 44100.0 })
     {
+        sampleRate = rate;
+        for (const auto stringIndex : { 0, 1 })
+            for (const auto gui : { false, true })
+                if (!renderPitchMotionAudition(
+                        motionDirectory, stringIndex, gui, timeline))
+                    motionPassed = false;
+    }
+    if (!timeline)
+        motionPassed = false;
+
+    std::ofstream instructions(
+        motionDirectory / "READ_ME_pitch_motion.txt");
+    instructions
+        << "LONG-FORM LISTENING CHECK / Fiddle Model\n"
+        << "Files processor_pitch_motion_MIDI_G/D_* are actual MIDI Note Ons "
+           "with C2 (Down Bow) held continuously.\n"
+        << "Files processor_pitch_motion_GUI_G/D_* are generated with the "
+           "Standalone Play Key Map's actual processor callbacks.\n"
+        << "Stereo 16-bit PCM direct from FiddleModelAudioProcessor; "
+           "no external oscillator, post EQ, timestretch, looping, or "
+           "sample pitch-shift. Only clipping prevention at >0.92 peak.\n"
+        << "Each phrase goes open, +5, +7, +2, open on the SAME "
+           "physical string, about 1.45 seconds PER NOTE.\n"
+        << "G string: MIDI 55 (G3), 60 (C4), 62 (D4), "
+           "57 (A3), 55 (G3).\n"
+        << "D string: MIDI 62 (D4), 67 (G4), 69 (A4), "
+           "64 (E4), 62 (D4).\n"
+        << "Every 1.45 seconds the actual instrument is refingered while "
+           "the same C2 bow is held. This is expressly for checking "
+           "whether a stationary/raspy foreground masks the moving pitch.\n"
+        << "Open processor_pitch_motion_timeline.csv for measured "
+           "frequency, cents, exact step boundaries and primary string.\n"
+        << "Even if the automated pitch checks PASS, the report of "
+           "separate bowed/pitched layers must be judged by hearing.\n";
+    if (!instructions)
+        motionPassed = false;
+
+    if (!uiPassed || !allStringsPassed || !motionPassed)
+    {
+        if (!motionPassed)
+            std::cerr << "FAIL: long-form pitch movement capture/regression\n";
         // Run the diagnostic whenever MIDI or GUI strict regression fails.
         // Re-run complete real Processor gestures with changes to the
         // *physical* bowing controls; these logs guide the next calibration
