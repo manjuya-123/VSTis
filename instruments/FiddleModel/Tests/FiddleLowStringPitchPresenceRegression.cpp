@@ -283,13 +283,21 @@ int main(int argc, char** argv)
         int pairLower;
         float balance;
         float targetHz;
+        bool diagnosticOnly;
     };
 
-    constexpr std::array<Case, 4> cases {{
-        { "G_Gsharp3", 0, 0, -0.95f, 207.65235f },
-        { "D_E4", 1, 1, -0.95f, 329.62756f },
-        { "A_Bflat4", 2, 2, -0.95f, 466.16376f },
-        { "E_F5", 3, 2, +0.95f, 698.45646f }
+    // Include real open-string reference notes. Earlier low-string probes
+    // covered stopped notes but missed the particularly weak D4 open-string
+    // pitch core heard in the end-to-end Processor audition. Do not infer a
+    // suitable new pass/fail threshold until the physical-path data is known.
+    // The established four stopped-note gates are unchanged.
+    constexpr std::array<Case, 6> cases {{
+        { "G_open3", 0, 0, -0.95f, 195.9977f, true },
+        { "G_Gsharp3", 0, 0, -0.95f, 207.65235f, false },
+        { "D_open4", 1, 1, -0.95f, 293.6648f, true },
+        { "D_E4", 1, 1, -0.95f, 329.62756f, false },
+        { "A_Bflat4", 2, 2, -0.95f, 466.16376f, false },
+        { "E_F5", 3, 2, +0.95f, 698.45646f, false }
     }};
 
     std::ofstream csv;
@@ -379,12 +387,13 @@ int main(int argc, char** argv)
         // Require the first three harmonics to carry perceptually meaningful
         // energy on the two low strings, not merely be detectable by a
         // narrow-band pitch estimator.
-        if ((item.stringIndex == 0
+        if (!item.diagnosticOnly
+            && ((item.stringIndex == 0
              && radiatedMetrics.low3Fraction < 0.36)
             || (item.stringIndex == 1
                 && radiatedMetrics.low3Fraction < 0.56)
             || (item.stringIndex == 2
-                && radiatedMetrics.low3Fraction < 0.32))
+                && radiatedMetrics.low3Fraction < 0.32)))
         {
             std::cerr
                 << "FAIL: low-string pitch harmonics are masked by body/formant energy"
