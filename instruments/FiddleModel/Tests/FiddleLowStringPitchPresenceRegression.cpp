@@ -372,9 +372,23 @@ int main(int argc, char** argv)
         const auto radiatedMetrics =
             measure(radiated, item.targetHz);
 
+        // Actual bow-first MIDI notes last about 280 ms in the Processor
+        // regression. The late 700 ms string probe can hide an unacceptably
+        // weak opening fundamental while the high-Q bow/string modes build.
+        // Compare the same physical path at 280 ms without relaxing any of
+        // the established late steady-state pitch-presence checks.
+        const auto earlySamples = std::min<std::size_t>(
+            radiated.size(),
+            static_cast<std::size_t>(0.282 * sampleRate));
+        const std::vector<float> earlyRadiated(
+            radiated.begin(), radiated.begin() + earlySamples);
+        const auto earlyRadiatedMetrics =
+            measure(earlyRadiated, item.targetHz);
+
         printMetrics(item.name, "incident_bridge", incidentMetrics);
         printMetrics(item.name, "bow_injection", injectionMetrics);
         printMetrics(item.name, "radiated", radiatedMetrics);
+        printMetrics(item.name, "radiated_early282ms", earlyRadiatedMetrics);
 
         if (csv)
         {
@@ -396,6 +410,7 @@ int main(int argc, char** argv)
             write("incident_bridge", incidentMetrics);
             write("bow_injection", injectionMetrics);
             write("radiated", radiatedMetrics);
+            write("radiated_early282ms", earlyRadiatedMetrics);
         }
 
         if (!(std::isfinite(radiatedMetrics.low3Fraction)
