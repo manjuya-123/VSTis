@@ -354,8 +354,8 @@ int main(int argc, char** argv)
         singleFocus.contactNormalForceN[1]
         + singleFocus.contactNormalForceN[2];
     if (!(singlePairForce > 0.001f)
-        || singleFocus.contactNormalForceN[2] > singlePairForce * 0.004f)
-        return fail("Monophonic Fiddle Play directly bowed too much adjacent A string");
+        || singleFocus.contactNormalForceN[2] > singlePairForce * 0.0001f)
+        return fail("Monophonic Fiddle Play must not directly bow adjacent A string");
     engine.stopBow();
     render(engine, left, right, 0.08);
 
