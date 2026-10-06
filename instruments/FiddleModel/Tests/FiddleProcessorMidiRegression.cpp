@@ -470,6 +470,23 @@ bool runStringSequence(int stringIndex,
                 stringIndex,
                 upperAdjacentOpenNote))
         {
+            // Preserve the actual failed Processor output, not an engine-only
+            // approximation. The failure can happen before the full phrase is
+            // rendered, so the usual success-only WAV export would discard
+            // precisely the listening evidence we need.
+            if (outputPath != nullptr)
+            {
+                const auto failurePath =
+                    outputPath->parent_path()
+                    / (std::string("processor_failed_")
+                       + std::to_string(stringIndex)
+                       + "_midi_" + std::to_string(note) + ".wav");
+                if (!writeMonoWav(failurePath, fullOutput))
+                    std::cerr << "FAIL: could not preserve failed Processor WAV\n";
+                else
+                    std::cerr << "diagnostic_failure_wav="
+                              << failurePath.string() << '\n';
+            }
             std::cerr
                 << "FAIL: audible dominant pitch/energy did not follow fingering"
                 << " string=" << stringIndex
