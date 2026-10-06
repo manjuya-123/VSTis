@@ -554,6 +554,11 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
         layout.bowPairLowerString,
         0.85f);
 
+    // Publish the selected physical string before re-applying performance
+    // controls so string-aware bow-force calibration follows the new
+    // fingering immediately in bow-first and legato workflows.
+    playModePreferredPrimaryString_ = layout.primaryString;
+
     // Fingering can change which physical string is primary while a bow
     // action is already held. Re-apply performance controls here so the
     // newly computed monophonic auto-focus reaches the engine immediately.
@@ -913,6 +918,30 @@ void FiddleModelAudioProcessor::applyPerformanceControls() noexcept
             + 0.30f * channelPressureNormalized_
             + playModePressureBoost_,
         0.0f, 1.0f);
+
+    // Continuous single-string Fiddle Play should land in a playable
+    // Helmholtz region by default instead of driving G/D into a bright
+    // high-partial regime. This trims the physical normal-force command,
+    // not the audio output, and only for ordinary Down/Up bowing while
+    // monophonic auto-focus is active. Manual pressure, channel pressure,
+    // drones, double stops and one-shot articulations keep their full range.
+    const auto activeAction = static_cast<fiddle::BowAction>(
+        visualBowAction_.load(std::memory_order_relaxed));
+    if (playModeAutoFocusEnabled_
+        && !playModeFocusOverride_
+        && (activeAction == fiddle::BowAction::DownBow
+            || activeAction == fiddle::BowAction::UpBow))
+    {
+        constexpr std::array<float, 4> monoPressureTrim {
+            0.080f, 0.055f, 0.015f, 0.0f
+        };
+        const auto primary = std::clamp(
+            playModePreferredPrimaryString_, 0, 3);
+        controls.pressure = std::clamp(
+            controls.pressure
+                - monoPressureTrim[static_cast<std::size_t>(primary)],
+            0.0f, 1.0f);
+    }
 
     controls.vibratoWidth = std::max(
         controls.vibratoWidth, modWheelNormalized_);
