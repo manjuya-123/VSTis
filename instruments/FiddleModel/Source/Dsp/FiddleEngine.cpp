@@ -1219,16 +1219,8 @@ struct FiddleEngine::Impl
                     (1.0 - brightness) * 0.58 * rawNoise
                     + brightness * 0.34 * differentiated;
 
-                // A single perfectly repeating friction threshold makes
-                // held notes lock into a near-machine-periodic buzz. Bow
-                // hair encounters slightly different rosin deposits as it
-                // travels; let that *existing spatial roughness* change the
-                // real stick/slip solve more audibly, rather than blending
-                // an independent noise source into the radiated audio.
-                // Keep the noise velocity injection and string dispersion
-                // unchanged so the harmonic series remains physically driven.
                 const auto roughnessDepth =
-                    0.014 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                    0.008 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
                 const auto localStaticGrip =
