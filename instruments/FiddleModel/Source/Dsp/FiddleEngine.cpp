@@ -1228,7 +1228,7 @@ struct FiddleEngine::Impl
                 // Keep the noise velocity injection and string dispersion
                 // unchanged so the harmonic series remains physically driven.
                 const auto roughnessDepth =
-                    0.024 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                    0.014 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
                 const auto localStaticGrip =
