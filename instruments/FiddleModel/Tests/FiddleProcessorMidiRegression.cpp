@@ -341,7 +341,12 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                               bool gui,
                               std::ofstream& timeline)
 {
-    const int openNote = stringIndex == 0 ? 55 : 62;
+    constexpr std::array<int, 4> openNotes { 55, 62, 69, 76 };
+    constexpr std::array<const char*, 4> stringNames { "G", "D", "A", "E" };
+    if (stringIndex < 0 || stringIndex >= static_cast<int>(openNotes.size()))
+        return false;
+    const int openNote = openNotes[static_cast<std::size_t>(stringIndex)];
+    const auto* stringName = stringNames[static_cast<std::size_t>(stringIndex)];
     constexpr std::array<int, 5> intervals { 0, 5, 7, 2, 0 };
     constexpr int actionNote = 36; // C2 Down Bow
     constexpr float fingeringVelocity = 0.82f;
@@ -453,7 +458,7 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
         const double beginning = firstFrame / sampleRate;
         const double ending = recording.left.size() / sampleRate;
         timeline << (gui ? "GUI" : "MIDI") << ','
-                 << (stringIndex == 0 ? 'G' : 'D') << ','
+                 << stringName << ','
                  << sampleRate << ',' << i << ',' << note << ','
                  << target << ',' << measured << ',' << cents << ','
                  << beginning << ',' << ending << ','
@@ -462,7 +467,7 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
                  << (noteValid ? "PASS" : "FAIL") << '\n';
         std::cout << "processor_pitch_motion"
                   << " route=" << (gui ? "GUI" : "MIDI")
-                  << " string=" << (stringIndex == 0 ? "G" : "D")
+                  << " string=" << stringName
                   << " rate=" << sampleRate
                   << " note=" << note
                   << " duration=" << (ending - beginning)
@@ -502,7 +507,7 @@ bool renderPitchMotionAudition(const std::filesystem::path& outputDirectory,
     const auto file = outputDirectory
         / (std::string("processor_pitch_motion_")
             + (gui ? "GUI_" : "MIDI_")
-            + (stringIndex == 0 ? "G_" : "D_")
+            + stringName + "_"
             + std::to_string(static_cast<int>(sampleRate)) + "hz.wav");
     if (!writeStereoWav(file, recording))
     {
@@ -1158,11 +1163,11 @@ int main(int argc, char** argv)
         }
     }
 
-    // Produce genuine long-form pitch movement from BOTH real plugin input
-    // paths even when a stricter short regression failed. Ship exact note
-    // boundaries, not an ambiguous <1-second sound snippet or a pitch-shifted
-    // rendered sample. The MIDI recording sustains C2 for all five notes;
-    // the GUI recording holds its temporary Down Bow throughout a mouse drag.
+    // Produce genuine long-form pitch movement for ALL FOUR physical strings
+    // and BOTH real plugin input paths. Every phrase starts on the open string
+    // and moves to stopped pitches while retaining a continuous down bow.
+    // Give the listener a direct root-vs-fingered comparison rather than only
+    // asserting numerically that the target pitch was detected.
     const auto motionDirectory = outputDirectory.empty()
         ? std::filesystem::path { "." }
         : outputDirectory;
@@ -1180,7 +1185,7 @@ int main(int argc, char** argv)
     for (const auto rate : { 48000.0, 44100.0 })
     {
         sampleRate = rate;
-        for (const auto stringIndex : { 0, 1 })
+        for (const auto stringIndex : { 0, 1, 2, 3 })
             for (const auto gui : { false, true })
                 if (!renderPitchMotionAudition(
                         motionDirectory, stringIndex, gui, timeline))
@@ -1193,9 +1198,9 @@ int main(int argc, char** argv)
         motionDirectory / "READ_ME_pitch_motion.txt");
     instructions
         << "LONG-FORM LISTENING CHECK / Fiddle Model\n"
-        << "Files processor_pitch_motion_MIDI_G/D_* are actual MIDI Note Ons "
+        << "Files processor_pitch_motion_MIDI_G/D/A/E_* are actual MIDI Note Ons "
            "with C2 (Down Bow) held continuously.\n"
-        << "Files processor_pitch_motion_GUI_G/D_* are generated with the "
+        << "Files processor_pitch_motion_GUI_G/D/A/E_* are generated with the "
            "Standalone Play Key Map's actual processor callbacks.\n"
         << "Stereo 16-bit PCM direct from FiddleModelAudioProcessor; "
            "no external oscillator, post EQ, timestretch, looping, or "
@@ -1206,6 +1211,10 @@ int main(int argc, char** argv)
            "57 (A3), 55 (G3).\n"
         << "D string: MIDI 62 (D4), 67 (G4), 69 (A4), "
            "64 (E4), 62 (D4).\n"
+        << "A string: MIDI 69 (A4), 74 (D5), 76 (E5), "
+           "71 (B4), 69 (A4).\n"
+        << "E string: MIDI 76 (E5), 81 (A5), 83 (B5), "
+           "78 (F#5), 76 (E5).\n"
         << "Every 1.45 seconds the actual instrument is refingered while "
            "the same C2 bow is held. This is expressly for checking "
            "whether a stationary/raspy foreground masks the moving pitch.\n"
