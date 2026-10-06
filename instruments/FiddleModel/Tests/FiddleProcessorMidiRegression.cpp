@@ -123,6 +123,40 @@ double harmonicCombPower(const std::vector<float>& x, double fundamental)
     return power;
 }
 
+// Fifth-related G/D/A/E fundamentals share real harmonics at e.g. 588 Hz
+// (G3 harmonic 3 == D4 harmonic 2). Those shared partials cannot prove that
+// either string is being bowed. Compare only the non-overlapping comb lines
+// when evaluating unwanted neighbour dominance. The same +8 dB requirement
+// still applies to the string-specific spectral evidence.
+double unsharedHarmonicCombPower(const std::vector<float>& x,
+                                 double fundamental,
+                                 double otherFundamental)
+{
+    double power = 0.0;
+    for (int harmonic = 1; harmonic <= 8; ++harmonic)
+    {
+        const auto frequency = fundamental * harmonic;
+        if (frequency >= 0.45 * sampleRate)
+            break;
+
+        bool overlapsOther = false;
+        for (int otherHarmonic = 1; otherHarmonic <= 8; ++otherHarmonic)
+        {
+            const auto otherFrequency = otherFundamental * otherHarmonic;
+            if (std::abs(frequency - otherFrequency)
+                <= std::max(2.0, 0.005 * frequency))
+            {
+                overlapsOther = true;
+                break;
+            }
+        }
+        if (!overlapsOther)
+            power += tonePower(x, frequency)
+                / std::sqrt(static_cast<double>(harmonic));
+    }
+    return power;
+}
+
 double centsBetween(double measured, double target)
 {
     return 1200.0 * std::log2(measured / target);
@@ -255,6 +289,7 @@ bool checkPitch(const std::vector<float>& segment,
     double combAdvantageDb = 99.0;
     double previousCombAdvantageDb = 99.0;
     double adjacentCombAdvantageDb = 99.0;
+    double adjacentUnsharedCombAdvantageDb = 99.0;
     if (note != openNote)
     {
         const auto staleOpenPower =
@@ -284,6 +319,14 @@ bool checkPitch(const std::vector<float>& segment,
         adjacentCombAdvantageDb = 10.0 * std::log10(
             (targetPower + 1.0e-30)
             / (adjacentOpenPower + 1.0e-30));
+
+        const auto targetUnsharedPower =
+            unsharedHarmonicCombPower(segment, target, adjacentOpenHz);
+        const auto adjacentUnsharedPower =
+            unsharedHarmonicCombPower(segment, adjacentOpenHz, target);
+        adjacentUnsharedCombAdvantageDb = 10.0 * std::log10(
+            (targetUnsharedPower + 1.0e-30)
+            / (adjacentUnsharedPower + 1.0e-30));
     }
 
     std::cout << "processor_bow_first_pitch"
@@ -297,6 +340,10 @@ bool checkPitch(const std::vector<float>& segment,
               << previousCombAdvantageDb
               << " target_vs_upper_adjacent_comb_db="
               << adjacentCombAdvantageDb
+              << " target_vs_upper_adjacent_unshared_comb_db="
+              << adjacentUnsharedCombAdvantageDb
+              << " fundamental_fraction="
+              << tonePower(segment, target) / (firstEightPower + 1.0e-30)
               << " low3_fraction=" << lowThreeFraction
               << '\n';
 
@@ -308,7 +355,7 @@ bool checkPitch(const std::vector<float>& segment,
     return std::abs(cents) <= 10.0
         && (note == openNote || combAdvantageDb >= 3.0)
         && (upperAdjacentOpenNote < 0
-            || adjacentCombAdvantageDb >= 8.0)
+            || adjacentUnsharedCombAdvantageDb >= 8.0)
         && (stringIndex > 1 || lowThreeFraction >= 0.25);
 }
 
