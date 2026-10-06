@@ -874,9 +874,9 @@ int main(int argc, char** argv)
             allStringsPassed = false;
     }
 
-    if (!allStringsPassed)
-        return EXIT_FAILURE;
-
+    // Still run the real GUI path when a MIDI case fails: we must collect
+    // all independent acoustical evidence in one costly Windows build rather
+    // than hiding the GUI diagnostic behind an unrelated early failure.
     // Verify the Standalone's Play Key Map shortcut separately. It presses
     // Down Bow and the first fingering in the *same* processBlock, unlike the
     // earlier MIDI-only bow-first test, and can traverse multiple notes before
@@ -906,9 +906,9 @@ int main(int argc, char** argv)
         }
     }
 
-    if (!uiPassed)
+    if (!uiPassed || !allStringsPassed)
     {
-        // Only spend diagnostic time when the strict GUI regression fails.
+        // Run the diagnostic whenever MIDI or GUI strict regression fails.
         // Re-run complete real Processor gestures with changes to the
         // *physical* bowing controls; these logs guide the next calibration
         // instead of guessing from indirect engine-only results.
