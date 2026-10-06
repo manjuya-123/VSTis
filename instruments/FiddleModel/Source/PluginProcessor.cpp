@@ -94,7 +94,10 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const auto uiActionPress =
             pendingUiActionPress_.exchange(-1, std::memory_order_relaxed);
         if (uiActionPress >= 0)
-            triggerFiddlePlayAction(uiActionPress, 0.82f);
+            // GUI audition should use the same neutral bow-gesture
+            // strength as the MIDI regression (0.85), not a different
+            // stick/slip regime caused by an arbitrary 0.82 gesture.
+            triggerFiddlePlayAction(uiActionPress, 0.85f);
 
         // The GUI keyboard is a single moving finger, not an unordered MIDI
         // event queue. Apply its latest requested position atomically once
