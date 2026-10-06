@@ -96,6 +96,9 @@ private:
     float playModeResponseBoost_ = 0.0f;
     bool playModeOneShotLatched_ = false;
     bool playModeBowArmed_ = false;
+    // Set only for the GUI key map's physical bow audition. MIDI notes retain
+    // their independently validated performance calibration.
+    bool uiAuditionBowActive_ = false;
     // If a bow starts from one fingering note, overlapping MIDI note-ons during
     // that bow are treated as melodic left-hand slurs rather than accidental
     // double stops. A multi-note shape prepared before the bow remains
