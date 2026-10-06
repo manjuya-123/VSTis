@@ -70,6 +70,7 @@ jobs:
           -DFIDDLE_SOURCE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build VST3, Standalone, and processor MIDI regression
+        id: plugin_build
         run: >-
           cmake --build --preset release
           --target FiddleModel_VST3 FiddleModel_Standalone FiddleModelProcessorMidiRegression
@@ -91,7 +92,8 @@ jobs:
           if-no-files-found: warn
           path: build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/processor_failed_*.wav
 
-      - name: Upload VST3 and Standalone
+      - name: Upload validated VST3 and Standalone
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: FiddleModel-windows-release
@@ -100,3 +102,16 @@ jobs:
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/VST3/**
             build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/Standalone/**
             build/vs2022-x64/instruments/FiddleModel/processor-midi-regression/**
+
+      # A failed perceptual/pitch regression should keep the CI red, but must
+      # not make the compiled instrument inaccessible to the human listener.
+      # Never label this artifact "release"; it has NOT passed integration.
+      - name: Upload unverified listening build
+        if: failure() && steps.plugin_build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FiddleModel-windows-UNVERIFIED-listening
+          if-no-files-found: error
+          path: |
+            build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/VST3/**
+            build/vs2022-x64/instruments/FiddleModel/FiddleModel_artefacts/Release/Standalone/**
