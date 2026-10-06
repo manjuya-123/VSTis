@@ -15,6 +15,15 @@ namespace
 constexpr double sampleRate = 48000.0;
 constexpr double pi = 3.14159265358979323846;
 
+struct BowStartupMetrics
+{
+    double stickingFraction = 0.0;
+    double meanNormalForceN = 0.0;
+    double meanGripUtilization = 0.0;
+    double meanBowSpeedMps = 0.0;
+    int contactSamples = 0;
+};
+
 struct ProbeMetrics
 {
     double fundamentalFraction = 0.0;
@@ -212,7 +221,8 @@ void renderProbe(int stringIndex,
                  bool bowCatch,
                  std::vector<float>& incident,
                  std::vector<float>& injection,
-                 std::vector<float>& radiated)
+                 std::vector<float>& radiated,
+                 BowStartupMetrics& startup)
 {
     fiddle::FiddleEngine engine;
     engine.prepare(sampleRate);
@@ -249,6 +259,20 @@ void renderProbe(int stringIndex,
         engine.process(&left, &right, 1);
         const auto debug = engine.debugSnapshot();
 
+        // Follow the contact state during the exact early listening window,
+        // rather than inferring a successful bow catch from a late-periodic
+        // waveform. A missed or unstable stick/slip cycle can sound like a
+        // separate high-partial bow layer before the main pitch stabilizes.
+        if (sample < static_cast<std::size_t>(0.282 * sampleRate))
+        {
+            const auto idx = static_cast<std::size_t>(stringIndex);
+            startup.stickingFraction += debug.sticking[idx] ? 1.0 : 0.0;
+            startup.meanNormalForceN += debug.contactNormalForceN[idx];
+            startup.meanGripUtilization += debug.contactGripUtilization[idx];
+            startup.meanBowSpeedMps += std::abs(debug.bowSpeedMps);
+            ++startup.contactSamples;
+        }
+
         incident.push_back(
             debug.incidentBridgeVelocityMps[
                 static_cast<std::size_t>(stringIndex)]);
@@ -256,6 +280,15 @@ void renderProbe(int stringIndex,
             debug.bowInjectionVelocityMps[
                 static_cast<std::size_t>(stringIndex)]);
         radiated.push_back(left);
+    }
+
+    if (startup.contactSamples > 0)
+    {
+        const auto inv = 1.0 / startup.contactSamples;
+        startup.stickingFraction *= inv;
+        startup.meanNormalForceN *= inv;
+        startup.meanGripUtilization *= inv;
+        startup.meanBowSpeedMps *= inv;
     }
 }
 
@@ -392,6 +425,7 @@ int main(int argc, char** argv)
         std::vector<float> incident;
         std::vector<float> injection;
         std::vector<float> radiated;
+        BowStartupMetrics startup;
         renderProbe(
             item.stringIndex,
             item.pairLower,
@@ -403,7 +437,17 @@ int main(int argc, char** argv)
             item.bowCatch,
             incident,
             injection,
-            radiated);
+            radiated,
+            startup);
+
+        std::cout
+            << "bow_startup_contact"
+            << " case=" << item.name
+            << " sticking_fraction=" << startup.stickingFraction
+            << " mean_normal_force_n=" << startup.meanNormalForceN
+            << " mean_grip_utilization=" << startup.meanGripUtilization
+            << " mean_bow_speed_mps=" << startup.meanBowSpeedMps
+            << '\n';
 
         const auto incidentMetrics =
             measure(incident, item.targetHz);
