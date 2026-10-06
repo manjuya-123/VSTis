@@ -920,25 +920,9 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
-        // The same player-facing pressure must not overdrive the thicker
-        // low strings in monophonic Fiddle Play. Their larger mechanical
-        // impedance otherwise pushes this reduced stick-slip contact toward a
-        // high-partial regime where the bowed timbre sits in front of the pitch
-        // core. Scale the physical normal force only while the hair footprint
-        // is deliberately isolated; drone/double-stop force is unchanged.
-        constexpr std::array<double, stringCount> monoNormalForceScale {
-            0.78, 0.82, 0.94, 1.00
-        };
-        const auto primaryForceScale =
-            monoNormalForceScale[static_cast<std::size_t>(
-                std::clamp(primaryString, 0, stringCount - 1))];
-        const auto normalForceScale =
-            1.0 + singleIsolation * (primaryForceScale - 1.0);
-
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
-            * normalForceScale
             * velocityScale
             * shuffleEnergyScale
             * strokeBiteGain
