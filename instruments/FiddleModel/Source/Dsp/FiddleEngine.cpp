@@ -60,6 +60,13 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
+    // Real stopped strings terminate in a compliant, dissipative fingertip,
+    // not the exact same hard reflection as an open nut. A causal symmetric
+    // three-tap Kelvin-Voigt-like reflection kernel preserves a known one-
+    // sample delay while softly dissipating high-frequency bending waves.
+    // Retain two incident-wave samples per physical string.
+    std::array<double, stringCount> fingerWavePrevious1{};
+    std::array<double, stringCount> fingerWavePrevious2{};
     std::array<BowContact, stringCount> contacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -181,6 +188,8 @@ struct FiddleEngine::Impl
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
         fingerTouch.fill(0.0);
+        fingerWavePrevious1.fill(0.0);
+        fingerWavePrevious2.fill(0.0);
         allpassY1.fill(0.0);
         rosinNoiseState = {
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -1007,14 +1016,33 @@ struct FiddleEngine::Impl
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
+            const bool stopped =
+                speakingFrequency[i].target > openFrequency[i] * 1.0005;
+            // A stopped string reflects at the fingertip instead of the nut.
+            // Its physical bow-to-bridge distance is almost unchanged by
+            // moving the left hand; the vibrating length on the NUT side of
+            // the bow gets shorter. Previous versions kept beta fixed, which
+            // moved the bowing *point* with every keyboard pitch and made
+            // stopped tones resemble separately synthesised oscillators.
+            //
+            // The compliant finger-stop FIR below has EXACTLY one sample of
+            // group delay. Subtract half a sample from each one-way flight
+            // (one full delay per round trip) to preserve real pitch.
             auto oneWay =
                 sampleRate / (2.0 * currentFrequency[i])
                 - 0.5 * (
                     filterPhaseDelay[i]
-                    + bridgeLoadPhaseDelay[i]);
+                    + bridgeLoadPhaseDelay[i]
+                    + (stopped ? 1.0 : 0.0));
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
-            bridgeDelay[i] = std::max(1.2, oneWay * beta);
-            nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
+            const auto openOneWay =
+                sampleRate / (2.0 * openFrequency[i])
+                - 0.5 * (
+                    filterPhaseDelay[i] + bridgeLoadPhaseDelay[i]);
+            // At extreme bends preserve a nonzero finger-side segment.
+            bridgeDelay[i] = std::clamp(
+                openOneWay * beta, 1.2, 0.72 * oneWay);
+            nutDelay[i] = std::max(1.2, oneWay - bridgeDelay[i]);
         }
 
         std::array<double, stringCount> incidentBridge{};
@@ -1180,8 +1208,30 @@ struct FiddleEngine::Impl
                 isUpperAdjacentSympathetic
                     ? 1.0 - 0.035 * singleIsolation
                     : 1.0;
+            // A fingertip behaves as a passive distributed viscoelastic
+            // termination. The reflection is not a delayed copy of the open
+            // nut: adjacent contact points along the soft pad share force,
+            // preferentially absorbing the shortest bending wavelengths.
+            // Symmetric [a/2,1-a,a/2] taps implement a *known*, causal
+            // one-sample group delay. That delay is cancelled in oneWay
+            // above, avoiding a pitch shift from the new contact mechanics.
+            // Never generate an independent tone; this filters the REAL
+            // incoming transverse wave before its mechanical reflection.
+            const auto previous1 = fingerWavePrevious1[i];
+            const auto previous2 = fingerWavePrevious2[i];
+            fingerWavePrevious2[i] = previous1;
+            fingerWavePrevious1[i] = filtered;
+            const auto relativeStop =
+                std::clamp(
+                    1.0 - openFrequency[i]
+                        / std::max(openFrequency[i], speakingFrequency[i].target),
+                    0.0, 1.0);
+            const auto fingerPadSpread = 0.18 + 0.06 * relativeStop;
+            const auto stoppedReflection =
+                (0.5 * fingerPadSpread) * (filtered + previous2)
+                + (1.0 - fingerPadSpread) * previous1;
             const auto reflectedNut =
-                -filtered
+                -(fingered ? stoppedReflection : filtered)
                 * fingerTerminationGain
                 * chopTerminationGain
                 * sympatheticLoss;
