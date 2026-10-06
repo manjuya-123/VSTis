@@ -99,6 +99,22 @@ void FiddleModelAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             // stick/slip regime caused by an arbitrary 0.82 gesture.
             triggerFiddlePlayAction(uiActionPress, 0.85f);
 
+        // The live GUI sends its temporary Down Bow and fingering together.
+        // MIDI bow-first playback prepared the physical bow controller
+        // states for four silent blocks before the string was contacted.
+        // Prime those *uncontacted* physical controls to the same readiness
+        // when a GUI click starts an ordinary bow and the first note together,
+        // without delaying the note, advancing the string, or mixing fake
+        // pitch/noise into the output. This should remove the initial-state
+        // difference that produced a wholly different GUI spectrum.
+        if (uiActionPress >= 0
+            && playModeBowArmed_
+            && uiFingeringAppliedNote_ < 0
+            && uiFingeringRequestedNote_.load(std::memory_order_relaxed) >= 0)
+        {
+            engine_.primeUncontactedBowGesture(0.02133f);
+        }
+
         // The GUI keyboard is a single moving finger, not an unordered MIDI
         // event queue. Apply its latest requested position atomically once
         // per block, releasing the *previously applied* note (not merely the
