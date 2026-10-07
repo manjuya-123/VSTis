@@ -84,7 +84,15 @@ inline constexpr std::array<double, stringCount> torsionalDriveVelocityPerNewton
     0.0032, 0.0036, 0.0041, 0.0046
 };
 inline constexpr std::array<double, stringCount> torsionalFeedbackScale {
-    0.0, 0.0, 0.32, 0.0
+    0.0, 0.0, 0.0, 0.0
+};
+
+// Delayed torsion can alter the local friction reserve without being summed as
+// a sustained transverse velocity. Start with A only, where the baseline bow
+// contact is uniquely cycle-locked. The normalized perturbation is deliberately
+// only a few percent so it moves slip timing rather than retuning the string.
+inline constexpr std::array<double, stringCount> torsionalGripModulationDepth {
+    0.0, 0.0, 0.018, 0.0
 };
 
 // The short residual velocity burst used to make rosin catch/release audible
