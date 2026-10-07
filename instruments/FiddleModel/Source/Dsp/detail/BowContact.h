@@ -28,6 +28,10 @@ struct BowContact
     // friction limit, which can produce a periodic hard-edged waveform.
     bool usedStaticFallback = false;
     double lastFrictionForceN = 0.0;
+    // State-and-rate memory for microscopic rosin/hair junctions. Sliding
+    // tears junctions down; sticking lets them rebuild. This short memory
+    // prevents every Helmholtz cycle from seeing an identical friction law.
+    double adhesionState = 0.30;
 
     void reset() noexcept
     {
@@ -37,6 +41,7 @@ struct BowContact
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
+        adhesionState = 0.30;
     }
 
     [[nodiscard]] static double reducedYield(double temperature) noexcept
@@ -126,6 +131,18 @@ struct BowContact
             temperatureC, ambientTemperatureC, ambientTemperatureC + 65.0);
     }
 
+    void updateAdhesion(bool isSticking,
+                        double sampleRate,
+                        double stateRateScale) noexcept
+    {
+        const auto target = isSticking ? 1.0 : 0.12;
+        const auto timeConstant = isSticking ? 0.0018 : 0.00032;
+        const auto alpha = 1.0 - std::exp(
+            -stateRateScale / (sampleRate * timeConstant));
+        adhesionState += alpha * (target - adhesionState);
+        adhesionState = std::clamp(adhesionState, 0.0, 1.0);
+    }
+
     void relax(double sampleRate, double stateRateScale = 1.0) noexcept
     {
         sticking = false;
@@ -133,6 +150,9 @@ struct BowContact
         lastFrictionForceN = 0.0;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
+        const auto alpha = 1.0 - std::exp(
+            -stateRateScale / (sampleRate * 0.012));
+        adhesionState += alpha * (0.30 - adhesionState);
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
     }
 
@@ -154,8 +174,10 @@ struct BowContact
         // this reduced model, but a hot contact still weakens it somewhat.
         const auto staticStateScale = std::clamp(
             0.85 + 0.15 * strength, 0.78, 1.08);
+        const auto adhesionGripScale = 0.94 + 0.09 * adhesionState;
         const auto staticLimit =
-            1.2 * staticGripScale * normalForce * staticStateScale;
+            1.2 * staticGripScale * normalForce
+            * staticStateScale * adhesionGripScale;
         lastGripUtilization = std::clamp(
             std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
@@ -163,13 +185,27 @@ struct BowContact
         if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
-            lastFrictionForceN = requiredForce;
-            lastSlipSpeedMps = 0.0;
-            updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-            return bowVelocity;
+            const auto nearYield = std::clamp(lastGripUtilization, 0.0, 1.0);
+            const auto creepFraction =
+                0.006 * nearYield * nearYield * nearYield * nearYield
+                * (1.10 - 0.35 * adhesionState);
+            const auto stringVelocity =
+                bowVelocity
+                + creepFraction * (incomingVelocity - bowVelocity);
+            const auto force =
+                2.0 * characteristicImpedance
+                * (stringVelocity - incomingVelocity);
+            const auto slip = stringVelocity - bowVelocity;
+            lastFrictionForceN = force;
+            lastSlipSpeedMps = slip;
+            updateAdhesion(true, sampleRate, stateRateScale);
+            updateTemperature(
+                slip, std::abs(force * slip), sampleRate, stateRateScale);
+            return stringVelocity;
         }
 
         sticking = false;
+        updateAdhesion(false, sampleRate, stateRateScale);
         const bool positive = requiredForce > 0.0;
         double lo = positive ? bowVelocity - 3.0 : bowVelocity + 1.0e-10;
         double hi = positive ? bowVelocity - 1.0e-10 : bowVelocity + 3.0;
