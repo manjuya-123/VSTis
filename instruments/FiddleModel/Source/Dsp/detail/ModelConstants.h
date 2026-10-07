@@ -34,7 +34,11 @@ inline constexpr std::array<double, stringCount> stringImpedance {
 // (centre + two virtual edges) only to determine the nonlinear contact force.
 // This is inside the bow/string mechanics, not an output low-pass or EQ.
 inline constexpr double violinSpeakingLengthMeters = 0.328;
-inline constexpr double bowHairContactWidthMeters = 0.010;
+// The geometric ribbon may be around a centimetre wide, but not all hairs
+// carry equal normal load at once (tilt/camber concentrates the active patch).
+// Use a narrower effective longitudinal contact patch so stopped high notes do
+// not become disproportionately averaged/dark as speaking length shortens.
+inline constexpr double bowHairContactWidthMeters = 0.006;
 // Preserve a meaningful finite-width effect; boundary handling in the
 // waveguide limits the virtual half-width symmetrically when a contact edge
 // would fall inside the sub-sample bridge/nut region.
