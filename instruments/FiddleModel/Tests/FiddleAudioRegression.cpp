@@ -41,6 +41,7 @@ struct Metrics
     double tailRms = 0.0;
     double peak = 0.0;
     double periodicity = 0.0;
+    double adjacentCycleDifferenceRatio = 0.0;
     double spectralCentroidHz = 0.0;
     double highBandRatio = 0.0;
     double harmonicEnvelopeIrregularityDb = 0.0;
@@ -191,6 +192,42 @@ double periodicityAtFrequency(const std::vector<float>& x,
     return dot / (std::sqrt(aa * bb) + 1.0e-30);
 }
 
+double adjacentCycleDifferenceRatio(const std::vector<float>& x,
+                                      std::size_t begin,
+                                      std::size_t end,
+                                      double frequency)
+{
+    begin = std::min(begin, x.size());
+    end = std::min(end, x.size());
+    if (frequency <= 0.0 || end <= begin + 100)
+        return 0.0;
+
+    const auto lag = sampleRate / frequency;
+    const auto lagInt = static_cast<std::size_t>(std::floor(lag));
+    const auto frac = lag - static_cast<double>(lagInt);
+    if (begin + lagInt + 2 >= end)
+        return 0.0;
+
+    double signalSq = 0.0;
+    double differenceSq = 0.0;
+    std::size_t count = 0;
+    const auto last = end - lagInt - 1;
+    for (std::size_t i = begin; i < last; ++i)
+    {
+        const auto a = static_cast<double>(x[i]);
+        const auto d0 = static_cast<double>(x[i + lagInt]);
+        const auto d1 = static_cast<double>(x[i + lagInt + 1]);
+        const auto b = (1.0 - frac) * d0 + frac * d1;
+        const auto d = b - a;
+        signalSq += 0.5 * (a * a + b * b);
+        differenceSq += d * d;
+        ++count;
+    }
+    if (count == 0)
+        return 0.0;
+    return std::sqrt(differenceSq / (signalSq + 1.0e-30));
+}
+
 std::vector<double> makeHannSegment(const std::vector<float>& x,
                                     std::size_t begin,
                                     std::size_t length)
@@ -252,6 +289,8 @@ Metrics measure(const Render& render, double fundamentalHz)
     m.sustainRms = rms(x, sustainBegin, sustainEnd);
     m.tailRms = rms(x, tailBegin, tailEnd);
     m.periodicity = periodicityAtFrequency(x, sustainBegin, sustainEnd, fundamentalHz);
+    m.adjacentCycleDifferenceRatio = adjacentCycleDifferenceRatio(
+        x, sustainBegin, sustainEnd, fundamentalHz);
 
     double midEnergy = 0.0;
     double sideEnergy = 0.0;
@@ -740,7 +779,8 @@ int main(int argc, char** argv)
         if (!listeningCsv)
             ok = false;
         else
-            listeningCsv << "scenario,periodicity,centroid_hz,high_band_ratio,"
+            listeningCsv << "scenario,periodicity,adjacent_cycle_difference_ratio,"
+                            "centroid_hz,high_band_ratio,"
                             "harmonic_envelope_irregularity_db,"
                             "low_stereo_ratio,high_stereo_ratio,rms,peak\n";
 
@@ -762,6 +802,7 @@ int main(int argc, char** argv)
             }
             if (listeningCsv)
                 listeningCsv << probe.name << ',' << metrics.periodicity
+                    << ',' << metrics.adjacentCycleDifferenceRatio
                     << ',' << metrics.spectralCentroidHz
                     << ',' << metrics.highBandRatio
                     << ',' << metrics.harmonicEnvelopeIrregularityDb
