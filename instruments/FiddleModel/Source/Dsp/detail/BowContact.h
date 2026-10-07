@@ -23,11 +23,9 @@ struct BowContact
     double temperatureC = ambientTemperatureC;
     double lastSlipSpeedMps = 0.0;
     double lastGripUtilization = 0.0;
-    // Effective tangential deflection of the bow-hair bundle. A perfectly
-    // rigid stick constraint excites the string with instantaneous,
-    // brick-edged Helmholtz corners; real hair stores and releases shear
-    // energy over a finite (sub-millisecond) contact time.
-    double hairShearDisplacementM = 0.0;
+    // Rosin/hair traction cannot change discontinuously on slipping.
+    // Keep a short contact-force state in the nonlinear waveguide closure.
+    double slidingForceN = 0.0;
     bool sticking = false;
 
     void reset() noexcept
@@ -35,7 +33,7 @@ struct BowContact
         temperatureC = ambientTemperatureC;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
-        hairShearDisplacementM = 0.0;
+        slidingForceN = 0.0;
         sticking = false;
     }
 
@@ -131,11 +129,24 @@ struct BowContact
         sticking = false;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
-        // An unladen hair bundle releases its stored deflection rather than
-        // handing that force back as a click on the next bow stroke.
-        hairShearDisplacementM *= std::exp(
-            -stateRateScale / (sampleRate * 0.0025));
+        slidingForceN *= std::exp(-1.0 / (sampleRate * 0.001));
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
+    }
+
+    // Finite microcontact response only during sliding. Keeping the exact
+    // stick kinematics preserves the calibrated speaking length and the
+    // physical onset while rounding the impulse from each slip transition.
+    double softenSlidingForce(double incomingVelocity,
+                              double instantaneousForce,
+                              double characteristicImpedance,
+                              double sampleRate) noexcept
+    {
+        constexpr double contactBandwidthHz = 6000.0;
+        const auto alpha = 1.0 - std::exp(
+            -2.0 * 3.14159265358979323846 * contactBandwidthHz / sampleRate);
+        slidingForceN += alpha * (instantaneousForce - slidingForceN);
+        return incomingVelocity
+            + slidingForceN / (2.0 * characteristicImpedance);
     }
 
     double solve(double incomingVelocity,
@@ -148,24 +159,8 @@ struct BowContact
                  double stateRateScale = 1.0) noexcept
     {
         const auto strength = rosinStrengthScale();
-        const auto waveImpedance =
-            2.0 * std::max(characteristicImpedance, 1.0e-8);
-        // Massless tangential spring in series with the string impedance.
-        // Implicit integration avoids numerical overshoot when hair stiffness
-        // exceeds the per-sample characteristic impedance. This compliance is
-        // *inside* the friction/string feedback loop, never output filtering.
-        // A stiff hair bundle avoids shifting string-pitch calibration while
-        // retaining a finite, sample-resolved shear transient at each catch.
-        const auto hairStiffnessNm = 30000.0 * std::clamp(
-            normalForce / 0.18, 0.65, 1.50);
-        const auto dt = 1.0 / std::max(sampleRate, 1.0);
-        const auto elasticTrialForce =
-            hairStiffnessNm
-            * (hairShearDisplacementM
-               + dt * (bowVelocity - incomingVelocity))
-            / (1.0 + hairStiffnessNm * dt / waveImpedance);
         const auto requiredForce =
-            waveImpedance * (bowVelocity - incomingVelocity);
+            2.0 * characteristicImpedance * (bowVelocity - incomingVelocity);
 
         // Static grip is less temperature-sensitive than the sliding law in
         // this reduced model, but a hot contact still weakens it somewhat.
@@ -174,22 +169,16 @@ struct BowContact
         const auto staticLimit =
             1.2 * staticGripScale * normalForce * staticStateScale;
         lastGripUtilization = std::clamp(
-            std::abs(elasticTrialForce) / (staticLimit + 1.0e-12),
+            std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
 
-        if (std::abs(elasticTrialForce) <= staticLimit)
+        if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
-            // Even a sticking hair has a small elastic slip relative to the
-            // travelling bow. The integrated shear, not an ideal velocity
-            // clamp, supplies the equal-and-opposite string force.
-            const auto stringVelocity =
-                incomingVelocity + elasticTrialForce / waveImpedance;
-            const auto shearVelocity = bowVelocity - stringVelocity;
-            hairShearDisplacementM += dt * shearVelocity;
+            slidingForceN = requiredForce;
             lastSlipSpeedMps = 0.0;
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-            return stringVelocity;
+            return bowVelocity;
         }
 
         sticking = false;
@@ -217,12 +206,13 @@ struct BowContact
             const auto force = positive ? staticLimit : -staticLimit;
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
-            const auto slip = stringVelocity - bowVelocity;
+            const auto softenedVelocity = softenSlidingForce(
+                incomingVelocity, force, characteristicImpedance, sampleRate);
+            const auto slip = softenedVelocity - bowVelocity;
             lastSlipSpeedMps = slip;
-            hairShearDisplacementM = force / hairStiffnessNm;
             updateTemperature(
-                slip, std::abs(force * slip), sampleRate, stateRateScale);
-            return stringVelocity;
+                slip, std::abs(slidingForceN * slip), sampleRate, stateRateScale);
+            return softenedVelocity;
         }
 
         for (int iteration = 0; iteration < 12; ++iteration)
@@ -242,20 +232,18 @@ struct BowContact
         const auto frictionForce =
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
-        const auto slip = stringVelocity - bowVelocity;
+        const auto softenedVelocity = softenSlidingForce(
+            incomingVelocity, frictionForce, characteristicImpedance, sampleRate);
+        const auto slip = softenedVelocity - bowVelocity;
         lastSlipSpeedMps = slip;
-        // When the rosin breaks loose, shear is relieved to the dynamic
-        // friction force. The next sticking interval begins from this
-        // *continuous physical displacement*, rather than zero shear.
-        hairShearDisplacementM = frictionForce / hairStiffnessNm;
 
         updateTemperature(
             slip,
-            std::abs(frictionForce * slip),
+            std::abs(slidingForceN * slip),
             sampleRate,
             stateRateScale);
 
-        return stringVelocity;
+        return softenedVelocity;
     }
 };
 } // namespace fiddle::detail
