@@ -70,12 +70,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
-    // Slow bow-travel irregularity: real hair tension/camber/contact loading is
-    // not identical at every point along the bow. These coordinates move with
-    // the bow (and retrace on reversal), so they perturb the physical contact
-    // controls rather than adding an unrelated audio-noise layer.
-    double bowTravelSpeedCoordinate = 19.0;
-    double bowTravelForceCoordinate = 61.0;
 
     ModalBank body{};
     ModalBank bodyRocking{true};
@@ -197,8 +191,6 @@ struct FiddleEngine::Impl
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
-        bowTravelSpeedCoordinate = 19.0;
-        bowTravelForceCoordinate = 61.0;
         body.reset();
         bodyRocking.reset();
         radiationLeft.reset();
@@ -966,25 +958,6 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
-        // Macroscopic bow-hair loading varies slowly along the physical bow.
-        // Attach two low-density smooth fields to bow travel so a steady human
-        // gesture does not become a mathematically identical period forever.
-        // Reversing direction retraces the same field. Amplitudes are kept
-        // small: this changes the nonlinear contact trajectory, not pitch and
-        // not the final audio as a post-process.
-        bowTravelSpeedCoordinate += bowSpeed * 13.0 / sampleRate;
-        bowTravelForceCoordinate += bowSpeed * 7.0 / sampleRate;
-        const auto travelSpeedVariation = rosinSurfaceSample(
-            bowTravelSpeedCoordinate, 0x6D2B79F5u);
-        const auto travelForceVariation = rosinSurfaceSample(
-            bowTravelForceCoordinate, 0xB5297A4Du);
-        const auto bowTravelActivity = std::clamp(
-            std::abs(bowSpeed) / 0.18, 0.0, 1.0) * gateValue;
-        const auto speedMicroScale =
-            1.0 + 0.016 * bowTravelActivity * travelSpeedVariation;
-        const auto forceMicroScale =
-            1.0 + 0.020 * bowTravelActivity * travelForceVariation;
-
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
@@ -992,16 +965,14 @@ struct FiddleEngine::Impl
             * shuffleEnergyScale
             * strokeBiteGain
             * gateValue
-            * oneShotLiftGain
-            * forceMicroScale;
+            * oneShotLiftGain;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection)
             * bowTargetSpeed
             * gateValue
-            * oneShotLiftGain
-            * speedMicroScale;
+            * oneShotLiftGain;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
