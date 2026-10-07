@@ -62,6 +62,18 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> fingerTouch{};
     std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
+
+    // Reduced nonlinear string-tension memory. The bowed contact already
+    // produces substantial cycle-to-cycle force variation on G/D, but an
+    // exactly linear delay loop collapses that drive back onto an almost
+    // identical Helmholtz orbit before it reaches the bridge. Real transverse
+    // motion changes mean string tension (and therefore wave speed) by a tiny
+    // amount. Track a fast local travelling-wave energy estimate against its
+    // slower operating level, then let only that zero-mean deviation perturb
+    // propagation time. This is neither random pitch jitter nor a second
+    // oscillator: it is driven solely by energy already present in each string.
+    std::array<double, stringCount> propagationEnergyFast{};
+    std::array<double, stringCount> propagationEnergySlow{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
@@ -209,6 +221,8 @@ struct FiddleEngine::Impl
         fingerTouch.fill(0.0);
         fingerLossX1.fill(0.0);
         allpassY1.fill(0.0);
+        propagationEnergyFast.fill(0.0);
+        propagationEnergySlow.fill(0.0);
         rosinNoiseState = {
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
         };
@@ -1080,6 +1094,30 @@ struct FiddleEngine::Impl
                     filterPhaseDelay[i]
                     + bridgeLoadPhaseDelay[i]
                     + fingerPhaseDelay);
+
+            // Geometric string nonlinearity: larger transverse energy raises
+            // average tension very slightly and shortens propagation time.
+            // The slow state represents the already-calibrated operating
+            // tension; only the fast-minus-slow deviation is applied, keeping
+            // the long-term tuning target unchanged. A small activity factor
+            // fades the effect away on an unexcited string, avoiding a startup
+            // pitch step. Fractional DelayRail reads make this sample-resolved
+            // without changing the nominal speaking-length calibration.
+            const auto slowEnergy =
+                std::max(0.0, propagationEnergySlow[i]);
+            const auto dynamicEnergy =
+                propagationEnergyFast[i] - slowEnergy;
+            const auto relativeDynamicEnergy = std::clamp(
+                dynamicEnergy / (slowEnergy + 0.015), -1.0, 1.0);
+            const auto tensionActivity =
+                slowEnergy / (slowEnergy + 0.004);
+            constexpr double maxDynamicTensionDelaySamples = 0.030;
+            const auto dynamicTensionDelay =
+                -maxDynamicTensionDelaySamples
+                * tensionActivity
+                * relativeDynamicEnergy;
+            oneWay += dynamicTensionDelay;
+
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
@@ -1545,8 +1583,38 @@ struct FiddleEngine::Impl
             debug.bowInjectionVelocityMps[i] =
                 static_cast<float>(injection);
 
-            toBridge[i].write(incomingNut[i] + injection);
-            toNut[i].write(incomingBridge[i] + injection);
+            const auto outgoingToBridge =
+                incomingNut[i] + injection;
+            const auto outgoingToNut =
+                incomingBridge[i] + injection;
+
+            // Estimate transverse energy at the bow junction from the actual
+            // travelling waves after the physical friction injection. The
+            // fast state retains sub-cycle/cycle-scale changes while the slow
+            // state follows the operating level. Their difference therefore
+            // transfers real contact irregularity into a very small wave-speed
+            // variation instead of adding an unrelated noise source.
+            const auto travellingWaveEnergy =
+                0.5 * (
+                    outgoingToBridge * outgoingToBridge
+                    + outgoingToNut * outgoingToNut);
+            const auto bowDeliveredEnergy = injection * injection;
+            const auto tensionDrive =
+                0.72 * travellingWaveEnergy
+                + 0.28 * bowDeliveredEnergy;
+            const auto fastEnergyAlpha =
+                1.0 - std::exp(-1.0 / (sampleRate * 0.00055));
+            const auto slowEnergyAlpha =
+                1.0 - std::exp(-1.0 / (sampleRate * 0.020));
+            propagationEnergyFast[i] +=
+                fastEnergyAlpha
+                * (tensionDrive - propagationEnergyFast[i]);
+            propagationEnergySlow[i] +=
+                slowEnergyAlpha
+                * (tensionDrive - propagationEnergySlow[i]);
+
+            toBridge[i].write(outgoingToBridge);
+            toNut[i].write(outgoingToNut);
             fromBridge[i].write(reflectedBridge);
             fromNut[i].write(reflectedNut);
 
