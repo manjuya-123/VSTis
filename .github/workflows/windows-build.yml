@@ -41,6 +41,7 @@ jobs:
         if: always()
         run: |
           cat build/linux-core/instruments/FiddleModel/regression-audio/metrics.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/high_string_listening_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_release_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_reversal_metrics.csv
