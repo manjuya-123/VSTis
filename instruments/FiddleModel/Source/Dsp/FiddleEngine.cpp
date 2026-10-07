@@ -1119,10 +1119,6 @@ struct FiddleEngine::Impl
         // almost ideal string waveform straight to the listener.
         const auto bodyModalVelocity = body.currentModalVelocity();
         const auto rockingModalVelocity = bodyRocking.currentModalVelocity();
-        const auto bodyRadiatingModalVelocity =
-            body.currentRadiatingVelocity();
-        const auto rockingRadiatingModalVelocity =
-            bodyRocking.currentRadiatingVelocity();
 
         std::array<double, stringCount> bridgeStringVelocity {};
         for (std::size_t i = 0; i < stringCount; ++i)
@@ -1520,11 +1516,11 @@ struct FiddleEngine::Impl
         constexpr double broadbandRadiationFraction = 0.32;
         constexpr double rockingBroadbandRadiationFraction = 0.45;
         const auto radiatingBridgeVelocity =
-            bodyRadiatingModalVelocity
+            bodyModalVelocity
             + broadbandRadiationFraction
                 * (bridgeVelocity - bodyModalVelocity);
         const auto radiatingRockingVelocity =
-            rockingRadiatingModalVelocity
+            rockingModalVelocity
             + rockingBroadbandRadiationFraction
                 * (bridgeRockingVelocity - rockingModalVelocity);
 
