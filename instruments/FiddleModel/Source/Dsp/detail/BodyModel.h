@@ -105,6 +105,18 @@ struct ModalBank
         return sum;
     }
 
+    [[nodiscard]] double currentModalVelocity() const noexcept
+    {
+        // Current velocity carried by the resonant structural modes only.
+        // The separate broadband conductance is useful for mechanical bridge
+        // loading, but should not automatically be assumed to radiate with the
+        // same efficiency as distributed plate modes.
+        double sum = 0.0;
+        for (const auto& mode : modes)
+            sum += mode.y1;
+        return sum;
+    }
+
     double direct() const noexcept
     {
         // The non-resonant mobility belongs to the same generalized body
