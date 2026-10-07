@@ -1150,6 +1150,34 @@ struct FiddleEngine::Impl
         body.push(bodyForce);
         bodyRocking.push(bodyRockingForce);
 
+        // The acoustical transfer is driven by a bridge-force waveform whose
+        // ideal Helmholtz corners are rounded over a pitch-relative timescale.
+        // This mirrors measured bowed-string force waveforms while leaving the
+        // mechanical admittance/feedback solve above exactly unchanged.
+        const auto acousticPitch =
+            currentFrequency[static_cast<std::size_t>(
+                std::clamp(primaryString, 0, stringCount - 1))];
+        constexpr double acousticCornerPoleHarmonic = 5.9;
+        const auto acousticCornerCutoffHz = std::clamp(
+            acousticCornerPoleHarmonic * acousticPitch,
+            850.0,
+            6200.0);
+        const auto acousticCornerAlpha =
+            1.0 - std::exp(
+                -2.0 * pi * acousticCornerCutoffHz / sampleRate);
+
+        acousticForceRound1 += acousticCornerAlpha
+            * (bodyForce - acousticForceRound1);
+        acousticForceRound2 += acousticCornerAlpha
+            * (acousticForceRound1 - acousticForceRound2);
+        acousticRockingForceRound1 += acousticCornerAlpha
+            * (bodyRockingForce - acousticRockingForceRound1);
+        acousticRockingForceRound2 += acousticCornerAlpha
+            * (acousticRockingForceRound1 - acousticRockingForceRound2);
+
+        acousticBody.push(acousticForceRound2);
+        acousticRocking.push(acousticRockingForceRound2);
+
         // Mechanical bridge mobility and acoustic radiation are related but
         // not identical. The solve above intentionally includes a broadband
         // conductance so the strings see a realistic nonzero bridge mobility
@@ -1158,6 +1186,10 @@ struct FiddleEngine::Impl
         // almost ideal string waveform straight to the listener.
         const auto bodyModalVelocity = body.currentModalVelocity();
         const auto rockingModalVelocity = bodyRocking.currentModalVelocity();
+        const auto acousticBodyModalVelocity =
+            acousticBody.currentModalVelocity();
+        const auto acousticRockingModalVelocity =
+            acousticRocking.currentModalVelocity();
 
         std::array<double, stringCount> bridgeStringVelocity {};
         for (std::size_t i = 0; i < stringCount; ++i)
@@ -1595,10 +1627,10 @@ struct FiddleEngine::Impl
             * (rockingRadiationRound1 - rockingRadiationRound2);
 
         const auto radiatingBridgeVelocity =
-            bodyModalVelocity
+            acousticBodyModalVelocity
             + broadbandRadiationFraction * directRadiationRound2;
         const auto radiatingRockingVelocity =
-            rockingModalVelocity
+            acousticRockingModalVelocity
             + rockingBroadbandRadiationFraction * rockingRadiationRound2;
 
         rockingRadiationLow += rockingRadiationAlpha
