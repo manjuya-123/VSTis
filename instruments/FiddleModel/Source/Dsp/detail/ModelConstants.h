@@ -106,6 +106,18 @@ inline constexpr std::array<double, stringCount> contactPatchGripDepthStopped {
     0.0, 0.0, 0.0040, 0.0050
 };
 
+// Different hair populations also carry slightly different effective thermal/
+// adhesion time constants. Modulate only the internal contact-state rate; this
+// does not inject velocity or noise into the speaking string. Open A gets the
+// clearest probe because it is currently the most cycle-locked, while stopped
+// A remains deliberately much more conservative for string-identity safety.
+inline constexpr std::array<double, stringCount> contactPatchStateRateDepthOpen {
+    0.0, 0.0, 0.10, 0.0
+};
+inline constexpr std::array<double, stringCount> contactPatchStateRateDepthStopped {
+    0.0, 0.0, 0.02, 0.0
+};
+
 // The short residual velocity burst used to make rosin catch/release audible
 // is not the nonlinear friction solve itself. On the low-impedance E string,
 // the same absolute added velocity becomes disproportionately prominent and
