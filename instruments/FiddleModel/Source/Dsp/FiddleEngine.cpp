@@ -1419,12 +1419,18 @@ struct FiddleEngine::Impl
                 // differ because the travelling hair encounters a spatially
                 // varying grip, while keeping the radiated wave entirely rooted
                 // in the nonlinear contact solution.
+                // Give the moving hair surface enough authority to alter
+                // the nonlinear friction law from one Helmholtz cycle to the
+                // next. This is not an added noise layer: the deterministic
+                // spatial roughness changes static/sliding grip before the
+                // contact solve. The earlier 2.2% depth was measurable but too
+                // weak to prevent a nearly identical period-to-period waveform.
                 const auto roughnessDepth =
-                    0.022 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                    0.036 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
-                    roughnessDepth * colouredNoise, -0.09, 0.09);
+                    roughnessDepth * colouredNoise, -0.13, 0.13);
                 const auto localStaticGrip =
-                    staticGripScale * (1.0 + 0.65 * gripPerturbation);
+                    staticGripScale * (1.0 + 0.70 * gripPerturbation);
                 const auto localSlidingGrip =
                     slidingGripScale * (1.0 + gripPerturbation);
 
@@ -1530,11 +1536,15 @@ struct FiddleEngine::Impl
                 // physical string identity and material-colour separation.
                 // Preserve the validated contact path while diagnosing the
                 // reported apparent two-layer sound using isolated probes.
+                // As more of the microscopic texture is represented
+                // inside friction itself, reduce the separate residual
+                // velocity path so the result is less likely to read as
+                // broadband hiss layered over an otherwise periodic tone.
                 rosinNoiseVelocity =
-                    0.0000012
+                    0.00000055
                     * rosinNoiseEnvelope[i]
                     * colouredNoise
-                    + 0.72 * transitionVelocity;
+                    + 0.55 * transitionVelocity;
                 injection += rosinNoiseVelocity;
             }
             else
