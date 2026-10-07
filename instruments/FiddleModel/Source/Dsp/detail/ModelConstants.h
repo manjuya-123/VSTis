@@ -138,6 +138,40 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
 // wholesale. Keep the same modal count for a cheap real-time solve, but use a
 // distinct, more irregular distribution with relatively dense upper modes.
 // These are representative regions rather than a fit to one specific violin.
+// Generic acoustic-radiation efficiency of the established structural
+// coordinates.  Mechanical admittance and acoustic radiation are deliberately
+// separate: every mode still participates unchanged in bridge loading above,
+// but not every shape couples equally well to the surrounding air.
+//
+// The broad profile follows ensemble-level violin acoustics rather than any
+// copyrighted single-instrument measurement: strong signature-region
+// radiation below ~600 Hz, a broad 2-3 kHz bridge/body hill, then decreasing
+// efficiency through the upper modal tail.  These are dimensionless relative
+// weights and can later be replaced by openly licensed or self-measured FRFs
+// without touching the bowed-string solver.
+inline constexpr std::array<double, bodyModeCount> bodyRadiationEfficiency {
+    1.12, // 280  A0/signature region
+    0.82, // 405
+    1.00, // 465
+    1.10, // 550  B1/signature region
+    0.78, // 720
+    0.68, // 920
+    0.70, // 1180
+    0.82, // 1500
+    1.00, // 1900
+    1.18, // 2350 bridge/body hill
+    1.08, // 2850
+    0.82, // 3500
+    0.66, // 4050
+    0.56, // 4550
+    0.47, // 5100
+    0.40, // 5700
+    0.34, // 6350
+    0.29, // 7050
+    0.82, // 235 broad low mobility
+    0.76  // 340 broad low mobility
+};
+
 inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes {{
     { 315.0,  0.080, 0.0020 },
     { 390.0,  0.072, 0.0018 },
@@ -160,6 +194,16 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes 
     { 8380.0, 0.325, 0.00062 },
     { 9250.0, 0.355, 0.00048 },
 }};
+
+// Rocking modes radiate somewhat more efficiently in the upper midrange than
+// the translational family, consistent with increasingly directional body
+// motion.  The final stereo projection still comes from one shared mechanical
+// instrument; these weights do not duplicate or detune strings.
+inline constexpr std::array<double, bodyModeCount> rockingRadiationEfficiency {
+    0.86, 0.82, 0.92, 1.00, 0.86, 0.82, 0.88, 0.96, 1.06, 1.14,
+    1.10, 0.94, 0.82, 0.72, 0.62, 0.54, 0.47, 0.41, 0.36, 0.31
+};
+
 
 // Broadband mechanical mobility between the sparse resonant peaks. Keeping
 // this too small makes the fixed body modes dominate low-string perception,
