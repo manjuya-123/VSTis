@@ -39,6 +39,14 @@ inline constexpr double bowHairContactWidthMeters = 0.010;
 // waveguide limits the virtual half-width symmetrically when a contact edge
 // would fall inside the sub-sample bridge/nut region.
 inline constexpr double finiteWidthContactBlend = 0.35;
+// Thin A/E strings expose the point-contact approximation most clearly.
+// Increase only their finite-ribbon contribution while leaving the calibrated
+// G/D contact strength unchanged. The nonlinear force remains a single shared
+// physical contact; this only changes how much spatial wave information the
+// contact law observes.
+inline constexpr std::array<double, stringCount> finiteWidthStringScale {
+    1.00, 1.00, 1.14, 1.22
+};
 
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
