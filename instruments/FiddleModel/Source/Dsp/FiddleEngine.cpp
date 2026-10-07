@@ -1440,7 +1440,7 @@ struct FiddleEngine::Impl
                     slidingGripScale * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
-                const auto stringVelocity = contacts[i].solve(
+                contacts[i].solve(
                     contactSolveIncomingVelocity,
                     bowSpeed,
                     bowForce[i],
