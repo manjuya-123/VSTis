@@ -1240,7 +1240,7 @@ struct FiddleEngine::Impl
                 torsionIncomingBridge[i] + torsionIncomingNut[i];
             const auto transverseImpedance = stringImpedance[i];
             const auto torsionalImpedance =
-                torsionalImpedanceRatio * transverseImpedance;
+                torsionalSurfaceImpedance;
             const auto contactImpedance =
                 1.0 / (1.0 / transverseImpedance + 1.0 / torsionalImpedance);
             double injection = 0.0;
