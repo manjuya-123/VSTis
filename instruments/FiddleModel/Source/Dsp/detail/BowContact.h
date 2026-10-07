@@ -23,9 +23,6 @@ struct BowContact
     double temperatureC = ambientTemperatureC;
     double lastSlipSpeedMps = 0.0;
     double lastGripUtilization = 0.0;
-    // Rosin/hair traction cannot change discontinuously on slipping.
-    // Keep a short contact-force state in the nonlinear waveguide closure.
-    double slidingForceN = 0.0;
     bool sticking = false;
 
     void reset() noexcept
@@ -33,7 +30,6 @@ struct BowContact
         temperatureC = ambientTemperatureC;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
-        slidingForceN = 0.0;
         sticking = false;
     }
 
@@ -129,24 +125,7 @@ struct BowContact
         sticking = false;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
-        slidingForceN *= std::exp(-1.0 / (sampleRate * 0.001));
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-    }
-
-    // Finite microcontact response only during sliding. Keeping the exact
-    // stick kinematics preserves the calibrated speaking length and the
-    // physical onset while rounding the impulse from each slip transition.
-    double softenSlidingForce(double incomingVelocity,
-                              double instantaneousForce,
-                              double characteristicImpedance,
-                              double sampleRate) noexcept
-    {
-        constexpr double contactBandwidthHz = 6000.0;
-        const auto alpha = 1.0 - std::exp(
-            -2.0 * 3.14159265358979323846 * contactBandwidthHz / sampleRate);
-        slidingForceN += alpha * (instantaneousForce - slidingForceN);
-        return incomingVelocity
-            + slidingForceN / (2.0 * characteristicImpedance);
     }
 
     double solve(double incomingVelocity,
@@ -175,7 +154,6 @@ struct BowContact
         if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
-            slidingForceN = requiredForce;
             lastSlipSpeedMps = 0.0;
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
             return bowVelocity;
@@ -206,13 +184,11 @@ struct BowContact
             const auto force = positive ? staticLimit : -staticLimit;
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
-            const auto softenedVelocity = softenSlidingForce(
-                incomingVelocity, force, characteristicImpedance, sampleRate);
-            const auto slip = softenedVelocity - bowVelocity;
+            const auto slip = stringVelocity - bowVelocity;
             lastSlipSpeedMps = slip;
             updateTemperature(
-                slip, std::abs(slidingForceN * slip), sampleRate, stateRateScale);
-            return softenedVelocity;
+                slip, std::abs(force * slip), sampleRate, stateRateScale);
+            return stringVelocity;
         }
 
         for (int iteration = 0; iteration < 12; ++iteration)
@@ -232,18 +208,16 @@ struct BowContact
         const auto frictionForce =
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
-        const auto softenedVelocity = softenSlidingForce(
-            incomingVelocity, frictionForce, characteristicImpedance, sampleRate);
-        const auto slip = softenedVelocity - bowVelocity;
+        const auto slip = stringVelocity - bowVelocity;
         lastSlipSpeedMps = slip;
 
         updateTemperature(
             slip,
-            std::abs(slidingForceN * slip),
+            std::abs(frictionForce * slip),
             sampleRate,
             stateRateScale);
 
-        return softenedVelocity;
+        return stringVelocity;
     }
 };
 } // namespace fiddle::detail
