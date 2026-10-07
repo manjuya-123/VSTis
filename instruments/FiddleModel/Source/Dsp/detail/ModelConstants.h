@@ -138,6 +138,21 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
 // wholesale. Keep the same modal count for a cheap real-time solve, but use a
 // distinct, more irregular distribution with relatively dense upper modes.
 // These are representative regions rather than a fit to one specific violin.
+// Directional acoustic projection of structural modes at a representative
+// listening angle. Below 1 kHz keep the signature modes in phase and near
+// unity so pitch/body support remains intact. Above 1 kHz, measured mode
+// shapes radiate with alternating phase and strongly mode-dependent
+// efficiency at any one microphone position. Those signs create natural
+// cancellations/antiresonances that a sum of all-positive resonators cannot.
+// These weights are used only by the separate acoustic banks; mechanical
+// bridge admittance and therefore speaking pitch remain unchanged.
+inline constexpr std::array<double, bodyModeCount> acousticBodyProjection {
+    1.06, 0.72, 0.98, 1.04, 0.78, 0.66,
+   -0.28, 0.42, -0.52, 0.88, -0.72, 0.54,
+   -0.42, 0.34, -0.29, 0.24, -0.20, 0.16,
+    0.70, 0.62
+};
+
 inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes {{
     { 315.0,  0.080, 0.0020 },
     { 390.0,  0.072, 0.0018 },
@@ -160,6 +175,16 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes 
     { 8380.0, 0.325, 0.00062 },
     { 9250.0, 0.355, 0.00048 },
 }};
+
+// Rocking radiation is more directional above the signature region, so the
+// projected signs differ from vertical translation. Again, this is an
+// acoustic observation coordinate only, not another string/body oscillator.
+inline constexpr std::array<double, bodyModeCount> acousticRockingProjection {
+    0.84, 0.76, 0.92, 1.00, 0.74, 0.62,
+    0.34, -0.46, 0.56, -0.70, 0.78, -0.64,
+    0.50, -0.41, 0.34, -0.28, 0.23, -0.19,
+    0.15, -0.12
+};
 
 // Broadband mechanical mobility between the sparse resonant peaks. Keeping
 // this too small makes the fixed body modes dominate low-string perception,
