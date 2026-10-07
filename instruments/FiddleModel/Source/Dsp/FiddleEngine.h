@@ -68,6 +68,9 @@ struct DebugState
     std::array<bool, 4> sticking{};
     std::array<float, 4> contactTemperatureC{};
     std::array<float, 4> contactGripUtilization{};
+    std::array<float, 4> contactSlipSpeedMps{};
+    std::array<float, 4> contactFrictionForceN{};
+    std::array<bool, 4> contactStaticFallback{};
     std::array<float, 4> rosinNoiseVelocityMps{};
     std::array<float, 4> rosinTransitionEnvelope{};
     std::array<float, 4> rosinSurfaceCoordinate{};
