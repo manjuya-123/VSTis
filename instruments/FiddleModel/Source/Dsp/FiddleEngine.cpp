@@ -1157,7 +1157,11 @@ struct FiddleEngine::Impl
         const auto acousticPitch =
             currentFrequency[static_cast<std::size_t>(
                 std::clamp(primaryString, 0, stringCount - 1))];
-        constexpr double acousticCornerPoleHarmonic = 5.9;
+        // Keep the reduced-order acoustic transfer broad enough to retain
+        // the player's bow-change transient. The separate broadband residual
+        // still gets the slightly stronger 5.9-harmonic corner treatment
+        // below; this modal drive is intentionally gentler.
+        constexpr double acousticCornerPoleHarmonic = 7.2;
         const auto acousticCornerCutoffHz = std::clamp(
             acousticCornerPoleHarmonic * acousticPitch,
             850.0,
@@ -1626,11 +1630,26 @@ struct FiddleEngine::Impl
         rockingRadiationRound2 += cornerAlpha
             * (rockingRadiationRound1 - rockingRadiationRound2);
 
+        // A separate empirical/radiativity state should colour the real
+        // mechanical body, not abruptly replace it. Start with a conservative
+        // blend so attacks and parameter sweeps remain continuous while the
+        // steady tone gains measured-style corner rounding. These coefficients
+        // are deliberately exposed as one place to calibrate against future
+        // open/self-measured FRFs.
+        constexpr double acousticModalBlend = 0.42;
+        constexpr double acousticRockingBlend = 0.34;
+        const auto radiatingBodyModes =
+            (1.0 - acousticModalBlend) * bodyModalVelocity
+            + acousticModalBlend * acousticBodyModalVelocity;
+        const auto radiatingRockingModes =
+            (1.0 - acousticRockingBlend) * rockingModalVelocity
+            + acousticRockingBlend * acousticRockingModalVelocity;
+
         const auto radiatingBridgeVelocity =
-            acousticBodyModalVelocity
+            radiatingBodyModes
             + broadbandRadiationFraction * directRadiationRound2;
         const auto radiatingRockingVelocity =
-            acousticRockingModalVelocity
+            radiatingRockingModes
             + rockingBroadbandRadiationFraction * rockingRadiationRound2;
 
         rockingRadiationLow += rockingRadiationAlpha
