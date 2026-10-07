@@ -79,8 +79,6 @@ struct DebugState
     // diagnostics and never feed back into the model.
     std::array<float, 4> incidentBridgeVelocityMps{};
     std::array<float, 4> bowInjectionVelocityMps{};
-    std::array<float, 4> torsionalSurfaceVelocityMps{};
-    std::array<float, 4> torsionalInjectionVelocityMps{};
     float bowSpeedMps = 0.0f;
     float bridgeVelocity = 0.0f;
     float bridgeRockingVelocity = 0.0f;
