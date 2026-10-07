@@ -66,6 +66,27 @@ inline constexpr std::array<double, stringCount> torsionalContactCoupling {
     0.0, 0.0, 0.0, 0.0
 };
 
+// Reduced torsional propagation. These states never mix directly into audio or
+// bridge translation; they only perturb the velocity seen by BowContact.
+// Torsional waves travel several times faster than transverse waves and lose
+// substantial energy at both terminations, preserving short memory without a
+// second sustained audible pitch.
+inline constexpr std::array<double, stringCount> torsionalSpeedRatio {
+    5.35, 5.10, 4.85, 4.60
+};
+inline constexpr std::array<double, stringCount> torsionalBridgeReflection {
+    -0.58, -0.57, -0.56, -0.55
+};
+inline constexpr std::array<double, stringCount> torsionalNutReflection {
+    -0.76, -0.75, -0.74, -0.73
+};
+inline constexpr std::array<double, stringCount> torsionalDriveVelocityPerNewton {
+    0.0032, 0.0036, 0.0041, 0.0046
+};
+inline constexpr std::array<double, stringCount> torsionalFeedbackScale {
+    0.70, 0.75, 0.85, 0.90
+};
+
 // The short residual velocity burst used to make rosin catch/release audible
 // is not the nonlinear friction solve itself. On the low-impedance E string,
 // the same absolute added velocity becomes disproportionately prominent and
