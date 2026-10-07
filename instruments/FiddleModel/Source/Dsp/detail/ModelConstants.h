@@ -100,10 +100,10 @@ inline constexpr std::array<double, stringCount> torsionalGripModulationDepth {
 // how much friction-threshold variation can be tolerated without masking the
 // low-order pitch harmonics.
 inline constexpr std::array<double, stringCount> contactPatchGripDepthOpen {
-    0.0060, 0.0025, 0.0320, 0.0100
+    0.0, 0.0, 0.0320, 0.0100
 };
 inline constexpr std::array<double, stringCount> contactPatchGripDepthStopped {
-    0.0030, 0.0015, 0.0040, 0.0050
+    0.0, 0.0, 0.0040, 0.0050
 };
 
 // The short residual velocity burst used to make rosin catch/release audible
