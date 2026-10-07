@@ -72,6 +72,13 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> fingerTouch{};
     std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
+    // Independent reduced contact states at the two virtual edges of the bow
+    // ribbon. They share the same physical bow speed/normal load and are
+    // blended back into one force injection, but their phase-shifted incoming
+    // waves let different hair regions release/re-catch at slightly different
+    // instants instead of forcing the entire ribbon to switch in lockstep.
+    std::array<BowContact, stringCount> bridgewardContacts{};
+    std::array<BowContact, stringCount> nutwardContacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
@@ -223,6 +230,8 @@ struct FiddleEngine::Impl
         torsionSurfaceMean.fill(0.0);
         torsionContactEnvelope.fill(0.0);
         for (auto& contact : contacts) contact.reset();
+        for (auto& contact : bridgewardContacts) contact.reset();
+        for (auto& contact : nutwardContacts) contact.reset();
 
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
@@ -1579,7 +1588,59 @@ struct FiddleEngine::Impl
                     torsionalSurfaceVelocity);
                 // Convert the nonlinear contact solution back to its
                 // equivalent force-wave injection at the centre junction.
-                injection = stringVelocity - contactIncomingVelocity;
+                const auto centreInjection =
+                    stringVelocity - contactIncomingVelocity;
+
+                // Reduced distributed-hair solve. The finite-width read above
+                // already knows what the travelling wave looks like at the two
+                // edges of the hair ribbon, but a single BowContact state still
+                // makes the whole ribbon stick/slip in perfect synchrony. Give
+                // the two virtual edges independent thermal/contact memories,
+                // solve them against their local incoming wave, then average
+                // their force-wave injections. The small per-string blend in
+                // ModelConstants keeps this a perturbation of the validated
+                // centre junction rather than three independent bows.
+                const auto distributedBlend =
+                    distributedHairContactBlend[i] * torsionStringFocus;
+                if (distributedBlend > 0.0)
+                {
+                    const auto bridgewardVelocity =
+                        bridgewardContacts[i].solve(
+                            bridgewardIncoming,
+                            bowSpeed,
+                            bowForce[i],
+                            stringImpedance[i],
+                            sampleRate,
+                            localStaticGrip,
+                            localSlidingGrip,
+                            contactStateRateScale,
+                            adhesionMemoryAmount,
+                            0.0,
+                            0.0);
+                    const auto nutwardVelocity =
+                        nutwardContacts[i].solve(
+                            nutwardIncoming,
+                            bowSpeed,
+                            bowForce[i],
+                            stringImpedance[i],
+                            sampleRate,
+                            localStaticGrip,
+                            localSlidingGrip,
+                            contactStateRateScale,
+                            adhesionMemoryAmount,
+                            0.0,
+                            0.0);
+                    const auto edgeInjection = 0.5 * (
+                        (bridgewardVelocity - bridgewardIncoming)
+                        + (nutwardVelocity - nutwardIncoming));
+                    injection =
+                        (1.0 - distributedBlend) * centreInjection
+                        + distributedBlend * edgeInjection;
+                }
+                else
+                {
+                    injection = centreInjection;
+                }
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
@@ -1686,6 +1747,8 @@ struct FiddleEngine::Impl
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
+                bridgewardContacts[i].relax(sampleRate, contactStateRateScale);
+                nutwardContacts[i].relax(sampleRate, contactStateRateScale);
                 torsionContactEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.0010));
                 rosinNoisePrevious[i] *= 0.98;
