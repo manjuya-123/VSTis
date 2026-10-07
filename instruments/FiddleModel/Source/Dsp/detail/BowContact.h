@@ -34,6 +34,15 @@ struct BowContact
     bool usedStaticFallback = false;
     double lastFrictionForceN = 0.0;
 
+    // Reduced torsional/contact degree of freedom. This is deliberately not a
+    // second string waveguide: it represents the local surface velocity seen
+    // by the bow as twist/contact compliance rings after a friction impulse.
+    // The state is strongly damped and only feeds the relative bow/string
+    // velocity, so it can perturb slip/re-stick timing without becoming an
+    // audible second pitch source.
+    double torsionalDisplacement = 0.0;
+    double torsionalSurfaceVelocity = 0.0;
+
     void reset() noexcept
     {
         temperatureC = ambientTemperatureC;
@@ -43,6 +52,45 @@ struct BowContact
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
+        torsionalDisplacement = 0.0;
+        torsionalSurfaceVelocity = 0.0;
+    }
+
+    [[nodiscard]] double torsionalVelocityMps() const noexcept
+    {
+        return torsionalSurfaceVelocity;
+    }
+
+    void advanceTorsion(double frictionForce,
+                        double sampleRate,
+                        double coupling) noexcept
+    {
+        if (sampleRate <= 1.0 || coupling <= 0.0)
+            return;
+
+        // A reduced local torsional/contact resonance. The ~1.8 kHz centre is
+        // intentionally much faster than the played transverse fundamental,
+        // while heavy damping prevents a stable whistle or second oscillator.
+        // Coupling is kept small by the engine and scales the force drive, not
+        // an arbitrary noise source.
+        constexpr double resonanceHz = 1850.0;
+        constexpr double dampingRatio = 0.34;
+        constexpr double forceToAcceleration = 220.0;
+        constexpr double maxSurfaceVelocity = 0.012;
+
+        const auto dt = 1.0 / sampleRate;
+        const auto omega = 2.0 * 3.14159265358979323846 * resonanceHz;
+        const auto acceleration =
+            coupling * forceToAcceleration * frictionForce
+            - 2.0 * dampingRatio * omega * torsionalSurfaceVelocity
+            - omega * omega * torsionalDisplacement;
+
+        // Semi-implicit Euler is stable here because omega*dt remains well
+        // below unity throughout the supported sample-rate range.
+        torsionalSurfaceVelocity += dt * acceleration;
+        torsionalSurfaceVelocity = std::clamp(
+            torsionalSurfaceVelocity, -maxSurfaceVelocity, maxSurfaceVelocity);
+        torsionalDisplacement += dt * torsionalSurfaceVelocity;
     }
 
     [[nodiscard]] static double reducedYield(double temperature) noexcept
@@ -167,6 +215,10 @@ struct BowContact
             -stateRateScale / (sampleRate * 0.008));
         adhesionState += adhesionAlpha * (0.5 - adhesionState);
 
+        // Preserve only a short physical memory when the hair lifts. This is
+        // what lets a bow reversal/start inherit the prior contact state rather
+        // than hard-resetting to a perfectly periodic orbit.
+        advanceTorsion(0.0, sampleRate, 1.0);
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
     }
 
@@ -178,12 +230,16 @@ struct BowContact
                  double staticGripScale = 1.0,
                  double slidingGripScale = 1.0,
                  double stateRateScale = 1.0,
-                 double adhesionMemoryAmount = 0.0) noexcept
+                 double adhesionMemoryAmount = 0.0,
+                 double torsionalCoupling = 0.0) noexcept
     {
         usedStaticFallback = false;
         const auto strength = rosinStrengthScale();
+        const auto localTorsionalVelocity =
+            torsionalCoupling * torsionalSurfaceVelocity;
         const auto requiredForce =
-            2.0 * characteristicImpedance * (bowVelocity - incomingVelocity);
+            2.0 * characteristicImpedance
+            * (bowVelocity - localTorsionalVelocity - incomingVelocity);
 
         // Static grip is less temperature-sensitive than the sliding law in
         // this reduced model, but a hot contact still weakens it somewhat.
@@ -211,7 +267,8 @@ struct BowContact
             lastSlipSpeedMps = 0.0;
             updateAdhesion(true, 0.0, sampleRate, stateRateScale);
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-            return bowVelocity;
+            advanceTorsion(requiredForce, sampleRate, torsionalCoupling);
+            return bowVelocity - localTorsionalVelocity;
         }
 
         sticking = false;
@@ -223,7 +280,8 @@ struct BowContact
         {
             const auto friction =
                 slidingGripScale * adhesionSlidingScale * normalForce
-                * muJump(stringVelocity - bowVelocity)
+                * muJump(
+                    stringVelocity + localTorsionalVelocity - bowVelocity)
                 * rosinStrengthScale();
 
             return 2.0 * characteristicImpedance
@@ -246,6 +304,7 @@ struct BowContact
             updateAdhesion(false, slip, sampleRate, stateRateScale);
             updateTemperature(
                 slip, std::abs(force * slip), sampleRate, stateRateScale);
+            advanceTorsion(force, sampleRate, torsionalCoupling);
             return stringVelocity;
         }
 
@@ -276,6 +335,7 @@ struct BowContact
             std::abs(frictionForce * slip),
             sampleRate,
             stateRateScale);
+        advanceTorsion(frictionForce, sampleRate, torsionalCoupling);
 
         return stringVelocity;
     }
