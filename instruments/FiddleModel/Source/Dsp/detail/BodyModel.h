@@ -159,6 +159,73 @@ struct ModalBank
     }
 };
 
+struct RadiationPeakingBiquad
+{
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0;
+    double a1 = 0.0, a2 = 0.0;
+    double z1 = 0.0, z2 = 0.0;
+
+    void prepare(double sampleRate,
+                 double frequencyHz,
+                 double q,
+                 double gainDb) noexcept
+    {
+        const auto A = std::pow(10.0, gainDb / 40.0);
+        const auto w0 = 2.0 * pi * frequencyHz / sampleRate;
+        const auto alpha = std::sin(w0) / (2.0 * q);
+        const auto cw = std::cos(w0);
+        const auto a0 = 1.0 + alpha / A;
+        b0 = (1.0 + alpha * A) / a0;
+        b1 = (-2.0 * cw) / a0;
+        b2 = (1.0 - alpha * A) / a0;
+        a1 = (-2.0 * cw) / a0;
+        a2 = (1.0 - alpha / A) / a0;
+        reset();
+    }
+
+    void reset() noexcept { z1 = z2 = 0.0; }
+
+    double process(double x) noexcept
+    {
+        const auto y = b0 * x + z1;
+        z1 = b1 * x - a1 * y + z2;
+        z2 = b2 * x - a2 * y;
+        return y;
+    }
+};
+
+struct EmpiricalRadiativity
+{
+    // Broad, low-order approximation of experimentally observed violin
+    // radiation regions. These are deliberately gentle: they represent
+    // radiation efficiency, not another resonant mechanical body and they do
+    // not feed back into the string/bridge solve.
+    RadiationPeakingBiquad lowBody{};
+    RadiationPeakingBiquad presenceDip{};
+    RadiationPeakingBiquad bridgeHill{};
+
+    void prepare(double sampleRate) noexcept
+    {
+        lowBody.prepare(sampleRate, 520.0, 0.75, 1.2);
+        presenceDip.prepare(sampleRate, 1080.0, 0.85, -1.6);
+        bridgeHill.prepare(sampleRate, 2550.0, 0.95, 2.0);
+    }
+
+    void reset() noexcept
+    {
+        lowBody.reset();
+        presenceDip.reset();
+        bridgeHill.reset();
+    }
+
+    double process(double x) noexcept
+    {
+        return bridgeHill.process(
+            presenceDip.process(
+                lowBody.process(x)));
+    }
+};
+
 struct RadiationFilter
 {
     double hpAlpha = 0.0;
@@ -167,6 +234,7 @@ struct RadiationFilter
     double hpX1 = 0.0;
     double hpY1 = 0.0;
     double lpY = 0.0;
+    EmpiricalRadiativity empirical{};
 
     void prepare(double sampleRate,
                  double lowPassHz = 7200.0,
@@ -179,10 +247,15 @@ struct RadiationFilter
             2.0 * pi * std::clamp(lowPassHz, 4000.0, 12000.0));
         lpAlpha = dt / (lpRC + dt);
         airMix = std::clamp(newAirMix, 0.0, 0.5);
+        empirical.prepare(sampleRate);
         reset();
     }
 
-    void reset() noexcept { hpX1 = hpY1 = lpY = 0.0; }
+    void reset() noexcept
+    {
+        hpX1 = hpY1 = lpY = 0.0;
+        empirical.reset();
+    }
 
     double process(double x) noexcept
     {
@@ -195,7 +268,8 @@ struct RadiationFilter
         // left/right instances may use slightly different radiation angles,
         // but both remain derived from the same physical bridge velocity.
         const auto air = hp - lpY;
-        return lpY + airMix * air;
+        const auto broadbandRadiation = lpY + airMix * air;
+        return empirical.process(broadbandRadiation);
     }
 };
 } // namespace fiddle::detail
