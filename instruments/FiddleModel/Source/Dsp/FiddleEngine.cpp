@@ -1241,8 +1241,11 @@ struct FiddleEngine::Impl
             const auto transverseImpedance = stringImpedance[i];
             const auto torsionalImpedance =
                 torsionalSurfaceImpedance;
+            const auto torsionCoupling = torsionalReducedOrderCoupling;
             const auto contactImpedance =
-                1.0 / (1.0 / transverseImpedance + 1.0 / torsionalImpedance);
+                1.0 / (
+                    1.0 / transverseImpedance
+                    + torsionCoupling * torsionCoupling / torsionalImpedance);
             double injection = 0.0;
             double torsionalInjection = 0.0;
             double rosinNoiseVelocity = 0.0;
@@ -1287,7 +1290,8 @@ struct FiddleEngine::Impl
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto incomingSurfaceVelocity =
-                    incomingVelocity + torsionalIncomingVelocity;
+                    incomingVelocity
+                    + torsionCoupling * torsionalIncomingVelocity;
                 const auto surfaceVelocity = contacts[i].solve(
                     incomingSurfaceVelocity,
                     bowSpeed,
@@ -1302,7 +1306,8 @@ struct FiddleEngine::Impl
                     * (surfaceVelocity - incomingSurfaceVelocity);
                 injection = frictionForce / (2.0 * transverseImpedance);
                 torsionalInjection =
-                    frictionForce / (2.0 * torsionalImpedance);
+                    torsionCoupling * frictionForce
+                    / (2.0 * torsionalImpedance);
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
