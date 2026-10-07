@@ -1489,6 +1489,18 @@ struct FiddleEngine::Impl
                     : 0.0;
                 const auto patchGripPerturbation =
                     patchDepth * contactPatch;
+                const auto patchStateRateDepth =
+                    static_cast<int>(i) == primaryString
+                    ? (fingered
+                        ? contactPatchStateRateDepthStopped[i]
+                        : contactPatchStateRateDepthOpen[i])
+                    : 0.0;
+                const auto localContactStateRateScale =
+                    contactStateRateScale
+                    * std::clamp(
+                        1.0 + patchStateRateDepth * contactPatch,
+                        0.80,
+                        1.20);
 
                 auto localStaticGrip =
                     staticGripScale
@@ -1574,7 +1586,7 @@ struct FiddleEngine::Impl
                     sampleRate,
                     localStaticGrip,
                     localSlidingGrip,
-                    contactStateRateScale,
+                    localContactStateRateScale,
                     adhesionMemoryAmount,
                     torsionalContactCoupling[i],
                     torsionalSurfaceVelocity);
