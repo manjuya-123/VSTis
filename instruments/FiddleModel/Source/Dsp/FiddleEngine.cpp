@@ -74,7 +74,6 @@ struct FiddleEngine::Impl
     // gesture itself rather than adding audio noise or changing string pitch.
     // They retrace when the bow reverses, just as real hair/camber loading does.
     double bowTravelSpeedCoordinate = 19.0;
-    double bowTravelForceCoordinate = 61.0;
 
     ModalBank body{};
     ModalBank bodyRocking{true};
@@ -222,7 +221,6 @@ struct FiddleEngine::Impl
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
         bowTravelSpeedCoordinate = 19.0;
-        bowTravelForceCoordinate = 61.0;
         body.reset();
         bodyRocking.reset();
         acousticBody.reset();
@@ -1026,18 +1024,26 @@ struct FiddleEngine::Impl
         // travelled bow distance. Use two deterministic low-density spatial
         // fields so simple Play Mode input produces a living contact trajectory
         // without requiring hand-drawn MIDI CC curves.
-        bowTravelSpeedCoordinate += bowSpeed * 11.0 / sampleRate;
-        bowTravelForceCoordinate += bowSpeed * 6.0 / sampleRate;
+        bowTravelSpeedCoordinate += bowSpeed * 9.0 / sampleRate;
         const auto travelSpeedVariation = rosinSurfaceSample(
             bowTravelSpeedCoordinate, 0x6D2B79F5u);
-        const auto travelForceVariation = rosinSurfaceSample(
-            bowTravelForceCoordinate, 0xB5297A4Du);
+        const auto primaryIndex = static_cast<std::size_t>(
+            std::clamp(primaryString, 0, stringCount - 1));
+        // Only perturb an already comfortable sticking state. Near the
+        // static/sliding boundary even sub-percent control changes can push the
+        // nonlinear solve into a different attractor (as the #693 prototype
+        // demonstrated). This keeps the player-motion model inside the stable
+        // basin and avoids timbre cliffs while still preventing a perfectly
+        // motionless actuator during long held bows.
+        const auto previousGrip = contacts[primaryIndex].gripUtilization();
+        const auto stableStickMargin = contacts[primaryIndex].sticking
+            ? std::clamp((0.72 - previousGrip) / 0.32, 0.0, 1.0)
+            : 0.0;
         const auto bowTravelActivity = std::clamp(
-            std::abs(bowSpeed) / 0.18, 0.0, 1.0) * gateValue;
+            std::abs(bowSpeed) / 0.18, 0.0, 1.0)
+            * gateValue * stableStickMargin;
         const auto speedMicroScale =
-            1.0 + 0.006 * bowTravelActivity * travelSpeedVariation;
-        const auto forceMicroScale =
-            1.0 + 0.008 * bowTravelActivity * travelForceVariation;
+            1.0 + 0.0020 * bowTravelActivity * travelSpeedVariation;
 
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
@@ -1046,8 +1052,7 @@ struct FiddleEngine::Impl
             * shuffleEnergyScale
             * strokeBiteGain
             * gateValue
-            * oneShotLiftGain
-            * forceMicroScale;
+            * oneShotLiftGain;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
