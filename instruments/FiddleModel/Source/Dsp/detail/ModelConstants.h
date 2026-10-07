@@ -63,7 +63,7 @@ inline constexpr std::array<double, stringCount> distributedHairContactBlend {
 // cycle-locked; keep every value conservative so this perturbs Helmholtz timing
 // without creating a second audible pitch source.
 inline constexpr std::array<double, stringCount> torsionalContactCoupling {
-    0.035, 0.035, 0.065, 0.045
+    0.0, 0.0, 0.18, 0.12
 };
 
 // The short residual velocity burst used to make rosin catch/release audible
