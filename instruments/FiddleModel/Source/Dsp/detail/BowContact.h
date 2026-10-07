@@ -24,6 +24,10 @@ struct BowContact
     double lastSlipSpeedMps = 0.0;
     double lastGripUtilization = 0.0;
     bool sticking = false;
+    // Diagnostics: a missing sliding root currently substitutes the static
+    // friction limit, which can produce a periodic hard-edged waveform.
+    bool usedStaticFallback = false;
+    double lastFrictionForceN = 0.0;
 
     void reset() noexcept
     {
@@ -31,6 +35,8 @@ struct BowContact
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
         sticking = false;
+        usedStaticFallback = false;
+        lastFrictionForceN = 0.0;
     }
 
     [[nodiscard]] static double reducedYield(double temperature) noexcept
@@ -123,6 +129,8 @@ struct BowContact
     void relax(double sampleRate, double stateRateScale = 1.0) noexcept
     {
         sticking = false;
+        usedStaticFallback = false;
+        lastFrictionForceN = 0.0;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
@@ -137,6 +145,7 @@ struct BowContact
                  double slidingGripScale = 1.0,
                  double stateRateScale = 1.0) noexcept
     {
+        usedStaticFallback = false;
         const auto strength = rosinStrengthScale();
         const auto requiredForce =
             2.0 * characteristicImpedance * (bowVelocity - incomingVelocity);
@@ -154,6 +163,7 @@ struct BowContact
         if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
+            lastFrictionForceN = requiredForce;
             lastSlipSpeedMps = 0.0;
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
             return bowVelocity;
@@ -181,7 +191,9 @@ struct BowContact
 
         if (glo * ghi > 0.0)
         {
+            usedStaticFallback = true;
             const auto force = positive ? staticLimit : -staticLimit;
+            lastFrictionForceN = force;
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
             const auto slip = stringVelocity - bowVelocity;
@@ -209,6 +221,7 @@ struct BowContact
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
         const auto slip = stringVelocity - bowVelocity;
+        lastFrictionForceN = frictionForce;
         lastSlipSpeedMps = slip;
 
         updateTemperature(
