@@ -1482,8 +1482,10 @@ struct FiddleEngine::Impl
                     contactPatchCoordinate[i],
                     rosinNoiseState[i] ^ 0x6D2B79F5u);
                 const auto patchDepth =
-                    static_cast<int>(i) == primaryString && i == 2
-                    ? (fingered ? 0.004 : 0.022)
+                    static_cast<int>(i) == primaryString
+                    ? (fingered
+                        ? contactPatchGripDepthStopped[i]
+                        : contactPatchGripDepthOpen[i])
                     : 0.0;
                 const auto patchGripPerturbation =
                     patchDepth * contactPatch;
