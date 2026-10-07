@@ -29,6 +29,10 @@ jobs:
       - name: Run portable physical core regressions
         run: ctest --test-dir build/linux-core --output-on-failure
 
+      - name: Print bowed-string contact mechanics by string and sample rate
+        if: always()
+        run: ./build/linux-core/instruments/FiddleModel/FiddleModelCoreSmoke
+
       - name: Print hair/rosin contact dynamics
         if: always()
         run: ./build/linux-core/instruments/FiddleModel/FiddleModelMaterialRegression
