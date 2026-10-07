@@ -1354,6 +1354,12 @@ struct FiddleEngine::Impl
                 static_cast<float>(contacts[i].contactTemperatureC());
             debug.contactGripUtilization[i] =
                 static_cast<float>(contacts[i].gripUtilization());
+            debug.contactSlipSpeedMps[i] =
+                static_cast<float>(contacts[i].slipSpeedMps());
+            debug.contactFrictionForceN[i] =
+                static_cast<float>(contacts[i].lastFrictionForceN);
+            debug.contactStaticFallback[i] =
+                contacts[i].usedStaticFallback;
             debug.rosinNoiseVelocityMps[i] =
                 static_cast<float>(rosinNoiseVelocity);
             debug.rosinTransitionEnvelope[i] =
