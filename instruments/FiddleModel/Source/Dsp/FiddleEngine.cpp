@@ -213,7 +213,17 @@ struct FiddleEngine::Impl
         gate.reset(0.0);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
+        {
             speakingFrequency[i].reset(openFrequency[i]);
+            speakingAllpassA[i] = runtimeAllpassA[i];
+            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
+                sampleRate,
+                openFrequency[i],
+                runtimeLossGain[i],
+                lossAlpha[i],
+                speakingAllpassA[i]);
+            refreshBridgeLoadPhaseDelay(i, openFrequency[i]);
+        }
         fastFingeringSamplesRemaining.fill(0);
 
         velocityScale = 1.0;
