@@ -147,6 +147,11 @@ struct FiddleEngine::Impl
     double strokeBiteAmount = 0.0;
     std::int64_t strokeBiteSamplesRemaining = 0;
     std::int64_t strokeBiteTotalSamples = 0;
+    // Initial sustained-bow contact settling. Unlike the one-shot bite, this
+    // is not an amplitude transient: it lets the hair/rosin friction capacity
+    // mature over the first few milliseconds before the stable Helmholtz orbit.
+    std::int64_t sustainedCatchSamplesRemaining = 0;
+    std::int64_t sustainedCatchTotalSamples = 0;
     double reversalAccelerationBoost = 0.0;
     std::int64_t reversalAssistSamplesRemaining = 0;
     std::int64_t reversalAssistTotalSamples = 0;
@@ -270,6 +275,8 @@ struct FiddleEngine::Impl
         strokeBiteAmount = 0.0;
         strokeBiteSamplesRemaining = 0;
         strokeBiteTotalSamples = 0;
+        sustainedCatchSamplesRemaining = 0;
+        sustainedCatchTotalSamples = 0;
         reversalAccelerationBoost = 0.0;
         reversalAssistSamplesRemaining = 0;
         reversalAssistTotalSamples = 0;
@@ -690,6 +697,22 @@ struct FiddleEngine::Impl
         shuffleSubdivisionsPerSecond = 0.0;
         shufflePhase = 0;
         shuffleEnergyScale = 1.0;
+        // Ordinary sustained strokes currently fall into a perfectly stable
+        // contact orbit almost immediately. Real bow hair/rosin contact takes
+        // several encounters to establish full grip. Apply this only to the
+        // initial stationary-bow catch; moving reversals already have a
+        // dedicated acceleration/catch path.
+        if (!reversingMovingBow)
+        {
+            sustainedCatchTotalSamples = std::max<std::int64_t>(
+                1, static_cast<std::int64_t>(0.022 * sampleRate));
+            sustainedCatchSamplesRemaining = sustainedCatchTotalSamples;
+        }
+        else
+        {
+            sustainedCatchSamplesRemaining = 0;
+            sustainedCatchTotalSamples = 0;
+        }
         gate.setTarget(1.0);
     }
 
@@ -700,6 +723,10 @@ struct FiddleEngine::Impl
                           double liftForceCurve) noexcept
     {
         startBow(direction);
+        // Short/Accent already have their own measured bite profile and show
+        // rich first-30-ms stick/slip motion; do not stack sustained settling.
+        sustainedCatchSamplesRemaining = 0;
+        sustainedCatchTotalSamples = 0;
         shortStrokeSamplesRemaining = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(durationSeconds * sampleRate));
         oneShotReleaseTotalSamples = std::max<std::int64_t>(
@@ -734,6 +761,8 @@ struct FiddleEngine::Impl
         bowStrokeStarted = true;
         if (bowDirection == 0)
             bowDirection = 1;
+        sustainedCatchSamplesRemaining = 0;
+        sustainedCatchTotalSamples = 0;
 
         shortStrokeSamplesRemaining = 0;
         oneShotReleaseSamplesRemaining = 0;
@@ -758,6 +787,8 @@ struct FiddleEngine::Impl
         bowStrokeStarted = true;
         if (bowDirection == 0)
             bowDirection = 1;
+        sustainedCatchSamplesRemaining = 0;
+        sustainedCatchTotalSamples = 0;
 
         shortStrokeSamplesRemaining = 0;
         oneShotReleaseSamplesRemaining = 0;
@@ -783,6 +814,8 @@ struct FiddleEngine::Impl
 
     void stopBow() noexcept
     {
+        sustainedCatchSamplesRemaining = 0;
+        sustainedCatchTotalSamples = 0;
         shortStrokeSamplesRemaining = 0;
         oneShotReleaseSamplesRemaining = 0;
         oneShotReleaseTotalSamples = 0;
@@ -964,6 +997,21 @@ struct FiddleEngine::Impl
         const auto vibWidth = vibratoWidth.next();
         const auto vibPace = vibratoPace.next();
         const auto gateValue = gate.next();
+
+        double sustainedStaticGripScale = 1.0;
+        double sustainedSlidingGripScale = 1.0;
+        if (sustainedCatchSamplesRemaining > 0
+            && sustainedCatchTotalSamples > 0)
+        {
+            const auto progress = 1.0
+                - static_cast<double>(sustainedCatchSamplesRemaining)
+                    / static_cast<double>(sustainedCatchTotalSamples);
+            const auto smoothProgress = progress * progress
+                * (3.0 - 2.0 * progress);
+            sustainedStaticGripScale = 0.88 + 0.12 * smoothProgress;
+            sustainedSlidingGripScale = 0.82 + 0.18 * smoothProgress;
+            --sustainedCatchSamplesRemaining;
+        }
 
         const auto bowTargetSpeed =
             (0.04 + 0.61 * std::pow(s, 1.25)) * shuffleEnergyScale;
@@ -1418,9 +1466,13 @@ struct FiddleEngine::Impl
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
                 const auto localStaticGrip =
-                    staticGripScale * (1.0 + 0.35 * gripPerturbation);
+                    staticGripScale
+                    * sustainedStaticGripScale
+                    * (1.0 + 0.35 * gripPerturbation);
                 const auto localSlidingGrip =
-                    slidingGripScale * (1.0 + gripPerturbation);
+                    slidingGripScale
+                    * sustainedSlidingGripScale
+                    * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
