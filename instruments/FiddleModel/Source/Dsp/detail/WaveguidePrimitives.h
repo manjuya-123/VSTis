@@ -110,6 +110,25 @@ inline double reflectionPhaseDelaySamples(double sampleRate,
     return -phase / omega;
 }
 
+inline double firReflectionPhaseDelaySamples(double sampleRate,
+                                                    double frequencyHz,
+                                                    double alpha) noexcept
+{
+    if (alpha <= 0.0)
+        return 0.0;
+
+    const auto omega = 2.0 * pi * frequencyHz / sampleRate;
+    if (omega <= 0.0)
+        return 0.0;
+
+    const auto real = (1.0 - alpha) + alpha * std::cos(omega);
+    const auto imag = -alpha * std::sin(omega);
+    auto phase = std::atan2(imag, real);
+    if (phase > 0.0)
+        phase -= 2.0 * pi;
+    return -phase / omega;
+}
+
 inline int choosePrimaryString(double frequencyHz) noexcept
 {
     int selected = 0;
