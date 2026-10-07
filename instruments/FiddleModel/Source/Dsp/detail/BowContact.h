@@ -23,6 +23,11 @@ struct BowContact
     double temperatureC = ambientTemperatureC;
     double lastSlipSpeedMps = 0.0;
     double lastGripUtilization = 0.0;
+    // Reduced rosin/hair adhesion memory. This is not an elastic force state:
+    // it only records how mature the microscopic contact bonds are. Bonds
+    // strengthen during stick and are stripped during slip, giving the next
+    // catch a small history dependence without adding a second oscillator.
+    double adhesionState = 0.5;
     bool sticking = false;
     // Diagnostics: a missing sliding root currently substitutes the static
     // friction limit, which can produce a periodic hard-edged waveform.
@@ -34,6 +39,7 @@ struct BowContact
         temperatureC = ambientTemperatureC;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
+        adhesionState = 0.5;
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
@@ -126,6 +132,26 @@ struct BowContact
             temperatureC, ambientTemperatureC, ambientTemperatureC + 65.0);
     }
 
+    void updateAdhesion(bool isSticking,
+                        double slipSpeed,
+                        double sampleRate,
+                        double stateRateScale) noexcept
+    {
+        // Rosin junctions form over several milliseconds while the hair is
+        // carried with the string, then shed substantially faster once gross
+        // sliding begins. Keep the strength excursion deliberately small; the
+        // state supplies contact history, not a replacement friction curve.
+        const auto speed = std::abs(slipSpeed);
+        const auto target = isSticking
+            ? 1.0
+            : 0.15 + 0.20 * std::exp(-speed / 0.08);
+        const auto timeConstant = isSticking ? 0.0045 : 0.0011;
+        const auto alpha = 1.0 - std::exp(
+            -stateRateScale / (sampleRate * timeConstant));
+        adhesionState += alpha * (target - adhesionState);
+        adhesionState = std::clamp(adhesionState, 0.0, 1.0);
+    }
+
     void relax(double sampleRate, double stateRateScale = 1.0) noexcept
     {
         sticking = false;
@@ -133,6 +159,14 @@ struct BowContact
         lastFrictionForceN = 0.0;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
+
+        // With the bow lifted, unload contact history toward a neutral state
+        // instead of carrying a fully formed or fully stripped junction into
+        // the next stroke.
+        const auto adhesionAlpha = 1.0 - std::exp(
+            -stateRateScale / (sampleRate * 0.008));
+        adhesionState += adhesionAlpha * (0.5 - adhesionState);
+
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
     }
 
@@ -154,8 +188,13 @@ struct BowContact
         // this reduced model, but a hot contact still weakens it somewhat.
         const auto staticStateScale = std::clamp(
             0.85 + 0.15 * strength, 0.78, 1.08);
+        const auto adhesionStaticScale =
+            0.97 + 0.06 * adhesionState;
+        const auto adhesionSlidingScale =
+            0.985 + 0.030 * adhesionState;
         const auto staticLimit =
-            1.2 * staticGripScale * normalForce * staticStateScale;
+            1.2 * staticGripScale * normalForce
+            * staticStateScale * adhesionStaticScale;
         lastGripUtilization = std::clamp(
             std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
@@ -165,6 +204,7 @@ struct BowContact
             sticking = true;
             lastFrictionForceN = requiredForce;
             lastSlipSpeedMps = 0.0;
+            updateAdhesion(true, 0.0, sampleRate, stateRateScale);
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
             return bowVelocity;
         }
@@ -177,7 +217,7 @@ struct BowContact
         const auto equation = [&](double stringVelocity) noexcept
         {
             const auto friction =
-                slidingGripScale * normalForce
+                slidingGripScale * adhesionSlidingScale * normalForce
                 * muJump(stringVelocity - bowVelocity)
                 * rosinStrengthScale();
 
@@ -198,6 +238,7 @@ struct BowContact
                 incomingVelocity + force / (2.0 * characteristicImpedance);
             const auto slip = stringVelocity - bowVelocity;
             lastSlipSpeedMps = slip;
+            updateAdhesion(false, slip, sampleRate, stateRateScale);
             updateTemperature(
                 slip, std::abs(force * slip), sampleRate, stateRateScale);
             return stringVelocity;
@@ -224,6 +265,7 @@ struct BowContact
         lastFrictionForceN = frictionForce;
         lastSlipSpeedMps = slip;
 
+        updateAdhesion(false, slip, sampleRate, stateRateScale);
         updateTemperature(
             slip,
             std::abs(frictionForce * slip),
