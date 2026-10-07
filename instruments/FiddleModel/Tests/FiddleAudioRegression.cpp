@@ -627,6 +627,8 @@ fiddle::Controls baseControls()
 struct CycleTrace
 {
     std::vector<float> contactFrictionForce;
+    std::vector<float> contactGripUtilization;
+    std::vector<float> torsionalSurfaceVelocity;
     std::vector<float> bowInjectionVelocity;
     std::vector<float> incidentBridgeVelocity;
     std::vector<float> bridgeVelocity;
@@ -656,6 +658,8 @@ CycleTrace renderCycleTrace(int stringIndex,
         static_cast<std::size_t>(sustainSeconds * sampleRate);
     CycleTrace trace;
     trace.contactFrictionForce.reserve(samples);
+    trace.contactGripUtilization.reserve(samples);
+    trace.torsionalSurfaceVelocity.reserve(samples);
     trace.bowInjectionVelocity.reserve(samples);
     trace.incidentBridgeVelocity.reserve(samples);
     trace.bridgeVelocity.reserve(samples);
@@ -670,6 +674,10 @@ CycleTrace renderCycleTrace(int stringIndex,
         const auto index = static_cast<std::size_t>(stringIndex);
         trace.contactFrictionForce.push_back(
             state.contactFrictionForceN[index]);
+        trace.contactGripUtilization.push_back(
+            state.contactGripUtilization[index]);
+        trace.torsionalSurfaceVelocity.push_back(
+            state.torsionalSurfaceVelocityMps[index]);
         trace.bowInjectionVelocity.push_back(
             state.bowInjectionVelocityMps[index]);
         trace.incidentBridgeVelocity.push_back(
@@ -994,6 +1002,12 @@ int main(int argc, char** argv)
             writePoint(
                 "contact_friction_force",
                 trace.contactFrictionForce);
+            writePoint(
+                "contact_grip_utilization",
+                trace.contactGripUtilization);
+            writePoint(
+                "torsional_surface_velocity",
+                trace.torsionalSurfaceVelocity);
             writePoint(
                 "bow_injection_velocity",
                 trace.bowInjectionVelocity);
