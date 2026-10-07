@@ -1483,7 +1483,7 @@ struct FiddleEngine::Impl
                     rosinNoiseState[i] ^ 0x6D2B79F5u);
                 const auto patchDepth =
                     static_cast<int>(i) == primaryString && i == 2
-                    ? 0.022
+                    ? (fingered ? 0.004 : 0.022)
                     : 0.0;
                 const auto patchGripPerturbation =
                     patchDepth * contactPatch;
