@@ -78,6 +78,16 @@ struct FiddleEngine::Impl
     BowGeometryMapper bowGeometry{};
     double rockingRadiationLow = 0.0;
     double rockingRadiationAlpha = 0.0;
+    // Acoustic-only rounding of the non-modal bridge component. Measured
+    // bowed-string bridge-force waveforms do not retain infinitely sharp
+    // Helmholtz corners; finite bow contact and string/bridge compliance round
+    // them over a small fraction of each period. The mechanical feedback path
+    // remains untouched; only the broadband component that would otherwise
+    // pass almost directly to the listener is band-limited relative to pitch.
+    double directRadiationRound1 = 0.0;
+    double directRadiationRound2 = 0.0;
+    double rockingRadiationRound1 = 0.0;
+    double rockingRadiationRound2 = 0.0;
 
     Smoother pressure{};
     Smoother speed{};
@@ -196,6 +206,10 @@ struct FiddleEngine::Impl
         radiationLeft.reset();
         radiationRight.reset();
         rockingRadiationLow = 0.0;
+        directRadiationRound1 = 0.0;
+        directRadiationRound2 = 0.0;
+        rockingRadiationRound1 = 0.0;
+        rockingRadiationRound2 = 0.0;
 
         pressure.reset(controlTargets.pressure);
         speed.reset(controlTargets.speed);
@@ -1515,14 +1529,52 @@ struct FiddleEngine::Impl
         // prevents an unrealistically hollow modal-only sound.
         constexpr double broadbandRadiationFraction = 0.32;
         constexpr double rockingBroadbandRadiationFraction = 0.45;
+
+        // Round only the non-modal bridge component before it becomes sound.
+        // Fritz et al. report that measured violin bridge-force waveforms have
+        // rounded Helmholtz corners, with a representative smoothing width of
+        // about 3.5% of the period. A pair of pitch-scaled one-poles gives a
+        // compact real-time approximation: the cutoff follows the currently
+        // bowed physical pitch, so this is not a fixed darkening EQ.
+        double weightedPitch = 0.0;
+        double weightedForce = 0.0;
+        for (std::size_t i = 0; i < stringCount; ++i)
+        {
+            weightedPitch += bowForce[i] * currentFrequency[i];
+            weightedForce += bowForce[i];
+        }
+        const auto radiationPitch = weightedForce > 1.0e-8
+            ? weightedPitch / weightedForce
+            : currentFrequency[static_cast<std::size_t>(
+                std::clamp(primaryString, 0, stringCount - 1))];
+        constexpr double cornerPoleHarmonic = 5.9;
+        const auto cornerCutoffHz = std::clamp(
+            cornerPoleHarmonic * radiationPitch,
+            850.0,
+            6200.0);
+        const auto cornerAlpha =
+            1.0 - std::exp(-2.0 * pi * cornerCutoffHz / sampleRate);
+
+        const auto directBridge =
+            bridgeVelocity - bodyModalVelocity;
+        directRadiationRound1 += cornerAlpha
+            * (directBridge - directRadiationRound1);
+        directRadiationRound2 += cornerAlpha
+            * (directRadiationRound1 - directRadiationRound2);
+
+        const auto directRocking =
+            bridgeRockingVelocity - rockingModalVelocity;
+        rockingRadiationRound1 += cornerAlpha
+            * (directRocking - rockingRadiationRound1);
+        rockingRadiationRound2 += cornerAlpha
+            * (rockingRadiationRound1 - rockingRadiationRound2);
+
         const auto radiatingBridgeVelocity =
             bodyModalVelocity
-            + broadbandRadiationFraction
-                * (bridgeVelocity - bodyModalVelocity);
+            + broadbandRadiationFraction * directRadiationRound2;
         const auto radiatingRockingVelocity =
             rockingModalVelocity
-            + rockingBroadbandRadiationFraction
-                * (bridgeRockingVelocity - rockingModalVelocity);
+            + rockingBroadbandRadiationFraction * rockingRadiationRound2;
 
         rockingRadiationLow += rockingRadiationAlpha
             * (radiatingRockingVelocity - rockingRadiationLow);
