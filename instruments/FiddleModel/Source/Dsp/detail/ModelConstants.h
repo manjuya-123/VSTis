@@ -35,10 +35,10 @@ inline constexpr std::array<double, stringCount> stringImpedance {
 // This is inside the bow/string mechanics, not an output low-pass or EQ.
 inline constexpr double violinSpeakingLengthMeters = 0.328;
 inline constexpr double bowHairContactWidthMeters = 0.010;
-// 0.35 produced a useful E-string spectral change but moved one calibrated
-// pitch-matrix case to 2.03 cents. Keep most of the spatial effect while
-// preserving the existing <=2 cent physical pitch criterion.
-inline constexpr double finiteWidthContactBlend = 0.30;
+// Preserve a meaningful finite-width effect; boundary handling in the
+// waveguide limits the virtual half-width symmetrically when a contact edge
+// would fall inside the sub-sample bridge/nut region.
+inline constexpr double finiteWidthContactBlend = 0.35;
 
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
