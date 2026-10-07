@@ -388,8 +388,12 @@ struct FiddleEngine::Impl
                 bodyRocking.setMaterialScales(1.00, 1.00, 0.17);
                 acousticBody.setMaterialScales(1.00, 1.00, 1.00);
                 acousticRocking.setMaterialScales(1.00, 1.00, 0.17);
-                radiationLeft.setEmpiricalProfile(1.2, -1.6, 2.0);
-                radiationRight.setEmpiricalProfile(1.0, -1.4, 2.2);
+                // Generic high-quality violin target: retain low-body
+                // warmth, a real presence depression around 0.8-1.3 kHz, and
+                // a broad 2-4 kHz bridge hill. These are acoustic radiativity
+                // features, not a post-synth tone-control preset.
+                radiationLeft.setEmpiricalProfile(1.5, -3.5, 4.0);
+                radiationRight.setEmpiricalProfile(1.3, -3.2, 4.2);
                 break;
             case BodyMaterialPreset::LightStiffComposite:
                 body.setMaterialScales(1.04, 0.82, 1.05);
