@@ -70,10 +70,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
-    // Very slow player/bow travel fields. These modulate the physical bow
-    // gesture itself rather than adding audio noise or changing string pitch.
-    // They retrace when the bow reverses, just as real hair/camber loading does.
-    double bowTravelSpeedCoordinate = 19.0;
 
     ModalBank body{};
     ModalBank bodyRocking{true};
@@ -220,7 +216,6 @@ struct FiddleEngine::Impl
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
-        bowTravelSpeedCoordinate = 19.0;
         body.reset();
         bodyRocking.reset();
         acousticBody.reset();
@@ -1019,32 +1014,6 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
-        // Even a nominally steady bow is not a mathematically constant
-        // actuator. Hair tension, camber and hand loading vary slowly along
-        // travelled bow distance. Use two deterministic low-density spatial
-        // fields so simple Play Mode input produces a living contact trajectory
-        // without requiring hand-drawn MIDI CC curves.
-        bowTravelSpeedCoordinate += bowSpeed * 9.0 / sampleRate;
-        const auto travelSpeedVariation = rosinSurfaceSample(
-            bowTravelSpeedCoordinate, 0x6D2B79F5u);
-        const auto primaryIndex = static_cast<std::size_t>(
-            std::clamp(primaryString, 0, stringCount - 1));
-        // Only perturb an already comfortable sticking state. Near the
-        // static/sliding boundary even sub-percent control changes can push the
-        // nonlinear solve into a different attractor (as the #693 prototype
-        // demonstrated). This keeps the player-motion model inside the stable
-        // basin and avoids timbre cliffs while still preventing a perfectly
-        // motionless actuator during long held bows.
-        const auto previousGrip = contacts[primaryIndex].gripUtilization();
-        const auto stableStickMargin = contacts[primaryIndex].sticking
-            ? std::clamp((0.72 - previousGrip) / 0.32, 0.0, 1.0)
-            : 0.0;
-        const auto bowTravelActivity = std::clamp(
-            std::abs(bowSpeed) / 0.18, 0.0, 1.0)
-            * gateValue * stableStickMargin;
-        const auto speedMicroScale =
-            1.0 + 0.0020 * bowTravelActivity * travelSpeedVariation;
-
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
@@ -1059,8 +1028,7 @@ struct FiddleEngine::Impl
             static_cast<double>(bowDirection)
             * bowTargetSpeed
             * gateValue
-            * oneShotLiftGain
-            * speedMicroScale;
+            * oneShotLiftGain;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
