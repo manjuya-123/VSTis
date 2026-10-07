@@ -1206,9 +1206,16 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
                 : base + barTicks - 24;
             addNote(start, end, notes[static_cast<std::size_t>(i)], 100);
         }
-        addNote(base + 12, base + barTicks - 20,
-                action, actionVelocity);
-        addPressure(base + 12, pressure);
+        // Adjacent sustained bow directions overlap by 24 ticks. The new
+        // action becomes active before the old Note Off arrives, so the engine
+        // performs a connected physical bow reversal instead of inserting an
+        // artificial silence between Down/Up strokes.
+        const auto bowStart = bar == 1 ? base + 12 : base - 12;
+        const auto bowEnd = bar < 4
+            ? base + barTicks + 12
+            : base + barTicks - 20;
+        addNote(bowStart, bowEnd, action, actionVelocity);
+        addPressure(bowStart, pressure);
         if (vibrato >= 0)
             addCc(base + 2 * quarter, 1, vibrato);
     };
@@ -1394,7 +1401,9 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
         { 11 * barTicks + 300, "held_double_stop" },
         { 12 * barTicks + 2 * quarter, "pitch_bend_slide" },
         { 13 * barTicks + 2 * quarter, "tremolo" },
-        { 14 * barTicks + 5 * eighth + 80, "e_string_crossing" }
+        { 14 * barTicks + 4 * eighth + 80, "a_string_before_crossing" },
+        { 14 * barTicks + 5 * eighth + 80, "e_string_crossing" },
+        { 14 * barTicks + 7 * eighth + 80, "a_string_return" }
     };
     std::array<bool, std::size(checkpoints)> checkpointWritten {};
     std::ofstream checkpointCsv(
@@ -1408,6 +1417,7 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
 
     std::size_t eventIndex = 0;
     bool finite = true;
+    bool semanticsPassed = true;
     double peak = 0.0;
 
     for (std::int64_t blockStart = 0;
@@ -1474,6 +1484,46 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
                 for (const auto frequency : state.speakingFrequencyHz)
                     checkpointCsv << ',' << frequency;
                 checkpointCsv << '\n';
+
+                // These are semantic routing checks only. They deliberately do
+                // not impose timbre/pitch-quality thresholds on the music.
+                if (i == 0)
+                    semanticsPassed = semanticsPassed
+                        && state.bowAction
+                            == static_cast<int>(fiddle::BowAction::Shuffle);
+                else if (i == 1)
+                {
+                    const auto expectedMask =
+                        fiddle::fingeringMaskBit(64)
+                        | fiddle::fingeringMaskBit(71);
+                    semanticsPassed = semanticsPassed
+                        && state.fingeringHold
+                        && (state.fingeringMask & expectedMask) == expectedMask
+                        && state.primaryString == 2
+                        && state.pairLowerString == 1;
+                }
+                else if (i == 2)
+                    semanticsPassed = semanticsPassed
+                        && state.midiNote == 73
+                        && state.primaryString == 2
+                        && state.speakingFrequencyHz[2] > 570.0f;
+                else if (i == 3)
+                    semanticsPassed = semanticsPassed
+                        && state.bowAction
+                            == static_cast<int>(fiddle::BowAction::Tremolo)
+                        && state.primaryString == 2;
+                else if (i == 4)
+                    semanticsPassed = semanticsPassed
+                        && state.primaryString == 2;
+                else if (i == 5)
+                    semanticsPassed = semanticsPassed
+                        && state.midiNote == 78
+                        && state.primaryString == 3;
+                else if (i == 6)
+                    semanticsPassed = semanticsPassed
+                        && state.midiNote == 74
+                        && state.primaryString == 2;
+
                 checkpointWritten[i] = true;
             }
         }
@@ -1484,6 +1534,12 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
         std::cerr
             << "FAIL: validation reel audio unsafe/nonfinite peak="
             << peak << '\n';
+        return false;
+    }
+    if (!semanticsPassed)
+    {
+        std::cerr
+            << "FAIL: validation reel did not follow intended bow/fingering semantics\n";
         return false;
     }
 
