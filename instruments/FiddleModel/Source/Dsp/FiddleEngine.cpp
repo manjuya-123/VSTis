@@ -147,12 +147,6 @@ struct FiddleEngine::Impl
     double strokeBiteAmount = 0.0;
     std::int64_t strokeBiteSamplesRemaining = 0;
     std::int64_t strokeBiteTotalSamples = 0;
-    // Reduced bow-stick/hair compliance at the beginning of an ordinary
-    // sustained stroke. This is a player/bow mechanical transient, not an
-    // output envelope or extra sound source.
-    std::int64_t startupComplianceSamplesRemaining = 0;
-    std::int64_t startupComplianceTotalSamples = 0;
-    double startupCompliancePhase = 0.0;
     double reversalAccelerationBoost = 0.0;
     std::int64_t reversalAssistSamplesRemaining = 0;
     std::int64_t reversalAssistTotalSamples = 0;
@@ -276,9 +270,6 @@ struct FiddleEngine::Impl
         strokeBiteAmount = 0.0;
         strokeBiteSamplesRemaining = 0;
         strokeBiteTotalSamples = 0;
-        startupComplianceSamplesRemaining = 0;
-        startupComplianceTotalSamples = 0;
-        startupCompliancePhase = 0.0;
         reversalAccelerationBoost = 0.0;
         reversalAssistSamplesRemaining = 0;
         reversalAssistTotalSamples = 0;
@@ -686,18 +677,6 @@ struct FiddleEngine::Impl
         bowDirection = newDirection;
         if (reversingMovingBow)
             triggerBowReversalAssist(2.6, 0.008);
-        if (!reversingMovingBow)
-        {
-            startupComplianceTotalSamples = std::max<std::int64_t>(
-                1, static_cast<std::int64_t>(0.032 * sampleRate));
-            startupComplianceSamplesRemaining = startupComplianceTotalSamples;
-            startupCompliancePhase = 0.0;
-        }
-        else
-        {
-            startupComplianceSamplesRemaining = 0;
-            startupComplianceTotalSamples = 0;
-        }
         shortStrokeSamplesRemaining = 0;
         oneShotReleaseSamplesRemaining = 0;
         oneShotReleaseTotalSamples = 0;
@@ -721,9 +700,6 @@ struct FiddleEngine::Impl
                           double liftForceCurve) noexcept
     {
         startBow(direction);
-        // One-shot gestures already own a dedicated bite/lift trajectory.
-        startupComplianceSamplesRemaining = 0;
-        startupComplianceTotalSamples = 0;
         shortStrokeSamplesRemaining = std::max<std::int64_t>(
             1, static_cast<std::int64_t>(durationSeconds * sampleRate));
         oneShotReleaseTotalSamples = std::max<std::int64_t>(
@@ -755,8 +731,6 @@ struct FiddleEngine::Impl
 
     void startTremolo(double reversalsPerSecond) noexcept
     {
-        startupComplianceSamplesRemaining = 0;
-        startupComplianceTotalSamples = 0;
         bowStrokeStarted = true;
         if (bowDirection == 0)
             bowDirection = 1;
@@ -781,8 +755,6 @@ struct FiddleEngine::Impl
 
     void startShuffle(double subdivisionsPerSecond) noexcept
     {
-        startupComplianceSamplesRemaining = 0;
-        startupComplianceTotalSamples = 0;
         bowStrokeStarted = true;
         if (bowDirection == 0)
             bowDirection = 1;
@@ -811,8 +783,6 @@ struct FiddleEngine::Impl
 
     void stopBow() noexcept
     {
-        startupComplianceSamplesRemaining = 0;
-        startupComplianceTotalSamples = 0;
         shortStrokeSamplesRemaining = 0;
         oneShotReleaseSamplesRemaining = 0;
         oneShotReleaseTotalSamples = 0;
@@ -1044,28 +1014,6 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
-        double startupSpeedScale = 1.0;
-        double startupForceScale = 1.0;
-        if (startupComplianceSamplesRemaining > 0
-            && startupComplianceTotalSamples > 0)
-        {
-            const auto elapsed = 1.0
-                - static_cast<double>(startupComplianceSamplesRemaining)
-                    / static_cast<double>(startupComplianceTotalSamples);
-            // A strongly damped ~95 Hz bow/hair mode produces only the first
-            // few catch/release opportunities before disappearing. It changes
-            // bow kinematics/contact load, never the radiated signal directly.
-            const auto envelope = std::exp(-4.2 * elapsed);
-            const auto mode = std::sin(startupCompliancePhase);
-            const auto quadrature = std::sin(startupCompliancePhase + 0.65);
-            startupSpeedScale += 0.030 * envelope * mode;
-            startupForceScale += 0.016 * envelope * quadrature;
-            startupCompliancePhase += 2.0 * pi * 95.0 / sampleRate;
-            if (startupCompliancePhase >= 2.0 * pi)
-                startupCompliancePhase -= 2.0 * pi;
-            --startupComplianceSamplesRemaining;
-        }
-
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
@@ -1073,16 +1021,14 @@ struct FiddleEngine::Impl
             * shuffleEnergyScale
             * strokeBiteGain
             * gateValue
-            * oneShotLiftGain
-            * startupForceScale;
+            * oneShotLiftGain;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection)
             * bowTargetSpeed
             * gateValue
-            * oneShotLiftGain
-            * startupSpeedScale;
+            * oneShotLiftGain;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
