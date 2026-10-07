@@ -28,7 +28,6 @@ struct BowContact
     // friction limit, which can produce a periodic hard-edged waveform.
     bool usedStaticFallback = false;
     double lastFrictionForceN = 0.0;
-    double continuousContactSeconds = 0.0;
 
     void reset() noexcept
     {
@@ -38,7 +37,6 @@ struct BowContact
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
-        continuousContactSeconds = 0.0;
     }
 
     [[nodiscard]] static double reducedYield(double temperature) noexcept
@@ -133,7 +131,6 @@ struct BowContact
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
-        continuousContactSeconds = 0.0;
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
@@ -149,8 +146,6 @@ struct BowContact
                  double stateRateScale = 1.0) noexcept
     {
         usedStaticFallback = false;
-        continuousContactSeconds = std::min(
-            continuousContactSeconds + 1.0 / sampleRate, 1.0);
         const auto strength = rosinStrengthScale();
         const auto requiredForce =
             2.0 * characteristicImpedance * (bowVelocity - incomingVelocity);
@@ -165,30 +160,7 @@ struct BowContact
             std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
 
-        // A real hair ribbon contains many contact points. They do not all
-        // release at an identical force: some begin microscopic sliding while
-        // the rest of the ribbon is still adhering. Retain the exact rigid
-        // stick boundary well below yield, then blend passive stick and
-        // sliding solutions over the top 14% of the static grip range.
-        // Unlike a time-smoothed bow force, this algebraic mixing introduces
-        // no unstable extra energy-storage state in the waveguide loop.
-        // At first contact preserve the existing full-grip attack. The
-        // larger hair bundle becomes partially sheared only after the initial
-        // bow catch has settled; fade that mechanical contact regime in over
-        // 20 ms, rather than changing Accent/Short Stroke articulation.
-        const auto maturedContact = std::clamp(
-            (continuousContactSeconds - 0.025) / 0.020, 0.0, 1.0);
-        const auto microslipOnset = 1.0 - 0.14 * maturedContact;
-        const auto gripRatio =
-            std::abs(requiredForce) / (staticLimit + 1.0e-12);
-        const auto microFraction = std::clamp(
-            (gripRatio - microslipOnset)
-                / std::max(1.0e-12, 1.0 - microslipOnset),
-            0.0, 1.0);
-        const auto microslip = microFraction * microFraction
-            * (3.0 - 2.0 * microFraction);
-
-        if (gripRatio <= microslipOnset)
+        if (std::abs(requiredForce) <= staticLimit)
         {
             sticking = true;
             lastFrictionForceN = requiredForce;
@@ -219,17 +191,6 @@ struct BowContact
 
         if (glo * ghi > 0.0)
         {
-            // Below static yield there is no physically admissible sliding
-            // root; all hairs can remain stuck. Do not impose a force above
-            // the instantaneous sticking requirement.
-            if (gripRatio <= 1.0)
-            {
-                sticking = true;
-                lastFrictionForceN = requiredForce;
-                lastSlipSpeedMps = 0.0;
-                updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-                return bowVelocity;
-            }
             usedStaticFallback = true;
             const auto force = positive ? staticLimit : -staticLimit;
             lastFrictionForceN = force;
@@ -255,18 +216,11 @@ struct BowContact
             }
         }
 
-        const auto slidingVelocity = 0.5 * (lo + hi);
-        // Sliding patches share the same physical string velocity with
-        // sticking patches. A convex, nonnegative mixture of their contact
-        // forces approximates their spatially distributed reaction without
-        // synthesizing a second pitch or applying an output low-pass.
-        const auto stringVelocity = bowVelocity
-            + microslip * (slidingVelocity - bowVelocity);
+        const auto stringVelocity = 0.5 * (lo + hi);
         const auto frictionForce =
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
         const auto slip = stringVelocity - bowVelocity;
-        sticking = microslip < 0.5;
         lastFrictionForceN = frictionForce;
         lastSlipSpeedMps = slip;
 
