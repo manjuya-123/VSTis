@@ -35,14 +35,14 @@ inline constexpr std::array<double, stringCount> lossGain {
 // termination. The original very small coefficients preserved excessively
 // sharp high-partial wavefronts through many round trips: the moving pitch
 // was correct, but steady bowed tones retained a buzzy ideal-waveguide edge.
-// Apply only a mild additional attenuation on heavy G/D strings. The A/E
-// terminations retain their previously calibrated damping. These losses
-// remain inside each
+// Preserve G/A/E damping exactly, because the actual C2-held MIDI G
+// sequence lost low-note presence when G damping was increased. Apply a
+// minimal D-string-only change. These losses remain inside each
 // string's feedback path, not as an EQ on the final radiated audio. The
 // existing reflectionPhaseDelaySamples() calculation compensates the added
 // low-frequency filter phase when setting the speaking length.
 inline constexpr std::array<double, stringCount> lossAlpha {
-    0.036, 0.022, 0.012, 0.010
+    0.018, 0.022, 0.012, 0.010
 };
 
 inline constexpr std::array<double, stringCount> allpassA {
