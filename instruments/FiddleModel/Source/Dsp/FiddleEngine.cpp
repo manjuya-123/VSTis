@@ -60,6 +60,7 @@ struct FiddleEngine::Impl
     std::array<DelayRail, stringCount> torsionToNut{};
     std::array<DelayRail, stringCount> torsionFromNut{};
     std::array<double, stringCount> torsionSurfaceMean{};
+    std::array<double, stringCount> torsionContactEnvelope{};
 
     std::array<double, stringCount> lossX1{};
     std::array<double, stringCount> allpassX1{};
@@ -216,6 +217,7 @@ struct FiddleEngine::Impl
         for (auto& rail : torsionToNut) rail.clear();
         for (auto& rail : torsionFromNut) rail.clear();
         torsionSurfaceMean.fill(0.0);
+        torsionContactEnvelope.fill(0.0);
         for (auto& contact : contacts) contact.reset();
 
         lossX1.fill(0.0);
@@ -1479,21 +1481,38 @@ struct FiddleEngine::Impl
                     1.0 - std::exp(-1.0 / (sampleRate * 0.010));
                 torsionSurfaceMean[i] += torsionMeanAlpha
                     * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
-                // Let torsion perturb slip/re-stick timing much more than
-                // the carried stick phase. That preserves average Helmholtz
-                // period while retaining cycle-to-cycle contact memory.
-                const auto torsionStickGate =
-                    contacts[i].sticking ? 0.18 : 1.0;
+                // Apply torsional memory only near the friction boundary.
+                // Continuous stick-phase feedback pulled the average Helmholtz
+                // period enough to fail pitch/control-surface regressions.
+                // Instead, use the previous contact state to open a short gate
+                // as grip approaches yield and for about a millisecond after an
+                // actual stick/slip transition.
+                const auto previousGrip =
+                    contacts[i].gripUtilization();
+                const auto nearYieldGate = std::clamp(
+                    (previousGrip - 0.72) / 0.34, 0.0, 1.0);
+                const auto transitionGate =
+                    torsionContactEnvelope[i];
+                const auto boundaryGate = std::clamp(
+                    std::max(
+                        transitionGate,
+                        nearYieldGate
+                            * (contacts[i].sticking ? 0.52 : 0.82)),
+                    0.0, 1.0);
                 const auto torsionStringFocus =
                     singleIsolation > 0.5
                         && static_cast<int>(i) != primaryString
-                    ? 0.08
+                    ? 0.06
                     : 1.0;
                 const auto torsionalSurfaceVelocity =
                     torsionalFeedbackScale[i]
-                    * torsionStickGate
+                    * boundaryGate
                     * torsionStringFocus
                     * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
+
+                const auto torsionEnvelopeDecay =
+                    std::exp(-1.0 / (sampleRate * 0.0010));
+                torsionContactEnvelope[i] *= torsionEnvelopeDecay;
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
@@ -1525,6 +1544,13 @@ struct FiddleEngine::Impl
                         std::max(
                             rosinTransitionEnvelope[i],
                             transitionStrength);
+
+                    // Preserve a short torsional memory after both release and
+                    // re-catch. This affects the next few contact solves rather
+                    // than altering the already-computed transition sample.
+                    torsionContactEnvelope[i] = std::max(
+                        torsionContactEnvelope[i],
+                        contacts[i].sticking ? 0.55 : 1.0);
                 }
 
                 const auto slipSpeed = std::abs(contacts[i].slipSpeedMps());
@@ -1610,6 +1636,8 @@ struct FiddleEngine::Impl
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
+                torsionContactEnvelope[i] *= std::exp(
+                    -1.0 / (sampleRate * 0.0010));
                 rosinNoisePrevious[i] *= 0.98;
                 rosinNoiseEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.004));
