@@ -95,6 +95,15 @@ inline constexpr std::array<double, stringCount> torsionalGripModulationDepth {
     0.0, 0.0, 0.018, 0.0
 };
 
+// Sub-sample event interpolation for the release side of the contact law.
+// A/E currently release on exactly 109/73-sample grids despite fractional
+// waveguide delays. Correct only the threshold-crossing sample so the
+// Helmholtz corner is not pinned to the host sample clock. G/D remain on the
+// established path until the high-string experiment is regression-validated.
+inline constexpr std::array<double, stringCount> releaseEventInterpolation {
+    0.0, 0.0, 1.0, 1.0
+};
+
 // Mesoscopic horsehair/rosin contact-patch variation. Open and stopped strings
 // use separate conservative depths because fingertip termination loss changes
 // how much friction-threshold variation can be tolerated without masking the

@@ -232,9 +232,12 @@ struct BowContact
                  double stateRateScale = 1.0,
                  double adhesionMemoryAmount = 0.0,
                  double torsionalCoupling = 0.0,
-                 double externalSurfaceVelocityMps = 0.0) noexcept
+                 double externalSurfaceVelocityMps = 0.0,
+                 double releaseInterpolationAmount = 0.0) noexcept
     {
         usedStaticFallback = false;
+        const auto wasSticking = sticking;
+        const auto previousGripUtilization = lastGripUtilization;
         const auto strength = rosinStrengthScale();
         const auto localTorsionalVelocity =
             externalSurfaceVelocityMps
@@ -261,6 +264,65 @@ struct BowContact
         lastGripUtilization = std::clamp(
             std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
+
+        // Audio-rate stick/slip decisions otherwise quantize a release to one
+        // exact sample. Estimate where the static threshold was crossed
+        // between the previous and current contact solves, then integrate only
+        // that threshold-crossing sample between its sticking and sliding
+        // solutions. This is a numerical event-time correction, not another
+        // oscillator or an arbitrary output crossfade: all following samples
+        // use the ordinary nonlinear sliding solve.
+        const auto finishSliding =
+            [&](double rawStringVelocity,
+                double rawFrictionForce,
+                double rawSlip) noexcept
+        {
+            double retainedStickFraction = 0.0;
+            if (releaseInterpolationAmount > 0.0
+                && wasSticking
+                && previousGripUtilization < 1.0
+                && lastGripUtilization > 1.0)
+            {
+                const auto gripSpan =
+                    lastGripUtilization - previousGripUtilization;
+                if (gripSpan > 1.0e-9)
+                {
+                    const auto crossingFraction = std::clamp(
+                        (1.0 - previousGripUtilization) / gripSpan,
+                        0.0, 1.0);
+                    retainedStickFraction =
+                        std::clamp(releaseInterpolationAmount, 0.0, 1.0)
+                        * crossingFraction;
+                }
+            }
+
+            const auto stickingVelocity =
+                bowVelocity - localTorsionalVelocity;
+            const auto stringVelocity =
+                retainedStickFraction * stickingVelocity
+                + (1.0 - retainedStickFraction) * rawStringVelocity;
+            const auto effectiveForce =
+                2.0 * characteristicImpedance
+                * (stringVelocity - incomingVelocity);
+            const auto slidingFraction =
+                std::max(0.0, 1.0 - retainedStickFraction);
+
+            lastFrictionForceN = effectiveForce;
+            lastSlipSpeedMps = rawSlip;
+            updateAdhesion(
+                false,
+                rawSlip,
+                sampleRate,
+                stateRateScale * slidingFraction);
+            updateTemperature(
+                rawSlip,
+                std::abs(rawFrictionForce * rawSlip),
+                sampleRate,
+                stateRateScale * slidingFraction);
+            advanceTorsion(
+                effectiveForce, sampleRate, torsionalCoupling);
+            return stringVelocity;
+        };
 
         if (std::abs(requiredForce) <= staticLimit)
         {
@@ -298,17 +360,11 @@ struct BowContact
         {
             usedStaticFallback = true;
             const auto force = positive ? staticLimit : -staticLimit;
-            lastFrictionForceN = force;
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
             const auto slip =
                 stringVelocity + localTorsionalVelocity - bowVelocity;
-            lastSlipSpeedMps = slip;
-            updateAdhesion(false, slip, sampleRate, stateRateScale);
-            updateTemperature(
-                slip, std::abs(force * slip), sampleRate, stateRateScale);
-            advanceTorsion(force, sampleRate, torsionalCoupling);
-            return stringVelocity;
+            return finishSliding(stringVelocity, force, slip);
         }
 
         for (int iteration = 0; iteration < 12; ++iteration)
@@ -330,18 +386,7 @@ struct BowContact
             * (stringVelocity - incomingVelocity);
         const auto slip =
             stringVelocity + localTorsionalVelocity - bowVelocity;
-        lastFrictionForceN = frictionForce;
-        lastSlipSpeedMps = slip;
-
-        updateAdhesion(false, slip, sampleRate, stateRateScale);
-        updateTemperature(
-            slip,
-            std::abs(frictionForce * slip),
-            sampleRate,
-            stateRateScale);
-        advanceTorsion(frictionForce, sampleRate, torsionalCoupling);
-
-        return stringVelocity;
+        return finishSliding(stringVelocity, frictionForce, slip);
     }
 };
 } // namespace fiddle::detail
