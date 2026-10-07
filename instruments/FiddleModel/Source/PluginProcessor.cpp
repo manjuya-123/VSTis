@@ -606,13 +606,12 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
 
     if (playModeBowArmed_)
     {
-        // Prime the physical force/speed/position smoothers only for a MIDI
-        // G-string first contact. GUI has already primed its audition bow.
-        // This avoids the incompatible pre-fingering control ramp that made
-        // the MIDI low G string lose its voiced core over held notes.
-        if (!uiAuditionBowActive_
-            && playModePreferredPrimaryString_ == 0)
-            engine_.primeUncontactedBowGesture(0.02133f);
+        // The bow-first MIDI path has already rendered its uncontacted
+        // preparation blocks. Do not prime it *again* on G only: this
+        // changes the nonlinear contact's initial state relative to GUI
+        // audition, despite an identical first fingering and held C2.
+        // GUI's simultaneous bow/finger press still primes in processBlock
+        // before the first contact, where that preparation is actually needed.
 
         const auto armedAction =
             fiddle::bowActionForMidiNote(activeBowActionNote_);
