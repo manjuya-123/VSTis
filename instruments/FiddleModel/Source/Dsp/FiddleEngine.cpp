@@ -1570,6 +1570,8 @@ struct FiddleEngine::Impl
                 static_cast<float>(contacts[i].slipSpeedMps());
             debug.contactFrictionForceN[i] =
                 static_cast<float>(contacts[i].lastFrictionForceN);
+            debug.torsionalSurfaceVelocityMps[i] =
+                static_cast<float>(contacts[i].torsionalVelocityMps());
             debug.contactStaticFallback[i] =
                 contacts[i].usedStaticFallback;
             debug.rosinNoiseVelocityMps[i] =
