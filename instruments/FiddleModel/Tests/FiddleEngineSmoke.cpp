@@ -71,6 +71,74 @@ double maxBridgeRocking(float noteHz, float balance)
     return maximum;
 }
 
+// Diagnostic only: sample the actual nonlinear contact and bridge while
+// every physical string is sustained. No synthetic oscillator or audio-side
+// noise is injected and no acceptance threshold is relaxed here.
+void printBowContactDiagnostics(double rate, int stringIndex)
+{
+    constexpr std::array<float, 4> open {
+        195.9977f, 293.6648f, 440.0f, 659.2551f
+    };
+    fiddle::FiddleEngine engine;
+    engine.prepare(rate);
+    fiddle::Controls controls;
+    controls.pressure = 0.55f;
+    controls.speed = 0.60f;
+    controls.attack = 0.55f;
+    controls.position = 0.45f;
+    controls.balance = stringIndex == 3 ? 0.95f : -0.95f;
+    controls.singleStringIsolation = 1.0f;
+    engine.setControls(controls);
+    std::array<float, 4> fingering {};
+    fingering[static_cast<std::size_t>(stringIndex)] = open[static_cast<std::size_t>(stringIndex)];
+    const int pair = std::clamp(stringIndex, 0, 2);
+    engine.setFingeringLayout(fingering, stringIndex, pair, 0.85f);
+    engine.startBow(1);
+
+    const auto total = static_cast<int>(rate * 0.85);
+    const auto begin = static_cast<int>(rate * 0.25);
+    int observed = 0, fallback = 0, sticking = 0, transitions = 0;
+    int previousSticking = -1;
+    double absForce = 0.0, absSlip = 0.0;
+    double injectionSq = 0.0, bridgeSq = 0.0, injectionDeltaSq = 0.0;
+    double previousInjection = 0.0;
+    for (int i = 0; i < total; ++i)
+    {
+        float left = 0.0f, right = 0.0f;
+        engine.process(&left, &right, 1);
+        if (i < begin)
+            continue;
+        const auto state = engine.debugSnapshot();
+        const auto index = static_cast<std::size_t>(stringIndex);
+        const bool stuck = state.sticking[index];
+        const auto inject = static_cast<double>(state.bowInjectionVelocityMps[index]);
+        ++observed;
+        fallback += state.contactStaticFallback[index] ? 1 : 0;
+        sticking += stuck ? 1 : 0;
+        if (previousSticking >= 0 && previousSticking != static_cast<int>(stuck))
+            ++transitions;
+        previousSticking = static_cast<int>(stuck);
+        absForce += std::abs(state.contactFrictionForceN[index]);
+        absSlip += std::abs(state.contactSlipSpeedMps[index]);
+        injectionSq += inject * inject;
+        injectionDeltaSq += (inject - previousInjection) * (inject - previousInjection);
+        bridgeSq += static_cast<double>(state.bridgeVelocity) * state.bridgeVelocity;
+        previousInjection = inject;
+    }
+    std::cout << "bow_contact_diagnostic"
+              << " rate=" << rate
+              << " string=" << stringIndex
+              << " fallback_fraction=" << static_cast<double>(fallback) / observed
+              << " sticking_fraction=" << static_cast<double>(sticking) / observed
+              << " transitions_per_second=" << transitions * rate / observed
+              << " mean_abs_force_N=" << absForce / observed
+              << " mean_abs_slip_mps=" << absSlip / observed
+              << " injection_rms_mps=" << std::sqrt(injectionSq / observed)
+              << " injection_difference_rms_mps=" << std::sqrt(injectionDeltaSq / observed)
+              << " bridge_rms_mps=" << std::sqrt(bridgeSq / observed)
+              << '\\n';
+}
+
 int fail(const char* message)
 {
     std::cerr << "FAIL: " << message << '\n';
@@ -80,6 +148,10 @@ int fail(const char* message)
 
 int main()
 {
+    for (const auto rate : { 44100.0, 48000.0 })
+        for (int stringIndex = 0; stringIndex < 4; ++stringIndex)
+            printBowContactDiagnostics(rate, stringIndex);
+
     fiddle::FiddleEngine engine;
     engine.prepare(sampleRate);
 
