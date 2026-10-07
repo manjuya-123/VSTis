@@ -73,6 +73,11 @@ struct FiddleEngine::Impl
 
     ModalBank body{};
     ModalBank bodyRocking{true};
+    // Separate acoustic transfer states. Mechanical bridge loading stays in
+    // body/bodyRocking; these banks represent force -> radiated structural
+    // motion, allowing measured/identified radiativity to evolve separately.
+    ModalBank acousticBody{};
+    ModalBank acousticRocking{true};
     RadiationFilter radiationLeft{};
     RadiationFilter radiationRight{};
     BowGeometryMapper bowGeometry{};
@@ -88,6 +93,10 @@ struct FiddleEngine::Impl
     double directRadiationRound2 = 0.0;
     double rockingRadiationRound1 = 0.0;
     double rockingRadiationRound2 = 0.0;
+    double acousticForceRound1 = 0.0;
+    double acousticForceRound2 = 0.0;
+    double acousticRockingForceRound1 = 0.0;
+    double acousticRockingForceRound2 = 0.0;
 
     Smoother pressure{};
     Smoother speed{};
@@ -145,6 +154,8 @@ struct FiddleEngine::Impl
         sampleRate = std::clamp(newSampleRate, 32000.0, 192000.0);
         body.prepare(sampleRate);
         bodyRocking.prepare(sampleRate);
+        acousticBody.prepare(sampleRate);
+        acousticRocking.prepare(sampleRate);
         // Two nearby radiation angles: left keeps slightly more body, right
         // slightly more bridge air. The mechanical body itself remains shared.
         radiationLeft.prepare(sampleRate, 6900.0, 0.19);
@@ -203,6 +214,8 @@ struct FiddleEngine::Impl
         rosinTransitionEnvelope.fill(0.0);
         body.reset();
         bodyRocking.reset();
+        acousticBody.reset();
+        acousticRocking.reset();
         radiationLeft.reset();
         radiationRight.reset();
         rockingRadiationLow = 0.0;
@@ -210,6 +223,10 @@ struct FiddleEngine::Impl
         directRadiationRound2 = 0.0;
         rockingRadiationRound1 = 0.0;
         rockingRadiationRound2 = 0.0;
+        acousticForceRound1 = 0.0;
+        acousticForceRound2 = 0.0;
+        acousticRockingForceRound1 = 0.0;
+        acousticRockingForceRound2 = 0.0;
 
         pressure.reset(controlTargets.pressure);
         speed.reset(controlTargets.speed);
@@ -364,18 +381,26 @@ struct FiddleEngine::Impl
             case BodyMaterialPreset::Traditional:
                 body.setMaterialScales(1.00, 1.00, 1.00);
                 bodyRocking.setMaterialScales(1.00, 1.00, 0.17);
+                acousticBody.setMaterialScales(1.00, 1.00, 1.00);
+                acousticRocking.setMaterialScales(1.00, 1.00, 0.17);
                 break;
             case BodyMaterialPreset::LightStiffComposite:
                 body.setMaterialScales(1.04, 0.82, 1.05);
                 bodyRocking.setMaterialScales(1.03, 0.90, 0.18);
+                acousticBody.setMaterialScales(1.04, 0.82, 1.05);
+                acousticRocking.setMaterialScales(1.03, 0.90, 0.18);
                 break;
             case BodyMaterialPreset::DenseExperimental:
                 body.setMaterialScales(0.97, 1.28, 0.90);
                 bodyRocking.setMaterialScales(0.98, 1.32, 0.15);
+                acousticBody.setMaterialScales(0.97, 1.28, 0.90);
+                acousticRocking.setMaterialScales(0.98, 1.32, 0.15);
                 break;
             case BodyMaterialPreset::RigidComposite:
                 body.setMaterialScales(1.08, 0.68, 0.96);
                 bodyRocking.setMaterialScales(1.06, 0.76, 0.16);
+                acousticBody.setMaterialScales(1.08, 0.68, 0.96);
+                acousticRocking.setMaterialScales(1.06, 0.76, 0.16);
                 break;
         }
 
