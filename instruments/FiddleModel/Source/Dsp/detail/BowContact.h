@@ -231,12 +231,14 @@ struct BowContact
                  double slidingGripScale = 1.0,
                  double stateRateScale = 1.0,
                  double adhesionMemoryAmount = 0.0,
-                 double torsionalCoupling = 0.0) noexcept
+                 double torsionalCoupling = 0.0,
+                 double externalSurfaceVelocityMps = 0.0) noexcept
     {
         usedStaticFallback = false;
         const auto strength = rosinStrengthScale();
         const auto localTorsionalVelocity =
-            torsionalCoupling * torsionalSurfaceVelocity;
+            externalSurfaceVelocityMps
+            + torsionalCoupling * torsionalSurfaceVelocity;
         const auto requiredForce =
             2.0 * characteristicImpedance
             * (bowVelocity - localTorsionalVelocity - incomingVelocity);
