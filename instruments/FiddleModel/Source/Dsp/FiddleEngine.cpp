@@ -1159,6 +1159,8 @@ struct FiddleEngine::Impl
         debug.sticking.fill(false);
         debug.rosinNoiseVelocityMps.fill(0.0f);
         debug.rosinTransitionEnvelope.fill(0.0f);
+        debug.torsionalSurfaceVelocityMps.fill(0.0f);
+        debug.torsionalInjectionVelocityMps.fill(0.0f);
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
@@ -1224,8 +1226,25 @@ struct FiddleEngine::Impl
                 * chopTerminationGain
                 * sympatheticLoss;
 
+            // Torsion is strongly damped and does not directly drive the body
+            // in this first integration. Both ends are treated as rotationally
+            // constrained enough to invert surface velocity; the measured-like
+            // Q is represented by the passive reflection gain.
+            const auto torsionReflectedBridge =
+                -torsionalEndReflectionGain * torsionIncidentBridge[i];
+            const auto torsionReflectedNut =
+                -torsionalEndReflectionGain * torsionIncidentNut[i];
+
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
+            const auto torsionalIncomingVelocity =
+                torsionIncomingBridge[i] + torsionIncomingNut[i];
+            const auto transverseImpedance = stringImpedance[i];
+            const auto torsionalImpedance =
+                torsionalImpedanceRatio * transverseImpedance;
+            const auto contactImpedance =
+                1.0 / (1.0 / transverseImpedance + 1.0 / torsionalImpedance);
             double injection = 0.0;
+            double torsionalInjection = 0.0;
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
             {
@@ -1267,10 +1286,23 @@ struct FiddleEngine::Impl
                     slidingGripScale * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
-                const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
-                    localStaticGrip, localSlidingGrip, contactStateRateScale);
-                injection = stringVelocity - incomingVelocity;
+                const auto incomingSurfaceVelocity =
+                    incomingVelocity + torsionalIncomingVelocity;
+                const auto surfaceVelocity = contacts[i].solve(
+                    incomingSurfaceVelocity,
+                    bowSpeed,
+                    bowForce[i],
+                    contactImpedance,
+                    sampleRate,
+                    localStaticGrip,
+                    localSlidingGrip,
+                    contactStateRateScale);
+                const auto frictionForce =
+                    2.0 * contactImpedance
+                    * (surfaceVelocity - incomingSurfaceVelocity);
+                injection = frictionForce / (2.0 * transverseImpedance);
+                torsionalInjection =
+                    frictionForce / (2.0 * torsionalImpedance);
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
@@ -1379,11 +1411,21 @@ struct FiddleEngine::Impl
             injection += chopImpactInjection[i];
             debug.bowInjectionVelocityMps[i] =
                 static_cast<float>(injection);
+            debug.torsionalSurfaceVelocityMps[i] =
+                static_cast<float>(torsionalIncomingVelocity);
+            debug.torsionalInjectionVelocityMps[i] =
+                static_cast<float>(torsionalInjection);
 
             toBridge[i].write(incomingNut[i] + injection);
             toNut[i].write(incomingBridge[i] + injection);
             fromBridge[i].write(reflectedBridge);
             fromNut[i].write(reflectedNut);
+            torsionToBridge[i].write(
+                torsionIncomingNut[i] + torsionalInjection);
+            torsionToNut[i].write(
+                torsionIncomingBridge[i] + torsionalInjection);
+            torsionFromBridge[i].write(torsionReflectedBridge);
+            torsionFromNut[i].write(torsionReflectedNut);
 
             debug.contactNormalForceN[i] = static_cast<float>(bowForce[i]);
             debug.speakingFrequencyHz[i] = static_cast<float>(currentFrequency[i]);
@@ -1412,6 +1454,10 @@ struct FiddleEngine::Impl
             toNut[i].advance();
             fromBridge[i].advance();
             fromNut[i].advance();
+            torsionToBridge[i].advance();
+            torsionToNut[i].advance();
+            torsionFromBridge[i].advance();
+            torsionFromNut[i].advance();
         }
 
         debug.bowSpeedMps = static_cast<float>(bowSpeed);
