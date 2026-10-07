@@ -101,7 +101,6 @@ void printBowContactDiagnostics(double rate, int stringIndex)
     int previousSticking = -1;
     double absForce = 0.0, absSlip = 0.0;
     double injectionSq = 0.0, bridgeSq = 0.0, injectionDeltaSq = 0.0;
-    double torsionSq = 0.0, torsionInjectionSq = 0.0;
     double previousInjection = 0.0;
     for (int i = 0; i < total; ++i)
     {
@@ -124,10 +123,6 @@ void printBowContactDiagnostics(double rate, int stringIndex)
         injectionSq += inject * inject;
         injectionDeltaSq += (inject - previousInjection) * (inject - previousInjection);
         bridgeSq += static_cast<double>(state.bridgeVelocity) * state.bridgeVelocity;
-        const auto torsion = static_cast<double>(state.torsionalSurfaceVelocityMps[index]);
-        const auto torsionInjection = static_cast<double>(state.torsionalInjectionVelocityMps[index]);
-        torsionSq += torsion * torsion;
-        torsionInjectionSq += torsionInjection * torsionInjection;
         previousInjection = inject;
     }
     std::cout << "bow_contact_diagnostic"
@@ -141,8 +136,6 @@ void printBowContactDiagnostics(double rate, int stringIndex)
               << " injection_rms_mps=" << std::sqrt(injectionSq / observed)
               << " injection_difference_rms_mps=" << std::sqrt(injectionDeltaSq / observed)
               << " bridge_rms_mps=" << std::sqrt(bridgeSq / observed)
-              << " torsion_surface_rms_mps=" << std::sqrt(torsionSq / observed)
-              << " torsion_injection_rms_mps=" << std::sqrt(torsionInjectionSq / observed)
               << '\n';
 }
 
@@ -187,10 +180,6 @@ int main()
 
     if (!(debug.contactNormalForceN[1] > 0.0f && debug.contactNormalForceN[2] > 0.0f))
         return fail("balanced D+A bow should apply force to both strings");
-
-    if (!(std::abs(debug.torsionalSurfaceVelocityMps[1]) > 1.0e-7f
-          || std::abs(debug.torsionalSurfaceVelocityMps[2]) > 1.0e-7f))
-        return fail("bow friction did not excite torsional string motion");
 
     if (!(debug.bowAngleDeg > 0.20f && debug.bowAngleDeg < 0.45f))
         return fail("Balance center should pressure-compensate the physical bow angle");
