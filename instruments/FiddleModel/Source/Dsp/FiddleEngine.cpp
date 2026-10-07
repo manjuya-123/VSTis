@@ -1209,7 +1209,19 @@ struct FiddleEngine::Impl
             // The force is still injected at the single waveguide junction;
             // a later multi-junction model can replace this reduction once
             // the 44.1/48 kHz regression envelope is understood.
-            const auto halfWidthDelay = finiteWidthHalfDelay[i];
+            // Keep both virtual edges symmetric about the centre. Near
+            // the bridge or nut, the 48 kHz grid cannot resolve the full
+            // physical ribbon width without placing one edge inside the
+            // sub-sample termination region. Shrink the *effective* width
+            // there instead of clamping only one edge, which would introduce
+            // an artificial phase bias and measurable pitch shift.
+            const auto availableHalfWidth = std::max(
+                0.0,
+                std::min(
+                    bridgeDelay[i] - 1.2,
+                    nutDelay[i] - 1.2));
+            const auto halfWidthDelay = std::min(
+                finiteWidthHalfDelay[i], availableHalfWidth);
             const auto clampDelay = [](double value) noexcept
             {
                 return std::clamp(
