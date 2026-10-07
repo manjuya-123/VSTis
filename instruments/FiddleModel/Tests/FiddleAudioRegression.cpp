@@ -60,6 +60,15 @@ struct CycleCorrelationStats
     std::size_t pairCount = 0;
 };
 
+struct TransitionIntervalStats
+{
+    double meanSamples = 0.0;
+    double standardDeviationSamples = 0.0;
+    double minimumSamples = 0.0;
+    double maximumSamples = 0.0;
+    std::size_t intervalCount = 0;
+};
+
 void writeU16(std::ofstream& out, std::uint16_t value)
 {
     const char b[2] {
@@ -342,6 +351,63 @@ CycleCorrelationStats cycleCorrelationStats(
     }
     result.standardDeviation = std::sqrt(
         variance / static_cast<double>(correlations.size()));
+    return result;
+}
+
+TransitionIntervalStats slipOnsetIntervalStats(
+    const std::vector<std::uint8_t>& sticking,
+    std::size_t begin,
+    std::size_t end)
+{
+    TransitionIntervalStats result;
+    begin = std::min(begin, sticking.size());
+    end = std::min(end, sticking.size());
+    if (end <= begin + 2)
+        return result;
+
+    std::vector<double> intervals;
+    std::size_t previousOnset = 0;
+    bool havePreviousOnset = false;
+    for (std::size_t i = begin + 1; i < end; ++i)
+    {
+        const bool wasSticking = sticking[i - 1] != 0;
+        const bool isSticking = sticking[i] != 0;
+        if (wasSticking && !isSticking)
+        {
+            if (havePreviousOnset)
+                intervals.push_back(
+                    static_cast<double>(i - previousOnset));
+            previousOnset = i;
+            havePreviousOnset = true;
+        }
+    }
+
+    if (intervals.empty())
+        return result;
+
+    result.intervalCount = intervals.size();
+    result.minimumSamples = intervals.front();
+    result.maximumSamples = intervals.front();
+    double sum = 0.0;
+    for (const auto value : intervals)
+    {
+        sum += value;
+        result.minimumSamples =
+            std::min(result.minimumSamples, value);
+        result.maximumSamples =
+            std::max(result.maximumSamples, value);
+    }
+    result.meanSamples =
+        sum / static_cast<double>(intervals.size());
+
+    double variance = 0.0;
+    for (const auto value : intervals)
+    {
+        const auto d = value - result.meanSamples;
+        variance += d * d;
+    }
+    result.standardDeviationSamples = std::sqrt(
+        variance / static_cast<double>(intervals.size()));
     return result;
 }
 
@@ -633,6 +699,7 @@ fiddle::Controls baseControls()
 
 struct CycleTrace
 {
+    std::vector<std::uint8_t> sticking;
     std::vector<float> contactFrictionForce;
     std::vector<float> contactGripUtilization;
     std::vector<float> torsionalSurfaceVelocity;
@@ -664,6 +731,7 @@ CycleTrace renderCycleTrace(int stringIndex,
     const auto samples =
         static_cast<std::size_t>(sustainSeconds * sampleRate);
     CycleTrace trace;
+    trace.sticking.reserve(samples);
     trace.contactFrictionForce.reserve(samples);
     trace.contactGripUtilization.reserve(samples);
     trace.torsionalSurfaceVelocity.reserve(samples);
@@ -679,6 +747,8 @@ CycleTrace renderCycleTrace(int stringIndex,
         engine.process(&left, &right, 1);
         const auto state = engine.debugSnapshot();
         const auto index = static_cast<std::size_t>(stringIndex);
+        trace.sticking.push_back(
+            state.sticking[index] ? std::uint8_t{1} : std::uint8_t{0});
         trace.contactFrictionForce.push_back(
             state.contactFrictionForceN[index]);
         trace.contactGripUtilization.push_back(
@@ -963,14 +1033,25 @@ int main(int argc, char** argv)
 
         std::ofstream cycleCsv(
             outputDirectory / "cycle_similarity_diagnostics.csv");
-        if (!cycleCsv)
+        std::ofstream slipCsv(
+            outputDirectory / "slip_timing_diagnostics.csv");
+        if (!cycleCsv || !slipCsv)
             ok = false;
         else
+        {
+            slipCsv
+                << "case,pitch_hz,slip_interval_count,"
+                   "mean_interval_samples,target_period_samples,"
+                   "mean_period_ratio,std_interval_samples,"
+                   "std_fraction,min_interval_samples,"
+                   "max_interval_samples\n"
+                << std::setprecision(9);
             cycleCsv
                 << "case,pitch_hz,point,separation_cycles,cycle_corr_mean,"
                    "cycle_corr_std,cycle_corr_min,cycle_corr_max,"
                    "cycle_pair_count,cycle_difference_ratio\n"
                 << std::setprecision(9);
+        }
 
         const auto begin =
             static_cast<std::size_t>(0.85 * sampleRate);
@@ -984,6 +1065,31 @@ int main(int argc, char** argv)
                 probe.pairLower,
                 probe.balance,
                 probe.frequencyHz);
+
+            const auto slipStats = slipOnsetIntervalStats(
+                trace.sticking, begin, end);
+            const auto targetPeriod =
+                sampleRate / static_cast<double>(probe.frequencyHz);
+            const auto periodRatio = slipStats.intervalCount > 0
+                ? slipStats.meanSamples / targetPeriod
+                : 0.0;
+            const auto stdFraction =
+                slipStats.meanSamples > 0.0
+                    ? slipStats.standardDeviationSamples
+                        / slipStats.meanSamples
+                    : 0.0;
+            if (slipCsv)
+            {
+                slipCsv << probe.name << ',' << probe.frequencyHz
+                    << ',' << slipStats.intervalCount
+                    << ',' << slipStats.meanSamples
+                    << ',' << targetPeriod
+                    << ',' << periodRatio
+                    << ',' << slipStats.standardDeviationSamples
+                    << ',' << stdFraction
+                    << ',' << slipStats.minimumSamples
+                    << ',' << slipStats.maximumSamples << '\n';
+            }
 
             const auto writePoint =
                 [&](const char* point, const std::vector<float>& signal)
