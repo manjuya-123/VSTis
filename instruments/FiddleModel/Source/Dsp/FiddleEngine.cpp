@@ -60,6 +60,7 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
+    std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -181,6 +182,7 @@ struct FiddleEngine::Impl
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
         fingerTouch.fill(0.0);
+        fingerLossX1.fill(0.0);
         allpassY1.fill(0.0);
         rosinNoiseState = {
             0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
@@ -1008,11 +1010,20 @@ struct FiddleEngine::Impl
                 currentFrequency[i] *= std::exp2(appliedVibratoCents / 1200.0);
             }
 
+            const auto fingeredForReflection =
+                speakingFrequency[i].target > openFrequency[i] * 1.0005;
+            const auto fingerPhaseDelay = fingeredForReflection
+                ? firReflectionPhaseDelaySamples(
+                    sampleRate,
+                    currentFrequency[i],
+                    fingerReflectionAlpha[i])
+                : 0.0;
             auto oneWay =
                 sampleRate / (2.0 * currentFrequency[i])
                 - 0.5 * (
                     filterPhaseDelay[i]
-                    + bridgeLoadPhaseDelay[i]);
+                    + bridgeLoadPhaseDelay[i]
+                    + fingerPhaseDelay);
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
@@ -1157,8 +1168,13 @@ struct FiddleEngine::Impl
             // finger settling onto the string; it is applied at the termination,
             // not as an output amplitude envelope.
             double fingerTerminationGain = 1.0;
+            auto fingerFiltered = filtered;
             if (fingered)
             {
+                const auto fingerAlpha = fingerReflectionAlpha[i];
+                fingerFiltered =
+                    (1.0 - fingerAlpha) * filtered
+                    + fingerAlpha * fingerLossX1[i];
                 fingerTerminationGain =
                     0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
                 const auto touchDecay =
@@ -1169,6 +1185,9 @@ struct FiddleEngine::Impl
             {
                 fingerTouch[i] = 0.0;
             }
+            // Track the previous termination sample even while open so a new
+            // stopped note starts from a continuous physical reflection state.
+            fingerLossX1[i] = filtered;
 
             const auto chopTerminationGain =
                 chopDampingActive ? 0.960 : 1.0;
@@ -1194,7 +1213,7 @@ struct FiddleEngine::Impl
                     ? 1.0 - 0.035 * singleIsolation
                     : 1.0;
             const auto reflectedNut =
-                -filtered
+                -fingerFiltered
                 * fingerTerminationGain
                 * chopTerminationGain
                 * sympatheticLoss;
