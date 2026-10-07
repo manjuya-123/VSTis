@@ -1246,6 +1246,7 @@ struct FiddleEngine::Impl
                 (pos - 0.70) / 0.25, 0.0, 1.0);
             const auto resolvedFiniteWidthBlend =
                 finiteWidthContactBlend
+                * finiteWidthStringScale[i]
                 * (1.0 - 0.85 * nearBridgeUnderResolution);
             const auto contactIncomingVelocity =
                 incomingVelocity
