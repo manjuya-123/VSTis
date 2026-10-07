@@ -1707,10 +1707,19 @@ int main(int argc, char** argv)
     if (!instructions)
         motionPassed = false;
 
-    if (!uiPassed || !allStringsPassed || !motionPassed)
+    // Render the full musical workflow at a fixed 48 kHz so the downloadable
+    // MIDI and the CI listening artifact have one unambiguous timing reference.
+    sampleRate = 48000.0;
+    const bool musicalValidationPassed =
+        renderFiddleValidationReel(motionDirectory);
+
+    if (!uiPassed || !allStringsPassed || !motionPassed
+        || !musicalValidationPassed)
     {
         if (!motionPassed)
             std::cerr << "FAIL: long-form pitch movement capture/regression\n";
+        if (!musicalValidationPassed)
+            std::cerr << "FAIL: 16-bar Fiddle Play musical validation reel\n";
         // Run the diagnostic whenever MIDI or GUI strict regression fails.
         // Re-run complete real Processor gestures with changes to the
         // *physical* bowing controls; these logs guide the next calibration
