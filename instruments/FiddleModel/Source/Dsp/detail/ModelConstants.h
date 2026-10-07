@@ -27,33 +27,6 @@ inline constexpr std::array<double, stringCount> stringImpedance {
     0.13873751546881677
 };
 
-// Bow friction acts on the string surface, so transverse translation and
-// torsional rotation contribute to the same relative bow/string velocity.
-// A published bowed-string reference case uses torsional wave speed about
-// 5.2 times the transverse speed and a surface-referred torsional impedance
-// of 1.8 N s/m. Use that absolute impedance as a deliberately conservative
-// first integration rather than scaling it down with each violin string's
-// transverse impedance; the earlier ratio-scaled experiment over-coupled the
-// thin E string and made the model sample-rate sensitive.
-inline constexpr double torsionalWaveSpeedRatio = 5.2;
-inline constexpr double torsionalSurfaceImpedance = 1.8;
-// This reduced model has one lumped torsional surface coordinate while a real
-// finite-width bow excites a distributed ribbon/string contact. Couple only
-// part of the lumped coordinate back into the point-contact solve so the
-// reduced mode cannot stand in for the entire distributed torsional field.
-// The same coefficient is used reciprocally for force -> torsion and torsion
-// -> contact velocity, preserving a passive generalized coupling.
-// Keep the first torsional integration deliberately secondary. At 0.10-0.15
-// the nonlinear contact could fall into alternate attractors for otherwise
-// identical A-string GUI/MIDI starts. A smaller reciprocal coupling still
-// converts transverse bow work into the heavily damped torsional wave family
-// without letting this single lumped torsional coordinate dominate the contact.
-inline constexpr double torsionalReducedOrderCoupling = 0.05;
-
-// Approximate constant-Q torsional loss. Q~45 corresponds to a complete-cycle
-// amplitude retention exp(-pi/Q); split equally between the two ends.
-inline constexpr double torsionalEndReflectionGain = 0.9657;
-
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
 };
