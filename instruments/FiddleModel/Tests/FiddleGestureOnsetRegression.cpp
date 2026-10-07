@@ -34,6 +34,14 @@ struct ReversalMetrics
     double intervalRatio = 1.0;
 };
 
+struct StartupContactMetrics
+{
+    int transitions = 0;
+    double stickingFraction = 0.0;
+    double meanGripUtilization = 0.0;
+    double meanAbsSlipMps = 0.0;
+};
+
 struct ReleaseMetrics
 {
     double halfLiftMs = 1000.0;
@@ -145,6 +153,85 @@ GestureRender renderGesture(fiddle::BowAction action, float velocity)
         }
     }
 
+    return result;
+}
+
+StartupContactMetrics measureStartupContact(fiddle::BowAction action,
+                                                float velocity)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    fiddle::Controls controls;
+    controls.pressure = 0.52f;
+    controls.speed = 0.60f;
+    controls.attack = 0.52f;
+    controls.position = 0.45f;
+    controls.balance = -0.90f;
+    controls.vibratoWidth = 0.0f;
+
+    const auto profile = fiddle::makeBowGestureProfile(action, velocity);
+    controls.pressure = std::clamp(
+        controls.pressure + profile.pressureBoost, 0.0f, 1.0f);
+    controls.speed = std::clamp(
+        controls.speed * profile.speedScale, 0.0f, 1.0f);
+    controls.attack = std::clamp(
+        controls.attack + profile.responseBoost, 0.0f, 1.0f);
+    engine.setControls(controls);
+    engine.setStrokeBite(profile.biteBoost, profile.biteDurationSeconds);
+
+    std::array<float, 4> fingering {};
+    fingering[1] = 329.6276f;
+    engine.setFingeringLayout(fingering, 1, 1, velocity);
+
+    if (action == fiddle::BowAction::ShortStroke
+        || action == fiddle::BowAction::AccentStroke)
+    {
+        engine.startShortStroke(
+            +1,
+            profile.durationSeconds,
+            profile.liftDurationSeconds,
+            profile.liftBrake,
+            profile.liftForceCurve);
+    }
+    else
+    {
+        engine.startBow(+1);
+    }
+
+    StartupContactMetrics result;
+    const auto samples = static_cast<int>(0.030 * sampleRate);
+    bool hadState = false;
+    bool previousStick = false;
+    int observed = 0;
+    for (int sample = 0; sample < samples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+        const auto state = engine.debugSnapshot();
+        constexpr std::size_t stringIndex = 1;
+        if (state.contactNormalForceN[stringIndex] <= 1.0e-8f)
+            continue;
+
+        const auto stick = state.sticking[stringIndex];
+        if (hadState && stick != previousStick)
+            ++result.transitions;
+        previousStick = stick;
+        hadState = true;
+        result.stickingFraction += stick ? 1.0 : 0.0;
+        result.meanGripUtilization += state.contactGripUtilization[stringIndex];
+        result.meanAbsSlipMps += std::abs(
+            static_cast<double>(state.contactSlipSpeedMps[stringIndex]));
+        ++observed;
+    }
+
+    if (observed > 0)
+    {
+        result.stickingFraction /= observed;
+        result.meanGripUtilization /= observed;
+        result.meanAbsSlipMps /= observed;
+    }
     return result;
 }
 
@@ -430,6 +517,12 @@ int main(int argc, char** argv)
         measureOneShotRelease(fiddle::BowAction::ShortStroke, 0.82f);
     const auto accentRelease =
         measureOneShotRelease(fiddle::BowAction::AccentStroke, 0.82f);
+    const auto downStartup =
+        measureStartupContact(fiddle::BowAction::DownBow, 0.82f);
+    const auto shortStartup =
+        measureStartupContact(fiddle::BowAction::ShortStroke, 0.82f);
+    const auto accentStartup =
+        measureStartupContact(fiddle::BowAction::AccentStroke, 0.82f);
 
     std::cout << "down_onset_ms=" << down.onsetMs
               << " down_peak_rms=" << down.peakRms << '\n'
@@ -454,7 +547,19 @@ int main(int argc, char** argv)
               << " short_release_end_ms=" << shortRelease.endLiftMs << '\n'
               << "accent_release_half_ms=" << accentRelease.halfLiftMs
               << " accent_release_10pct_ms=" << accentRelease.tenPercentLiftMs
-              << " accent_release_end_ms=" << accentRelease.endLiftMs << '\n';
+              << " accent_release_end_ms=" << accentRelease.endLiftMs << '\n'
+              << "down_startup_transitions=" << downStartup.transitions
+              << " down_startup_sticking_fraction=" << downStartup.stickingFraction
+              << " down_startup_mean_grip=" << downStartup.meanGripUtilization
+              << " down_startup_mean_abs_slip_mps=" << downStartup.meanAbsSlipMps << '\n'
+              << "short_startup_transitions=" << shortStartup.transitions
+              << " short_startup_sticking_fraction=" << shortStartup.stickingFraction
+              << " short_startup_mean_grip=" << shortStartup.meanGripUtilization
+              << " short_startup_mean_abs_slip_mps=" << shortStartup.meanAbsSlipMps << '\n'
+              << "accent_startup_transitions=" << accentStartup.transitions
+              << " accent_startup_sticking_fraction=" << accentStartup.stickingFraction
+              << " accent_startup_mean_grip=" << accentStartup.meanGripUtilization
+              << " accent_startup_mean_abs_slip_mps=" << accentStartup.meanAbsSlipMps << '\n';
 
     if (!(std::isfinite(down.onsetMs)
           && std::isfinite(accent.onsetMs)
@@ -520,6 +625,26 @@ int main(int argc, char** argv)
             << accent.earlyRms << '\n'
             << "Chop," << chop.onsetMs << ',' << chop.peakRms << ','
             << chop.earlyRms << '\n';
+
+        std::ofstream startupCsv(
+            outputDirectory / "gesture_startup_contact_metrics.csv");
+        if (!startupCsv)
+            return fail("Could not write gesture startup contact metrics CSV");
+        startupCsv
+            << "gesture,transitions_first30ms,sticking_fraction,mean_grip_utilization,mean_abs_slip_mps\n"
+            << std::setprecision(9)
+            << "Down," << downStartup.transitions << ','
+            << downStartup.stickingFraction << ','
+            << downStartup.meanGripUtilization << ','
+            << downStartup.meanAbsSlipMps << '\n'
+            << "Short," << shortStartup.transitions << ','
+            << shortStartup.stickingFraction << ','
+            << shortStartup.meanGripUtilization << ','
+            << shortStartup.meanAbsSlipMps << '\n'
+            << "Accent," << accentStartup.transitions << ','
+            << accentStartup.stickingFraction << ','
+            << accentStartup.meanGripUtilization << ','
+            << accentStartup.meanAbsSlipMps << '\n';
 
         std::ofstream releaseCsv(
             outputDirectory / "gesture_release_metrics.csv");
