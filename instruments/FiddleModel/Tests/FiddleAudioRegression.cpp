@@ -171,7 +171,9 @@ double periodicityAtFrequency(const std::vector<float>& x,
     if (frequency <= 0.0 || end <= begin + 100)
         return 0.0;
 
-    const auto lag = sampleRate / frequency;
+    separationCycles = std::max(1, separationCycles);
+    const auto lag =
+        static_cast<double>(separationCycles) * sampleRate / frequency;
     const auto lagInt = static_cast<std::size_t>(std::floor(lag));
     const auto frac = lag - static_cast<double>(lagInt);
     if (begin + lagInt + 2 >= end)
@@ -201,10 +203,11 @@ double periodicityAtFrequency(const std::vector<float>& x,
     return dot / (std::sqrt(aa * bb) + 1.0e-30);
 }
 
-double adjacentCycleDifferenceRatio(const std::vector<float>& x,
-                                      std::size_t begin,
-                                      std::size_t end,
-                                      double frequency)
+double cycleDifferenceRatio(const std::vector<float>& x,
+                            std::size_t begin,
+                            std::size_t end,
+                            double frequency,
+                            int separationCycles = 1)
 {
     begin = std::min(begin, x.size());
     end = std::min(end, x.size());
@@ -251,11 +254,12 @@ double interpolatedSample(const std::vector<float>& x, double index)
         + frac * static_cast<double>(x[i1]);
 }
 
-CycleCorrelationStats adjacentCycleCorrelationStats(
+CycleCorrelationStats cycleCorrelationStats(
     const std::vector<float>& x,
     std::size_t begin,
     std::size_t end,
-    double frequency)
+    double frequency,
+    int separationCycles)
 {
     CycleCorrelationStats result;
     begin = std::min(begin, x.size());
@@ -265,14 +269,17 @@ CycleCorrelationStats adjacentCycleCorrelationStats(
         return result;
 
     const auto period = sampleRate / frequency;
+    separationCycles = std::max(1, separationCycles);
+    const auto separation =
+        static_cast<double>(separationCycles) * period;
     if (period < 4.0
-        || static_cast<double>(end - begin) < 3.0 * period)
+        || static_cast<double>(end - begin) < separation + 2.0 * period)
         return result;
 
     constexpr int phaseSamples = 96;
     std::vector<double> correlations;
     for (double cycleStart = static_cast<double>(begin);
-         cycleStart + 2.0 * period < static_cast<double>(end);
+         cycleStart + separation + period < static_cast<double>(end);
          cycleStart += period)
     {
         double meanA = 0.0;
@@ -284,7 +291,7 @@ CycleCorrelationStats adjacentCycleCorrelationStats(
                 * period / static_cast<double>(phaseSamples);
             meanA += interpolatedSample(x, cycleStart + phaseOffset);
             meanB += interpolatedSample(
-                x, cycleStart + period + phaseOffset);
+                x, cycleStart + separation + phaseOffset);
         }
         meanA /= static_cast<double>(phaseSamples);
         meanB /= static_cast<double>(phaseSamples);
@@ -300,7 +307,7 @@ CycleCorrelationStats adjacentCycleCorrelationStats(
             const auto a =
                 interpolatedSample(x, cycleStart + phaseOffset) - meanA;
             const auto b = interpolatedSample(
-                x, cycleStart + period + phaseOffset) - meanB;
+                x, cycleStart + separation + phaseOffset) - meanB;
             dot += a * b;
             energyA += a * a;
             energyB += b * b;
@@ -399,7 +406,7 @@ Metrics measure(const Render& render, double fundamentalHz)
     m.sustainRms = rms(x, sustainBegin, sustainEnd);
     m.tailRms = rms(x, tailBegin, tailEnd);
     m.periodicity = periodicityAtFrequency(x, sustainBegin, sustainEnd, fundamentalHz);
-    m.adjacentCycleDifferenceRatio = adjacentCycleDifferenceRatio(
+    m.adjacentCycleDifferenceRatio = cycleDifferenceRatio(
         x, sustainBegin, sustainEnd, fundamentalHz);
 
     double midEnergy = 0.0;
@@ -960,10 +967,9 @@ int main(int argc, char** argv)
             ok = false;
         else
             cycleCsv
-                << "case,pitch_hz,point,adjacent_cycle_corr_mean,"
-                   "adjacent_cycle_corr_std,adjacent_cycle_corr_min,"
-                   "adjacent_cycle_corr_max,cycle_pair_count,"
-                   "adjacent_cycle_difference_ratio\n"
+                << "case,pitch_hz,point,separation_cycles,cycle_corr_mean,"
+                   "cycle_corr_std,cycle_corr_min,cycle_corr_max,"
+                   "cycle_pair_count,cycle_difference_ratio\n"
                 << std::setprecision(9);
 
         const auto begin =
@@ -982,20 +988,35 @@ int main(int argc, char** argv)
             const auto writePoint =
                 [&](const char* point, const std::vector<float>& signal)
             {
-                const auto stats = adjacentCycleCorrelationStats(
-                    signal, begin, end, probe.frequencyHz);
-                const auto difference = adjacentCycleDifferenceRatio(
-                    signal, begin, end, probe.frequencyHz);
-                if (cycleCsv)
+                constexpr std::array<int, 4> separations {
+                    1, 4, 16, 64
+                };
+                for (const auto separationCycles : separations)
                 {
-                    cycleCsv << probe.name << ',' << probe.frequencyHz
-                        << ',' << point
-                        << ',' << stats.mean
-                        << ',' << stats.standardDeviation
-                        << ',' << stats.minimum
-                        << ',' << stats.maximum
-                        << ',' << stats.pairCount
-                        << ',' << difference << '\n';
+                    const auto stats = cycleCorrelationStats(
+                        signal,
+                        begin,
+                        end,
+                        probe.frequencyHz,
+                        separationCycles);
+                    const auto difference = cycleDifferenceRatio(
+                        signal,
+                        begin,
+                        end,
+                        probe.frequencyHz,
+                        separationCycles);
+                    if (cycleCsv)
+                    {
+                        cycleCsv << probe.name << ',' << probe.frequencyHz
+                            << ',' << point
+                            << ',' << separationCycles
+                            << ',' << stats.mean
+                            << ',' << stats.standardDeviation
+                            << ',' << stats.minimum
+                            << ',' << stats.maximum
+                            << ',' << stats.pairCount
+                            << ',' << difference << '\n';
+                    }
                 }
             };
 
