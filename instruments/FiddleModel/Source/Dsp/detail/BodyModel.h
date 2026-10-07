@@ -117,17 +117,6 @@ struct ModalBank
         return sum;
     }
 
-    [[nodiscard]] double currentAcousticProjection() const noexcept
-    {
-        const auto& projection = rockingSpectrum
-            ? acousticRockingProjection
-            : acousticBodyProjection;
-        double sum = 0.0;
-        for (std::size_t i = 0; i < modes.size(); ++i)
-            sum += projection[i] * modes[i].y1;
-        return sum;
-    }
-
     double direct() const noexcept
     {
         // The non-resonant mobility belongs to the same generalized body
