@@ -383,24 +383,32 @@ struct FiddleEngine::Impl
                 bodyRocking.setMaterialScales(1.00, 1.00, 0.17);
                 acousticBody.setMaterialScales(1.00, 1.00, 1.00);
                 acousticRocking.setMaterialScales(1.00, 1.00, 0.17);
+                radiationLeft.setEmpiricalProfile(1.2, -1.6, 2.0);
+                radiationRight.setEmpiricalProfile(1.0, -1.4, 2.2);
                 break;
             case BodyMaterialPreset::LightStiffComposite:
                 body.setMaterialScales(1.04, 0.82, 1.05);
                 bodyRocking.setMaterialScales(1.03, 0.90, 0.18);
                 acousticBody.setMaterialScales(1.04, 0.82, 1.05);
                 acousticRocking.setMaterialScales(1.03, 0.90, 0.18);
+                radiationLeft.setEmpiricalProfile(0.7, -0.9, 2.6);
+                radiationRight.setEmpiricalProfile(0.5, -0.7, 2.8);
                 break;
             case BodyMaterialPreset::DenseExperimental:
                 body.setMaterialScales(0.97, 1.28, 0.90);
                 bodyRocking.setMaterialScales(0.98, 1.32, 0.15);
                 acousticBody.setMaterialScales(0.97, 1.28, 0.90);
                 acousticRocking.setMaterialScales(0.98, 1.32, 0.15);
+                radiationLeft.setEmpiricalProfile(1.7, -2.1, 1.2);
+                radiationRight.setEmpiricalProfile(1.5, -1.9, 1.4);
                 break;
             case BodyMaterialPreset::RigidComposite:
                 body.setMaterialScales(1.08, 0.68, 0.96);
                 bodyRocking.setMaterialScales(1.06, 0.76, 0.16);
                 acousticBody.setMaterialScales(1.08, 0.68, 0.96);
                 acousticRocking.setMaterialScales(1.06, 0.76, 0.16);
+                radiationLeft.setEmpiricalProfile(0.3, -0.5, 3.0);
+                radiationRight.setEmpiricalProfile(0.1, -0.3, 3.2);
                 break;
         }
 
