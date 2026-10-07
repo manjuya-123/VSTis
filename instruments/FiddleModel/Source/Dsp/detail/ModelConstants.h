@@ -58,6 +58,14 @@ inline constexpr std::array<double, stringCount> distributedHairContactBlend {
     0.0, 0.0, 0.08, 0.12
 };
 
+// Weak feedback depth for the reduced torsional/contact surface-velocity state.
+// The lower strings already show contact irregularity, while A is strongly
+// cycle-locked; keep every value conservative so this perturbs Helmholtz timing
+// without creating a second audible pitch source.
+inline constexpr std::array<double, stringCount> torsionalContactCoupling {
+    0.035, 0.035, 0.065, 0.045
+};
+
 // The short residual velocity burst used to make rosin catch/release audible
 // is not the nonlinear friction solve itself. On the low-impedance E string,
 // the same absolute added velocity becomes disproportionately prominent and
