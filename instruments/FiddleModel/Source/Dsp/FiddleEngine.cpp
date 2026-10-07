@@ -62,8 +62,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> fingerTouch{};
     std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
-    std::array<BowContact, stringCount> bridgewardHairContacts{};
-    std::array<BowContact, stringCount> nutwardHairContacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
@@ -205,8 +203,6 @@ struct FiddleEngine::Impl
         for (auto& rail : toNut) rail.clear();
         for (auto& rail : fromNut) rail.clear();
         for (auto& contact : contacts) contact.reset();
-        for (auto& contact : bridgewardHairContacts) contact.reset();
-        for (auto& contact : nutwardHairContacts) contact.reset();
 
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
@@ -1436,54 +1432,9 @@ struct FiddleEngine::Impl
                     localStaticGrip,
                     localSlidingGrip,
                     contactStateRateScale);
-
-                const auto distributedBlend =
-                    distributedHairContactBlend[i]
-                    * (1.0 - 0.70 * nearBridgeUnderResolution);
-                if (distributedBlend > 1.0e-8)
-                {
-                    // Independent ribbon-edge contact states see the same bow
-                    // motion but slightly different travelling-wave phases.
-                    // Treat them as quadrature samples of the same total hair
-                    // ribbon: average their reaction force, then replace only a
-                    // conservative fraction of the calibrated centre force.
-                    bridgewardHairContacts[i].solve(
-                        bridgewardIncoming,
-                        bowSpeed,
-                        bowForce[i],
-                        stringImpedance[i],
-                        sampleRate,
-                        localStaticGrip,
-                        localSlidingGrip,
-                        contactStateRateScale);
-                    nutwardHairContacts[i].solve(
-                        nutwardIncoming,
-                        bowSpeed,
-                        bowForce[i],
-                        stringImpedance[i],
-                        sampleRate,
-                        localStaticGrip,
-                        localSlidingGrip,
-                        contactStateRateScale);
-                    const auto edgeForce = 0.5 * (
-                        bridgewardHairContacts[i].lastFrictionForceN
-                        + nutwardHairContacts[i].lastFrictionForceN);
-                    const auto centreForce = contacts[i].lastFrictionForceN;
-                    const auto distributedForce =
-                        (1.0 - distributedBlend) * centreForce
-                        + distributedBlend * edgeForce;
-                    injection = distributedForce
-                        / (2.0 * stringImpedance[i]);
-                }
-                else
-                {
-                    // Preserve the regression-calibrated G/D path bit for bit.
-                    injection = stringVelocity - contactIncomingVelocity;
-                    bridgewardHairContacts[i].relax(
-                        sampleRate, contactStateRateScale);
-                    nutwardHairContacts[i].relax(
-                        sampleRate, contactStateRateScale);
-                }
+                // Convert the nonlinear contact solution back to its
+                // equivalent force-wave injection at the centre junction.
+                injection = stringVelocity - contactIncomingVelocity;
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
@@ -1583,10 +1534,6 @@ struct FiddleEngine::Impl
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
-                bridgewardHairContacts[i].relax(
-                    sampleRate, contactStateRateScale);
-                nutwardHairContacts[i].relax(
-                    sampleRate, contactStateRateScale);
                 rosinNoisePrevious[i] *= 0.98;
                 rosinNoiseEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.004));
