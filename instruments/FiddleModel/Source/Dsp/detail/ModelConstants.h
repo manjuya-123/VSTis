@@ -84,7 +84,7 @@ inline constexpr std::array<double, stringCount> torsionalDriveVelocityPerNewton
     0.0032, 0.0036, 0.0041, 0.0046
 };
 inline constexpr std::array<double, stringCount> torsionalFeedbackScale {
-    0.70, 0.75, 0.85, 0.90
+    0.12, 0.0, 0.45, 0.25
 };
 
 // The short residual velocity burst used to make rosin catch/release audible
