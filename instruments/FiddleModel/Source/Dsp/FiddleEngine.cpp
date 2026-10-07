@@ -1413,12 +1413,18 @@ struct FiddleEngine::Impl
                     (1.0 - brightness) * 0.58 * rawNoise
                     + brightness * 0.34 * differentiated;
 
+                // Let microscopic hair/rosin structure primarily modulate the
+                // friction law itself rather than being heard as an added
+                // velocity-noise layer. This makes successive Helmholtz cycles
+                // differ because the travelling hair encounters a spatially
+                // varying grip, while keeping the radiated wave entirely rooted
+                // in the nonlinear contact solution.
                 const auto roughnessDepth =
-                    0.008 * rosinNoiseScale * (0.85 + 0.30 * pos);
+                    0.022 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
-                    roughnessDepth * colouredNoise, -0.06, 0.06);
+                    roughnessDepth * colouredNoise, -0.09, 0.09);
                 const auto localStaticGrip =
-                    staticGripScale * (1.0 + 0.35 * gripPerturbation);
+                    staticGripScale * (1.0 + 0.65 * gripPerturbation);
                 const auto localSlidingGrip =
                     slidingGripScale * (1.0 + gripPerturbation);
 
@@ -1525,10 +1531,10 @@ struct FiddleEngine::Impl
                 // Preserve the validated contact path while diagnosing the
                 // reported apparent two-layer sound using isolated probes.
                 rosinNoiseVelocity =
-                    0.0000032
+                    0.0000012
                     * rosinNoiseEnvelope[i]
                     * colouredNoise
-                    + transitionVelocity;
+                    + 0.72 * transitionVelocity;
                 injection += rosinNoiseVelocity;
             }
             else
