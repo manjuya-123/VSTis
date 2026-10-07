@@ -70,11 +70,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
-    // Very slow lateral contact drift along the string. A real bow does not
-    // hold an exactly fixed bridge-distance to sub-millimetre precision over
-    // a sustained stroke; this changes which harmonics are excited without
-    // changing speaking length or adding output noise.
-    double bowContactDriftCoordinate = 43.0;
 
     ModalBank body{};
     ModalBank bodyRocking{true};
@@ -221,7 +216,6 @@ struct FiddleEngine::Impl
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
-        bowContactDriftCoordinate = 43.0;
         body.reset();
         bodyRocking.reset();
         acousticBody.reset();
@@ -1028,19 +1022,7 @@ struct FiddleEngine::Impl
             * strokeBiteGain
             * gateValue
             * oneShotLiftGain;
-        bowContactDriftCoordinate += bowSpeed * 4.0 / sampleRate;
-        const auto bowContactDrift = rosinSurfaceSample(
-            bowContactDriftCoordinate, 0x510E527Fu);
-        // ±0.00055 of speaking length is roughly a few tenths of a millimetre
-        // on a violin-scale string: enough to prevent one exact harmonic
-        // balance from being cloned forever, but far smaller than a deliberate
-        // sul-tasto/sul-ponticello gesture.
-        const auto beta = std::clamp(
-            bowBetaFingerboard
-                + (bowBetaBridge - bowBetaFingerboard) * pos
-                + 0.00055 * bowContactDrift,
-            0.025,
-            0.30);
+        const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection)
