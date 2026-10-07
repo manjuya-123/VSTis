@@ -28,6 +28,11 @@ struct BowContact
     // friction limit, which can produce a periodic hard-edged waveform.
     bool usedStaticFallback = false;
     double lastFrictionForceN = 0.0;
+    // Force stored in the compliant bow-hair ribbon. For an ideal point bow,
+    // contact velocity snaps directly to bow velocity; a real ribbon has
+    // finite shear compliance before the string catches up.
+    double hairElasticForceN = 0.0;
+    static constexpr double hairComplianceSeconds = 0.000085;
 
     void reset() noexcept
     {
@@ -37,6 +42,7 @@ struct BowContact
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
+        hairElasticForceN = 0.0;
     }
 
     [[nodiscard]] static double reducedYield(double temperature) noexcept
@@ -131,6 +137,9 @@ struct BowContact
         sticking = false;
         usedStaticFallback = false;
         lastFrictionForceN = 0.0;
+        // Let the bow-hair shear relax when lifted. This is an internal
+        // mechanical state, not a post-string amplitude envelope.
+        hairElasticForceN *= std::exp(-1.0 / (sampleRate * 0.0003));
         lastSlipSpeedMps = 0.0;
         lastGripUtilization = 0.0;
         updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
@@ -160,13 +169,29 @@ struct BowContact
             std::abs(requiredForce) / (staticLimit + 1.0e-12),
             0.0, 3.0);
 
-        if (std::abs(requiredForce) <= staticLimit)
+        // Implicit Euler step for a massless elastic bow-hair ribbon:
+        //   F = k*x;  dx/dt = v_bow - v_string;
+        //   v_string = v_incoming + F/(2 Z_string).
+        // With k = 2 Z_string / tau, this step is a *coupled mechanical
+        // boundary condition*, not smoothing applied to radiated audio.
+        // It also avoids forcing an infinite-acceleration jump in the
+        // string velocity whenever the bow catches.
+        const auto complianceStep =
+            1.0 / (sampleRate * hairComplianceSeconds);
+        const auto elasticForce =
+            (hairElasticForceN + complianceStep * requiredForce)
+            / (1.0 + complianceStep);
+
+        if (std::abs(elasticForce) <= staticLimit)
         {
             sticking = true;
-            lastFrictionForceN = requiredForce;
-            lastSlipSpeedMps = 0.0;
+            hairElasticForceN = elasticForce;
+            const auto stringVelocity =
+                incomingVelocity + elasticForce / (2.0 * characteristicImpedance);
+            lastFrictionForceN = elasticForce;
+            lastSlipSpeedMps = stringVelocity - bowVelocity;
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-            return bowVelocity;
+            return stringVelocity;
         }
 
         sticking = false;
@@ -194,6 +219,7 @@ struct BowContact
             usedStaticFallback = true;
             const auto force = positive ? staticLimit : -staticLimit;
             lastFrictionForceN = force;
+            hairElasticForceN = force;
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
             const auto slip = stringVelocity - bowVelocity;
@@ -222,6 +248,7 @@ struct BowContact
             * (stringVelocity - incomingVelocity);
         const auto slip = stringVelocity - bowVelocity;
         lastFrictionForceN = frictionForce;
+        hairElasticForceN = frictionForce;
         lastSlipSpeedMps = slip;
 
         updateTemperature(
