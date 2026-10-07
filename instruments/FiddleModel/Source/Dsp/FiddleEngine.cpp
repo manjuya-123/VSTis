@@ -1479,8 +1479,20 @@ struct FiddleEngine::Impl
                     1.0 - std::exp(-1.0 / (sampleRate * 0.010));
                 torsionSurfaceMean[i] += torsionMeanAlpha
                     * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
+                // Let torsion perturb slip/re-stick timing much more than
+                // the carried stick phase. That preserves average Helmholtz
+                // period while retaining cycle-to-cycle contact memory.
+                const auto torsionStickGate =
+                    contacts[i].sticking ? 0.18 : 1.0;
+                const auto torsionStringFocus =
+                    singleIsolation > 0.5
+                        && static_cast<int>(i) != primaryString
+                    ? 0.08
+                    : 1.0;
                 const auto torsionalSurfaceVelocity =
                     torsionalFeedbackScale[i]
+                    * torsionStickGate
+                    * torsionStringFocus
                     * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
 
                 const auto wasSticking = contacts[i].sticking;
