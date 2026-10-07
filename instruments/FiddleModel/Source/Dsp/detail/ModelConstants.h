@@ -27,6 +27,16 @@ inline constexpr std::array<double, stringCount> stringImpedance {
     0.13873751546881677
 };
 
+// Reduced finite-width bow contact. A violin bow does not constrain one
+// mathematical point of the string: roughly a centimetre of hair ribbon
+// samples a small span of the travelling wave. The current waveguide still
+// has one force junction, so use a conservative three-point spatial average
+// (centre + two virtual edges) only to determine the nonlinear contact force.
+// This is inside the bow/string mechanics, not an output low-pass or EQ.
+inline constexpr double violinSpeakingLengthMeters = 0.328;
+inline constexpr double bowHairContactWidthMeters = 0.010;
+inline constexpr double finiteWidthContactBlend = 0.35;
+
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
 };
