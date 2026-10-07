@@ -1178,7 +1178,11 @@ struct FiddleEngine::Impl
         // the player's bow-change transient. The separate broadband residual
         // still gets the slightly stronger 5.9-harmonic corner treatment
         // below; this modal drive is intentionally gentler.
-        constexpr double acousticCornerPoleHarmonic = 7.2;
+        // Measured bowed-string bridge-force corners are rounded over a few
+        // percent of each period. A two-pole cutoff near the fifth harmonic
+        // is closer to that timescale than the earlier 7.2x setting, which
+        // left the high-string impulse edge almost intact.
+        constexpr double acousticCornerPoleHarmonic = 5.2;
         const auto acousticCornerCutoffHz = std::clamp(
             acousticCornerPoleHarmonic * acousticPitch,
             850.0,
@@ -1649,7 +1653,7 @@ struct FiddleEngine::Impl
             ? weightedPitch / weightedForce
             : currentFrequency[static_cast<std::size_t>(
                 std::clamp(primaryString, 0, stringCount - 1))];
-        constexpr double cornerPoleHarmonic = 5.9;
+        constexpr double cornerPoleHarmonic = 4.5;
         const auto cornerCutoffHz = std::clamp(
             cornerPoleHarmonic * radiationPitch,
             850.0,
