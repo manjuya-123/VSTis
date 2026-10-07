@@ -986,6 +986,7 @@ struct FiddleEngine::Impl
         std::array<double, stringCount> currentFrequency{};
         std::array<double, stringCount> bridgeDelay{};
         std::array<double, stringCount> nutDelay{};
+        std::array<double, stringCount> finiteWidthHalfDelay{};
 
         for (std::size_t i = 0; i < currentFrequency.size(); ++i)
         {
@@ -1015,6 +1016,17 @@ struct FiddleEngine::Impl
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
+
+            // Convert half the physical hair-ribbon width into propagation
+            // delay along this speaking length. For the fundamental this is a
+            // small phase span; upper partials see progressively more spatial
+            // variation across the contact patch.
+            finiteWidthHalfDelay[i] = std::clamp(
+                oneWay
+                    * (0.5 * bowHairContactWidthMeters
+                       / violinSpeakingLengthMeters),
+                0.0,
+                3.0);
         }
 
         std::array<double, stringCount> incidentBridge{};
@@ -1121,6 +1133,7 @@ struct FiddleEngine::Impl
         debug.sticking.fill(false);
         debug.rosinNoiseVelocityMps.fill(0.0f);
         debug.rosinTransitionEnvelope.fill(0.0f);
+        debug.finiteWidthContactVelocityDeltaMps.fill(0.0f);
 
         for (std::size_t i = 0; i < stringCount; ++i)
         {
@@ -1187,6 +1200,38 @@ struct FiddleEngine::Impl
                 * sympatheticLoss;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
+
+            // Approximate the finite width of the bow-hair ribbon without
+            // inventing another oscillator or filtering the radiated output.
+            // Read the already-existing travelling waves at virtual points
+            // half a hair-width toward the bridge and nut, then let the
+            // nonlinear friction law react to a conservative spatial average.
+            // The force is still injected at the single waveguide junction;
+            // a later multi-junction model can replace this reduction once
+            // the 44.1/48 kHz regression envelope is understood.
+            const auto halfWidthDelay = finiteWidthHalfDelay[i];
+            const auto clampDelay = [](double value) noexcept
+            {
+                return std::clamp(
+                    value, 1.2, static_cast<double>(delaySize - 8));
+            };
+            const auto bridgewardIncoming =
+                fromBridge[i].read(clampDelay(bridgeDelay[i] - halfWidthDelay))
+                + fromNut[i].read(clampDelay(nutDelay[i] + halfWidthDelay));
+            const auto nutwardIncoming =
+                fromBridge[i].read(clampDelay(bridgeDelay[i] + halfWidthDelay))
+                + fromNut[i].read(clampDelay(nutDelay[i] - halfWidthDelay));
+            const auto finiteWidthAverage =
+                0.50 * incomingVelocity
+                + 0.25 * (bridgewardIncoming + nutwardIncoming);
+            const auto contactIncomingVelocity =
+                incomingVelocity
+                + finiteWidthContactBlend
+                    * (finiteWidthAverage - incomingVelocity);
+            debug.finiteWidthContactVelocityDeltaMps[i] =
+                static_cast<float>(
+                    contactIncomingVelocity - incomingVelocity);
+
             double injection = 0.0;
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
@@ -1230,9 +1275,17 @@ struct FiddleEngine::Impl
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
-                    incomingVelocity, bowSpeed, bowForce[i], stringImpedance[i], sampleRate,
-                    localStaticGrip, localSlidingGrip, contactStateRateScale);
-                injection = stringVelocity - incomingVelocity;
+                    contactIncomingVelocity,
+                    bowSpeed,
+                    bowForce[i],
+                    stringImpedance[i],
+                    sampleRate,
+                    localStaticGrip,
+                    localSlidingGrip,
+                    contactStateRateScale);
+                // Convert the nonlinear contact solution back to its
+                // equivalent force-wave injection at the centre junction.
+                injection = stringVelocity - contactIncomingVelocity;
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
