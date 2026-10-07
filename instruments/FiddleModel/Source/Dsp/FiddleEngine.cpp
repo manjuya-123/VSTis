@@ -69,6 +69,14 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> rosinSurfaceCoordinate{};
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
+    // Mesoscale hair/rosin loading along bow travel. This is deliberately
+    // much slower than the microscopic roughness field: it changes the
+    // nonlinear friction conditions over centimetres of bow motion so a held
+    // note need not converge to one numerically identical cycle forever.
+    std::array<double, stringCount> bowTravelContactCoordinate {
+        11.0, 37.0, 73.0, 109.0
+    };
+    std::array<std::int64_t, stringCount> contactAgeSamples{};
     double rosinNoiseScale = 1.0;
 
     ModalBank body{};
@@ -216,6 +224,8 @@ struct FiddleEngine::Impl
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
+        bowTravelContactCoordinate = { 11.0, 37.0, 73.0, 109.0 };
+        contactAgeSamples.fill(0);
         body.reset();
         bodyRocking.reset();
         acousticBody.reset();
@@ -1385,6 +1395,38 @@ struct FiddleEngine::Impl
             double rosinNoiseVelocity = 0.0;
             if (bowForce[i] > 1.0e-8 && std::abs(bowSpeed) > 1.0e-8)
             {
+                contactAgeSamples[i] = std::min<std::int64_t>(
+                    contactAgeSamples[i] + 1,
+                    static_cast<std::int64_t>(sampleRate));
+                const auto contactAgeSeconds =
+                    static_cast<double>(contactAgeSamples[i]) / sampleRate;
+                const auto contactMaturity = 1.0 - std::exp(
+                    -contactAgeSeconds / 0.013);
+
+                // A hair ribbon is not longitudinally uniform. Bow travel
+                // crosses slowly varying hair tension/rosin loading regions;
+                // reverse bow motion retraces the same field. This perturbs
+                // the contact law itself, never the radiated audio.
+                constexpr double contactFeaturesPerMeter = 21.0;
+                bowTravelContactCoordinate[i] +=
+                    bowSpeed * contactFeaturesPerMeter / sampleRate;
+                const auto mesoContactVariation = rosinSurfaceSample(
+                    bowTravelContactCoordinate[i],
+                    0x7F4A7C15u + static_cast<std::uint32_t>(i) * 0x1F123BB5u);
+                const auto mesoStaticScale =
+                    1.0 + 0.018 * mesoContactVariation;
+                const auto mesoSlidingScale =
+                    1.0 + 0.026 * mesoContactVariation;
+
+                // During the first few bow/string encounters the contact has
+                // not yet settled into the mature Helmholtz orbit. Let static
+                // and sliding grip approach their steady values over ~10-20 ms
+                // so the transient emerges from the nonlinear solve rather
+                // than from an amplitude envelope.
+                const auto startupStaticScale =
+                    0.93 + 0.07 * contactMaturity;
+                const auto startupSlidingScale =
+                    0.90 + 0.10 * contactMaturity;
                 // Deterministic microscopic hair/rosin roughness. One physical
                 // roughness sample drives both a tiny friction-coefficient
                 // variation and the residual contact-velocity texture.
@@ -1418,9 +1460,15 @@ struct FiddleEngine::Impl
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
                 const auto localStaticGrip =
-                    staticGripScale * (1.0 + 0.35 * gripPerturbation);
+                    staticGripScale
+                    * startupStaticScale
+                    * mesoStaticScale
+                    * (1.0 + 0.35 * gripPerturbation);
                 const auto localSlidingGrip =
-                    slidingGripScale * (1.0 + gripPerturbation);
+                    slidingGripScale
+                    * startupSlidingScale
+                    * mesoSlidingScale
+                    * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
@@ -1533,6 +1581,7 @@ struct FiddleEngine::Impl
             }
             else
             {
+                contactAgeSamples[i] = 0;
                 contacts[i].relax(sampleRate, contactStateRateScale);
                 rosinNoisePrevious[i] *= 0.98;
                 rosinNoiseEnvelope[i] *= std::exp(
