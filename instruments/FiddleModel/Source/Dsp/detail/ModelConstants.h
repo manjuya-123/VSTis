@@ -29,14 +29,14 @@ inline constexpr std::array<double, stringCount> stringImpedance {
 
 // Bow friction acts on the string surface, so transverse translation and
 // torsional rotation contribute to the same relative bow/string velocity.
-// A measured bowed-string model uses a torsional wave speed about 5.2 times
-// the transverse speed and a surface-referred torsional impedance about
-// 1.8 / 0.55 = 3.27 times the transverse impedance. Keep these conservative
-// reference values common to all four strings until string-specific
-// measurements are available. Torsion is deliberately not radiated directly;
-// it changes the nonlinear bow contact and therefore the transverse motion.
+// A published bowed-string reference case uses torsional wave speed about
+// 5.2 times the transverse speed and a surface-referred torsional impedance
+// of 1.8 N s/m. Use that absolute impedance as a deliberately conservative
+// first integration rather than scaling it down with each violin string's
+// transverse impedance; the earlier ratio-scaled experiment over-coupled the
+// thin E string and made the model sample-rate sensitive.
 inline constexpr double torsionalWaveSpeedRatio = 5.2;
-inline constexpr double torsionalImpedanceRatio = 1.8 / 0.55;
+inline constexpr double torsionalSurfaceImpedance = 1.8;
 
 // Approximate constant-Q torsional loss. Q~45 corresponds to a complete-cycle
 // amplitude retention exp(-pi/Q); split equally between the two ends.
