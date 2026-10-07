@@ -102,8 +102,6 @@ void printBowContactDiagnostics(double rate, int stringIndex)
     double absForce = 0.0, absSlip = 0.0;
     double injectionSq = 0.0, bridgeSq = 0.0, injectionDeltaSq = 0.0;
     double finiteWidthDeltaSq = 0.0;
-    double torsionSurfaceSq = 0.0;
-    double torsionDriveSq = 0.0;
     double previousInjection = 0.0;
     for (int i = 0; i < total; ++i)
     {
@@ -129,12 +127,6 @@ void printBowContactDiagnostics(double rate, int stringIndex)
         const auto widthDelta = static_cast<double>(
             state.finiteWidthContactVelocityDeltaMps[index]);
         finiteWidthDeltaSq += widthDelta * widthDelta;
-        const auto torsionSurface = static_cast<double>(
-            state.torsionalSurfaceVelocityMps[index]);
-        const auto torsionDrive = static_cast<double>(
-            state.torsionalInjectionVelocityMps[index]);
-        torsionSurfaceSq += torsionSurface * torsionSurface;
-        torsionDriveSq += torsionDrive * torsionDrive;
         previousInjection = inject;
     }
     std::cout << "bow_contact_diagnostic"
@@ -150,10 +142,6 @@ void printBowContactDiagnostics(double rate, int stringIndex)
               << " bridge_rms_mps=" << std::sqrt(bridgeSq / observed)
               << " finite_width_delta_rms_mps="
               << std::sqrt(finiteWidthDeltaSq / observed)
-              << " torsion_surface_rms_mps="
-              << std::sqrt(torsionSurfaceSq / observed)
-              << " torsion_drive_rms_mps="
-              << std::sqrt(torsionDriveSq / observed)
               << '\n';
 }
 
