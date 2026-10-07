@@ -70,6 +70,7 @@ struct DebugState
     std::array<float, 4> contactGripUtilization{};
     std::array<float, 4> contactSlipSpeedMps{};
     std::array<float, 4> contactFrictionForceN{};
+    std::array<float, 4> torsionalSurfaceVelocityMps{};
     std::array<bool, 4> contactStaticFallback{};
     std::array<float, 4> finiteWidthContactVelocityDeltaMps{};
     std::array<float, 4> rosinNoiseVelocityMps{};
