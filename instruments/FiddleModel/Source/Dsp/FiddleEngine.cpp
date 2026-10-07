@@ -1492,7 +1492,7 @@ struct FiddleEngine::Impl
                 const auto torsionStringFocus =
                     singleIsolation > 0.5
                         && static_cast<int>(i) != primaryString
-                    ? 0.06
+                    ? 0.0
                     : 1.0;
                 const auto torsionGripPerturbation =
                     torsionalGripModulationDepth[i]
