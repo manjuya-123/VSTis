@@ -97,6 +97,10 @@ struct FiddleEngine::Impl
     double acousticForceRound2 = 0.0;
     double acousticRockingForceRound1 = 0.0;
     double acousticRockingForceRound2 = 0.0;
+    // Macroscopic non-modal radiation is strongest around a bow catch or
+    // reversal and then gives way to steady structural radiation. This state
+    // is driven only by existing physical bow-acceleration/bite gestures.
+    double radiationTransient = 0.0;
 
     Smoother pressure{};
     Smoother speed{};
@@ -227,6 +231,7 @@ struct FiddleEngine::Impl
         acousticForceRound2 = 0.0;
         acousticRockingForceRound1 = 0.0;
         acousticRockingForceRound2 = 0.0;
+        radiationTransient = 0.0;
 
         pressure.reset(controlTargets.pressure);
         speed.reset(controlTargets.speed);
@@ -1597,10 +1602,31 @@ struct FiddleEngine::Impl
         // body colour, while the residual direct path preserves attack and
         // prevents an unrealistically hollow modal-only sound.
         // The broadband bridge coordinate is essential for mechanical loading,
-        // but a microphone should hear only a small residual of that nearly
-        // ideal string waveform. Let resonant body motion dominate radiation.
-        constexpr double broadbandRadiationFraction = 0.14;
-        constexpr double rockingBroadbandRadiationFraction = 0.28;
+        // but a microphone should hear it mainly around a macroscopic bow
+        // catch/reversal. During a held tone the structural body response must
+        // dominate, otherwise the nearly ideal Helmholtz string waveform leaks
+        // straight to the listener.
+        double mechanicalRadiationTransient = 0.0;
+        if (strokeBiteTotalSamples > 0 && strokeBiteSamplesRemaining > 0)
+            mechanicalRadiationTransient = std::max(
+                mechanicalRadiationTransient,
+                static_cast<double>(strokeBiteSamplesRemaining)
+                    / static_cast<double>(strokeBiteTotalSamples));
+        if (reversalAssistTotalSamples > 0 && reversalAssistSamplesRemaining > 0)
+            mechanicalRadiationTransient = std::max(
+                mechanicalRadiationTransient,
+                static_cast<double>(reversalAssistSamplesRemaining)
+                    / static_cast<double>(reversalAssistTotalSamples));
+        const auto radiationTransientDecay =
+            std::exp(-1.0 / (sampleRate * 0.022));
+        radiationTransient = std::max(
+            mechanicalRadiationTransient,
+            radiationTransient * radiationTransientDecay);
+
+        const auto broadbandRadiationFraction =
+            0.07 + 0.13 * radiationTransient;
+        const auto rockingBroadbandRadiationFraction =
+            0.18 + 0.18 * radiationTransient;
 
         // Round only the non-modal bridge component before it becomes sound.
         // Fritz et al. report that measured violin bridge-force waveforms have
@@ -1647,8 +1673,14 @@ struct FiddleEngine::Impl
         // steady tone gains measured-style corner rounding. These coefficients
         // are deliberately exposed as one place to calibrate against future
         // open/self-measured FRFs.
-        constexpr double acousticModalBlend = 0.42;
-        constexpr double acousticRockingBlend = 0.34;
+        // Force-driven acoustic states are intentionally stronger once the
+        // bow transient has settled. At the instant of a catch/reversal retain
+        // the previously validated blend so the first 20-30 ms stay physical
+        // and responsive; steady tones move toward body/radiativity colour.
+        const auto acousticModalBlend =
+            0.62 - 0.20 * radiationTransient;
+        const auto acousticRockingBlend =
+            0.50 - 0.16 * radiationTransient;
         const auto radiatingBodyModes =
             (1.0 - acousticModalBlend) * bodyModalVelocity
             + acousticModalBlend * acousticBodyModalVelocity;
