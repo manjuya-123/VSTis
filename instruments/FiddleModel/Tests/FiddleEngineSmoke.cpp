@@ -136,7 +136,7 @@ void printBowContactDiagnostics(double rate, int stringIndex)
               << " injection_rms_mps=" << std::sqrt(injectionSq / observed)
               << " injection_difference_rms_mps=" << std::sqrt(injectionDeltaSq / observed)
               << " bridge_rms_mps=" << std::sqrt(bridgeSq / observed)
-              << '\\n';
+              << '\n';
 }
 
 int fail(const char* message)
