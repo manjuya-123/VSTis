@@ -59,6 +59,7 @@ struct FiddleEngine::Impl
     std::array<DelayRail, stringCount> torsionFromBridge{};
     std::array<DelayRail, stringCount> torsionToNut{};
     std::array<DelayRail, stringCount> torsionFromNut{};
+    std::array<double, stringCount> torsionSurfaceMean{};
 
     std::array<double, stringCount> lossX1{};
     std::array<double, stringCount> allpassX1{};
@@ -214,6 +215,7 @@ struct FiddleEngine::Impl
         for (auto& rail : torsionFromBridge) rail.clear();
         for (auto& rail : torsionToNut) rail.clear();
         for (auto& rail : torsionFromNut) rail.clear();
+        torsionSurfaceMean.fill(0.0);
         for (auto& contact : contacts) contact.reset();
 
         lossX1.fill(0.0);
@@ -1471,9 +1473,15 @@ struct FiddleEngine::Impl
                 // into the friction law while the torsional/contact DOF is
                 // redesigned.
                 constexpr double adhesionMemoryAmount = 0.0;
+                const auto rawTorsionalSurfaceVelocity =
+                    torsionIncomingBridge[i] + torsionIncomingNut[i];
+                const auto torsionMeanAlpha =
+                    1.0 - std::exp(-1.0 / (sampleRate * 0.010));
+                torsionSurfaceMean[i] += torsionMeanAlpha
+                    * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
                 const auto torsionalSurfaceVelocity =
                     torsionalFeedbackScale[i]
-                    * (torsionIncomingBridge[i] + torsionIncomingNut[i]);
+                    * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
 
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
@@ -1631,10 +1639,12 @@ struct FiddleEngine::Impl
                 static_cast<float>(contacts[i].slipSpeedMps());
             debug.contactFrictionForceN[i] =
                 static_cast<float>(contacts[i].lastFrictionForceN);
+            const auto rawTorsionalDebug =
+                torsionIncomingBridge[i] + torsionIncomingNut[i];
             debug.torsionalSurfaceVelocityMps[i] =
                 static_cast<float>(
                     torsionalFeedbackScale[i]
-                    * (torsionIncomingBridge[i] + torsionIncomingNut[i])
+                    * (rawTorsionalDebug - torsionSurfaceMean[i])
                     + torsionalContactCoupling[i]
                         * contacts[i].torsionalVelocityMps());
             debug.contactStaticFallback[i] =
