@@ -505,6 +505,25 @@ std::vector<Scenario> makeScenarios()
         c.vibratoPace = 0.55f;
         scenarios.push_back({ "07_stopped_vibrato_B4_on_A", c, 493.8833f, 0.85f });
     }
+    // Explicit high-string sustained tones for listening: the existing
+    // E4-on-D reference cannot expose the reported bare sawtooth character
+    // of the A/E strings. These go through the real physical engine and the
+    // same amplitude, release, and stereo sanity checks as other scenarios.
+    {
+        auto c = baseControls();
+        c.balance = -0.95f;
+        scenarios.push_back({ "13_A4_open_high_string", c, 440.0f, 0.85f });
+    }
+    {
+        auto c = baseControls();
+        c.balance = 0.95f;
+        scenarios.push_back({ "14_E5_open_high_string", c, 659.2551f, 0.85f });
+    }
+    {
+        auto c = baseControls();
+        c.balance = 0.95f;
+        scenarios.push_back({ "15_Fsharp5_stopped_E_string", c, 739.9888f, 0.85f });
+    }
     {
         auto c = baseControls();
         fiddle::MaterialSettings m;
