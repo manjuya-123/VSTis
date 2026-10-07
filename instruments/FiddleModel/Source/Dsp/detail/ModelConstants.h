@@ -82,7 +82,7 @@ inline constexpr std::array<double, stringCount> fingerReflectionAlpha {
 // termination filter that previously damaged G pitch presence, and introduces
 // no extra phase delay or synthesized modulation.
 inline constexpr std::array<double, stringCount> lossGain {
-    0.9988, 0.9984, 0.9992, 0.99935
+    0.9988, 0.9987, 0.9992, 0.99935
 };
 
 // Passive, frequency-dependent reflection losses at the finger/string
