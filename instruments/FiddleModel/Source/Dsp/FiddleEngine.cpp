@@ -1383,6 +1383,7 @@ struct FiddleEngine::Impl
                     + brightness * 0.62 * differentiated;
                 const auto transitionVelocity =
                     0.0000060
+                    * rosinTransitionVelocityScale[i]
                     * rosinNoiseScale
                     * rosinTransitionEnvelope[i]
                     * forceScale
