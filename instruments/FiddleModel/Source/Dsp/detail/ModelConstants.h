@@ -43,7 +43,7 @@ inline constexpr double torsionalSurfaceImpedance = 1.8;
 // reduced mode cannot stand in for the entire distributed torsional field.
 // The same coefficient is used reciprocally for force -> torsion and torsion
 // -> contact velocity, preserving a passive generalized coupling.
-inline constexpr double torsionalReducedOrderCoupling = 0.55;
+inline constexpr double torsionalReducedOrderCoupling = 0.15;
 
 // Approximate constant-Q torsional loss. Q~45 corresponds to a complete-cycle
 // amplitude retention exp(-pi/Q); split equally between the two ends.
