@@ -1133,6 +1133,401 @@ void printGuiBowContactSweep(int stringIndex,
 
 } // namespace
 
+// Long-form musical validation sequence mirrored by
+// fiddle_play_validation_reel.mid. This is intentionally a musical workflow
+// test, not another isolated oscillator/pitch probe: fingering and bow actions
+// are scheduled exactly like a DAW performance and rendered through the real
+// processor. The audio remains a human listening artifact; state assertions
+// below only verify that the intended performance grammar survives MIDI routing.
+bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
+{
+    constexpr int ppq = 480;
+    constexpr int bpm = 120;
+    constexpr int barTicks = ppq * 4;
+    constexpr int quarter = ppq;
+    constexpr int eighth = ppq / 2;
+    constexpr int down = 36;
+    constexpr int shuffle = 37;
+    constexpr int up = 38;
+    constexpr int shortStroke = 40;
+    constexpr int tremolo = 41;
+    constexpr int drone = 43;
+    constexpr int accent = 45;
+    constexpr int chop = 46;
+    constexpr int release = 47;
+
+    struct ScheduledEvent
+    {
+        int tick = 0;
+        juce::MidiMessage message;
+    };
+
+    std::vector<ScheduledEvent> events;
+    const auto add = [&](int tick, const juce::MidiMessage& message)
+    {
+        events.push_back({ tick, message });
+    };
+    const auto addNote = [&](int startTick, int endTick, int note, int velocity)
+    {
+        add(startTick, juce::MidiMessage::noteOn(
+            1, note, static_cast<float>(velocity) / 127.0f));
+        add(endTick, juce::MidiMessage::noteOff(1, note));
+    };
+    const auto addPressure = [&](int tick, int value)
+    {
+        add(tick, juce::MidiMessage::channelPressureChange(1, value));
+    };
+    const auto addCc = [&](int tick, int controller, int value)
+    {
+        add(tick, juce::MidiMessage::controllerEvent(
+            1, controller, value));
+    };
+    const auto addBend = [&](int tick, int value)
+    {
+        add(tick, juce::MidiMessage::pitchWheel(
+            1, std::clamp(value, 0, 16383)));
+    };
+
+    const auto addSlurBar = [&](int bar,
+                                int action,
+                                int actionVelocity,
+                                std::array<int, 4> notes,
+                                int pressure,
+                                int vibrato)
+    {
+        const auto base = (bar - 1) * barTicks;
+        for (int i = 0; i < 4; ++i)
+        {
+            const auto start = i == 0
+                ? base + i * quarter
+                : base + i * quarter - 12;
+            const auto end = i < 3
+                ? base + (i + 1) * quarter + 12
+                : base + barTicks - 24;
+            addNote(start, end, notes[static_cast<std::size_t>(i)], 100);
+        }
+        addNote(base + 12, base + barTicks - 20,
+                action, actionVelocity);
+        addPressure(base + 12, pressure);
+        if (vibrato >= 0)
+            addCc(base + 2 * quarter, 1, vibrato);
+    };
+
+    addSlurBar(1, down, 86, { 62, 66, 69, 66 }, 48, -1);
+    addSlurBar(2, up,   82, { 64, 67, 71, 69 }, 44, -1);
+    addSlurBar(3, down, 90, { 66, 69, 74, 73 }, 55, 24);
+    addSlurBar(4, up,   84, { 71, 69, 66, 64 }, 46, -1);
+
+    constexpr std::array<std::array<int, 8>, 2> shortPhrases {{
+        {{ 62, 66, 69, 71, 69, 66, 64, 62 }},
+        {{ 64, 67, 71, 73, 71, 67, 66, 64 }}
+    }};
+    for (int phrase = 0; phrase < 2; ++phrase)
+    {
+        const auto base = (4 + phrase) * barTicks;
+        for (int i = 0; i < 8; ++i)
+        {
+            const auto grid = base + i * eighth;
+            addNote(grid, grid + eighth - 24,
+                    shortPhrases[static_cast<std::size_t>(phrase)]
+                                [static_cast<std::size_t>(i)],
+                    98);
+            addNote(grid + 10, grid + 82, shortStroke, 92);
+        }
+        addPressure(base, phrase == 0 ? 50 : 58);
+    }
+
+    {
+        const auto base = 6 * barTicks;
+        constexpr std::array<int, 4> notes { 62, 69, 66, 69 };
+        for (int i = 0; i < 4; ++i)
+        {
+            const auto grid = base + i * quarter;
+            addNote(grid, grid + quarter - 36,
+                    notes[static_cast<std::size_t>(i)], 102);
+            addNote(grid + 10, grid + 92, accent, 112);
+        }
+        addPressure(base, 64);
+    }
+
+    {
+        const auto base = 7 * barTicks;
+        addNote(base, base + barTicks - 24, 62, 100);
+        addNote(base, base + barTicks - 24, 69, 100);
+        for (const auto offset : { quarter, 2 * quarter, 3 * quarter })
+            addNote(base + offset, base + offset + 72, chop, 104);
+    }
+
+    {
+        const auto base = 8 * barTicks;
+        constexpr std::array<int, 16> notes {
+            62, 64, 66, 69, 66, 64, 62, 69,
+            71, 69, 66, 64, 62, 64, 66, 69
+        };
+        for (int i = 0; i < static_cast<int>(notes.size()); ++i)
+        {
+            const auto grid = base + i * eighth;
+            const auto start = i == 0 ? grid : grid - 10;
+            const auto end = i + 1 < static_cast<int>(notes.size())
+                ? grid + eighth + 10
+                : base + 2 * barTicks - 30;
+            addNote(start, end, notes[static_cast<std::size_t>(i)], 100);
+        }
+        addNote(base + 12, base + 2 * barTicks - 36, shuffle, 70);
+        addPressure(base, 56);
+        addNote(base + 2 * barTicks - 30,
+                base + 2 * barTicks - 5, release, 64);
+    }
+
+    {
+        const auto base = 10 * barTicks;
+        addNote(base, base + barTicks - 24, 62, 100);
+        addNote(base + 12, base + barTicks - 36, drone, 80);
+        addPressure(base, 50);
+    }
+
+    {
+        const auto base = 11 * barTicks;
+        addCc(base, 64, 127);
+        addNote(base + 12, base + 180, 64, 100);
+        addNote(base + 12, base + 180, 71, 100);
+        addNote(base + 220, base + barTicks - 180, down, 84);
+        addCc(base + barTicks - 120, 64, 0);
+    }
+
+    {
+        const auto base = 12 * barTicks;
+        addNote(base, base + barTicks - 36, 73, 100);
+        addNote(base + 12, base + barTicks - 30, up, 80);
+        addCc(base + 60, 1, 46);
+        addBend(base, 8192);
+        for (int i = 1; i <= 8; ++i)
+            addBend(
+                base + quarter + i * quarter / 8,
+                8192 + 4095 * i / 8);
+        for (int i = 1; i <= 8; ++i)
+            addBend(
+                base + 3 * quarter + i * (quarter - 60) / 8,
+                12287 - 4095 * i / 8);
+        addBend(base + barTicks - 24, 8192);
+        addCc(base + barTicks - 24, 1, 0);
+    }
+
+    {
+        const auto base = 13 * barTicks;
+        addNote(base, base + barTicks - 24, 74, 100);
+        addNote(base + 12, base + barTicks - 36, tremolo, 78);
+        addCc(base + quarter, 1, 36);
+        addPressure(base + 2 * quarter, 60);
+        addCc(base + barTicks - 24, 1, 0);
+    }
+
+    {
+        const auto base = 14 * barTicks;
+        constexpr std::array<int, 8> notes {
+            69, 71, 73, 74, 76, 78, 76, 74
+        };
+        for (int i = 0; i < static_cast<int>(notes.size()); ++i)
+        {
+            const auto grid = base + i * eighth;
+            const auto start = i == 0 ? grid : grid - 10;
+            const auto end = i + 1 < static_cast<int>(notes.size())
+                ? grid + eighth + 10
+                : base + barTicks - 30;
+            addNote(start, end, notes[static_cast<std::size_t>(i)], 100);
+        }
+        addNote(base + 12, base + barTicks - 36, down, 86);
+        addPressure(base, 52);
+    }
+
+    {
+        const auto base = 15 * barTicks;
+        addNote(base, base + barTicks - 120, 74, 100);
+        addNote(base, base + barTicks - 120, 78, 100);
+        addNote(base + 30, base + 120, accent, 118);
+        addNote(base + 3 * quarter,
+                base + 3 * quarter + 36, release, 64);
+        addPressure(base, 68);
+    }
+
+    const auto endTick = 16 * barTicks;
+    addCc(endTick - 12, 1, 0);
+    addCc(endTick - 12, 64, 0);
+    addBend(endTick - 12, 8192);
+    addPressure(endTick - 12, 0);
+
+    std::stable_sort(
+        events.begin(), events.end(),
+        [](const ScheduledEvent& a, const ScheduledEvent& b)
+        {
+            return a.tick < b.tick;
+        });
+
+    FiddleModelAudioProcessor processor;
+    processor.prepareToPlay(sampleRate, blockSize);
+    for (auto* parameter : processor.getParameters())
+        if (parameter->getName(64) == "Play Mode")
+            parameter->setValueNotifyingHost(1.0f);
+
+    const auto samplesPerTick =
+        sampleRate * 60.0 / (static_cast<double>(bpm) * ppq);
+    const auto totalSamples = static_cast<std::int64_t>(
+        std::ceil((endTick * samplesPerTick) + sampleRate));
+
+    StereoRecording recording;
+    recording.left.reserve(static_cast<std::size_t>(totalSamples));
+    recording.right.reserve(static_cast<std::size_t>(totalSamples));
+
+    const auto tickToSample = [&](int tick)
+    {
+        return static_cast<std::int64_t>(
+            std::llround(tick * samplesPerTick));
+    };
+
+    struct Checkpoint
+    {
+        int tick;
+        const char* name;
+    };
+    constexpr Checkpoint checkpoints[] {
+        { 8 * barTicks + 2 * quarter, "shuffle" },
+        { 11 * barTicks + 300, "held_double_stop" },
+        { 12 * barTicks + 2 * quarter, "pitch_bend_slide" },
+        { 13 * barTicks + 2 * quarter, "tremolo" },
+        { 14 * barTicks + 5 * eighth + 80, "e_string_crossing" }
+    };
+    std::array<bool, std::size(checkpoints)> checkpointWritten {};
+    std::ofstream checkpointCsv(
+        outputDirectory / "processor_fiddle_validation_checkpoints.csv");
+    if (!checkpointCsv)
+        return false;
+    checkpointCsv
+        << "checkpoint,tick,seconds,active_note,primary_string,pair_lower,"
+           "bow_action,fingering_hold,fingering_mask,speaking_g,speaking_d,"
+           "speaking_a,speaking_e\n";
+
+    std::size_t eventIndex = 0;
+    bool finite = true;
+    double peak = 0.0;
+
+    for (std::int64_t blockStart = 0;
+         blockStart < totalSamples;
+         blockStart += blockSize)
+    {
+        juce::AudioBuffer<float> buffer(2, blockSize);
+        juce::MidiBuffer midi;
+        const auto blockEnd = blockStart + blockSize;
+
+        while (eventIndex < events.size())
+        {
+            const auto eventSample =
+                tickToSample(events[eventIndex].tick);
+            if (eventSample >= blockEnd)
+                break;
+            if (eventSample >= blockStart)
+                midi.addEvent(
+                    events[eventIndex].message,
+                    static_cast<int>(eventSample - blockStart));
+            ++eventIndex;
+        }
+
+        processor.processBlock(buffer, midi);
+        const auto* left = buffer.getReadPointer(0);
+        const auto* right = buffer.getReadPointer(1);
+        recording.left.insert(
+            recording.left.end(), left, left + blockSize);
+        recording.right.insert(
+            recording.right.end(), right, right + blockSize);
+
+        for (int sample = 0; sample < blockSize; ++sample)
+        {
+            finite = finite
+                && std::isfinite(left[sample])
+                && std::isfinite(right[sample]);
+            peak = std::max(
+                peak,
+                std::max(
+                    std::abs(static_cast<double>(left[sample])),
+                    std::abs(static_cast<double>(right[sample]))));
+        }
+
+        for (std::size_t i = 0; i < std::size(checkpoints); ++i)
+        {
+            if (checkpointWritten[i])
+                continue;
+            const auto checkpointSample =
+                tickToSample(checkpoints[i].tick);
+            if (checkpointSample >= blockStart
+                && checkpointSample < blockEnd)
+            {
+                const auto state = processor.visualState();
+                checkpointCsv
+                    << checkpoints[i].name << ','
+                    << checkpoints[i].tick << ','
+                    << checkpointSample / sampleRate << ','
+                    << state.midiNote << ','
+                    << state.primaryString << ','
+                    << state.pairLowerString << ','
+                    << state.bowAction << ','
+                    << (state.fingeringHold ? 1 : 0) << ','
+                    << state.fingeringMask;
+                for (const auto frequency : state.speakingFrequencyHz)
+                    checkpointCsv << ',' << frequency;
+                checkpointCsv << '\n';
+                checkpointWritten[i] = true;
+            }
+        }
+    }
+
+    if (!finite || peak <= 1.0e-5 || peak > 1.5)
+    {
+        std::cerr
+            << "FAIL: validation reel audio unsafe/nonfinite peak="
+            << peak << '\n';
+        return false;
+    }
+
+    const auto allCheckpoints =
+        std::all_of(
+            checkpointWritten.begin(),
+            checkpointWritten.end(),
+            [](bool written) { return written; });
+    if (!allCheckpoints)
+    {
+        std::cerr << "FAIL: validation reel missed state checkpoint\n";
+        return false;
+    }
+
+    if (!writeStereoWav(
+            outputDirectory / "processor_fiddle_validation_reel.wav",
+            recording))
+        return false;
+
+    std::ofstream readme(
+        outputDirectory / "READ_ME_fiddle_validation_reel.txt");
+    readme
+        << "FIDDLE PLAY VALIDATION REEL / 120 BPM / 16 bars\n"
+        << "Mirrors the downloadable fiddle_play_validation_reel.mid.\n"
+        << "Bars 1-4: sustained Down/Up bow slurs.\n"
+        << "Bars 5-6: Short Stroke eighth notes.\n"
+        << "Bar 7: Accent Stroke.  Bar 8: Chop double-stop test.\n"
+        << "Bars 9-10: Nashville Shuffle.\n"
+        << "Bar 11: Drone Bow.  Bar 12: CC64-held E4+B4 double stop.\n"
+        << "Bar 13: C#5->D5 Pitch Bend slide on the selected string.\n"
+        << "Bar 14: Tremolo.  Bar 15: A/E string crossing.\n"
+        << "Bar 16: final D5+F#5 accented double stop.\n"
+        << "This WAV is a listening audit, not proof of realism.\n";
+    if (!readme)
+        return false;
+
+    std::cout
+        << "processor_fiddle_validation_reel peak=" << peak
+        << " events=" << events.size()
+        << " seconds=" << totalSamples / sampleRate
+        << '\n';
+    return true;
+}
+
 int main(int argc, char** argv)
 {
     // Guard the G/D harmonic-aliasing trap that produced false "open D"
