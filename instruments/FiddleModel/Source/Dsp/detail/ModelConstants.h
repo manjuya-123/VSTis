@@ -54,7 +54,15 @@ inline constexpr std::array<double, stringCount> finiteWidthStringScale {
 // can sound like a pitch-synchronous "tick". Keep the physical stick/slip
 // transition intact, but scale only this residual surface-texture velocity.
 inline constexpr std::array<double, stringCount> rosinTransitionVelocityScale {
-    1.00, 1.00, 1.00, 0.42
+    1.00, 1.00, 1.00, 1.00
+};
+
+// Fingered notes terminate against a soft fingertip rather than the hard nut.
+// Apply additional frequency-dependent reflection loss only on the thin E
+// string, where stopped notes currently retain a very sharp Helmholtz corner.
+// Open E and all G/D/A notes remain on the existing calibrated path.
+inline constexpr std::array<double, stringCount> fingerReflectionAlpha {
+    0.00, 0.00, 0.00, 0.45
 };
 
 inline constexpr std::array<double, stringCount> lossGain {
