@@ -117,23 +117,6 @@ struct ModalBank
         return sum;
     }
 
-    [[nodiscard]] double currentRadiatingVelocity() const noexcept
-    {
-        // Acoustic radiation efficiency belongs to the structural mode shape,
-        // not to the bridge admittance itself.  Keep the mechanical modal
-        // states untouched and weight only their contribution to the
-        // microphone-side radiation path.
-        const auto& efficiency =
-            rockingSpectrum
-                ? rockingRadiationEfficiency
-                : bodyRadiationEfficiency;
-
-        double sum = 0.0;
-        for (std::size_t i = 0; i < modes.size(); ++i)
-            sum += efficiency[i] * modes[i].y1;
-        return sum;
-    }
-
     double direct() const noexcept
     {
         // The non-resonant mobility belongs to the same generalized body
