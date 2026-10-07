@@ -59,11 +59,6 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> bridgeLoadPhaseDelay{};
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
-    // Active dispersion coefficient at the current speaking length. Keep the
-    // calibrated G/D/A paths unchanged; stopped E receives a modest stiffness
-    // increase with shorter speaking length, with fundamental phase explicitly
-    // compensated below.
-    std::array<double, stringCount> speakingAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
     std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
@@ -75,6 +70,12 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
+    // Slow bow-travel irregularity: real hair tension/camber/contact loading is
+    // not identical at every point along the bow. These coordinates move with
+    // the bow (and retrace on reversal), so they perturb the physical contact
+    // controls rather than adding an unrelated audio-noise layer.
+    double bowTravelSpeedCoordinate = 19.0;
+    double bowTravelForceCoordinate = 61.0;
 
     ModalBank body{};
     ModalBank bodyRocking{true};
@@ -196,6 +197,8 @@ struct FiddleEngine::Impl
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
+        bowTravelSpeedCoordinate = 19.0;
+        bowTravelForceCoordinate = 61.0;
         body.reset();
         bodyRocking.reset();
         radiationLeft.reset();
@@ -213,17 +216,7 @@ struct FiddleEngine::Impl
         gate.reset(0.0);
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
-        {
             speakingFrequency[i].reset(openFrequency[i]);
-            speakingAllpassA[i] = runtimeAllpassA[i];
-            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
-                sampleRate,
-                openFrequency[i],
-                runtimeLossGain[i],
-                lossAlpha[i],
-                speakingAllpassA[i]);
-            refreshBridgeLoadPhaseDelay(i, openFrequency[i]);
-        }
         fastFingeringSamplesRemaining.fill(0);
 
         velocityScale = 1.0;
@@ -345,36 +338,6 @@ struct FiddleEngine::Impl
             bridgeReflectionPhaseDelaySamples(stringIndex, frequencyHz);
     }
 
-    void refreshSpeakingDispersion(
-        std::size_t stringIndex,
-        double frequencyHz) noexcept
-    {
-        auto coefficient = runtimeAllpassA[stringIndex];
-        // The thin E string exposes the ideal-delay/sawtooth character most
-        // strongly. A real stopped string becomes relatively stiffer as its
-        // speaking length shortens, giving upper partials extra phase delay.
-        // Restrict this first re-introduction to E only: an earlier all-string
-        // version could move D-string bowing into a different nonlinear
-        // attractor. Fundamental delay is compensated by filterPhaseDelay.
-        if (stringIndex == 3
-            && frequencyHz > openFrequency[stringIndex] * 1.0005)
-        {
-            const auto ratio = std::clamp(
-                frequencyHz / openFrequency[stringIndex], 1.0, 2.0);
-            const auto stiffnessScale = 1.0 + 4.0 * (ratio - 1.0);
-            coefficient = std::clamp(
-                runtimeAllpassA[stringIndex] * stiffnessScale,
-                -0.080, 0.080);
-        }
-        speakingAllpassA[stringIndex] = coefficient;
-        filterPhaseDelay[stringIndex] = reflectionPhaseDelaySamples(
-            sampleRate,
-            frequencyHz,
-            runtimeLossGain[stringIndex],
-            lossAlpha[stringIndex],
-            speakingAllpassA[stringIndex]);
-    }
-
     void setMaterials(const MaterialSettings& materials) noexcept
     {
         const bool unchanged =
@@ -487,11 +450,14 @@ struct FiddleEngine::Impl
             runtimeAllpassA[i] = std::clamp(
                 allpassA[i] * dispersionScale, -0.20, 0.20);
 
+            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
+                sampleRate, openFrequency[i],
+                runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
+
             const auto currentTarget =
                 speakingFrequency[i].target > 20.0
                     ? speakingFrequency[i].target
                     : openFrequency[i];
-            refreshSpeakingDispersion(i, currentTarget);
             refreshBridgeLoadPhaseDelay(i, currentTarget);
         }
     }
@@ -563,7 +529,6 @@ struct FiddleEngine::Impl
                         static_cast<std::int64_t>(0.012 * sampleRate));
             }
 
-            refreshSpeakingDispersion(i, target);
             refreshBridgeLoadPhaseDelay(i, target);
             if (newlyStopped)
                 fingerTouch[i] = 1.0;
@@ -598,7 +563,6 @@ struct FiddleEngine::Impl
         const auto requested = std::clamp(
             frequencyHz, openFrequency[primary], 2500.0);
         speakingFrequency[primary].setTarget(requested);
-        refreshSpeakingDispersion(primary, requested);
         refreshBridgeLoadPhaseDelay(primary, requested);
     }
 
@@ -1002,6 +966,25 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
+        // Macroscopic bow-hair loading varies slowly along the physical bow.
+        // Attach two low-density smooth fields to bow travel so a steady human
+        // gesture does not become a mathematically identical period forever.
+        // Reversing direction retraces the same field. Amplitudes are kept
+        // small: this changes the nonlinear contact trajectory, not pitch and
+        // not the final audio as a post-process.
+        bowTravelSpeedCoordinate += bowSpeed * 13.0 / sampleRate;
+        bowTravelForceCoordinate += bowSpeed * 7.0 / sampleRate;
+        const auto travelSpeedVariation = rosinSurfaceSample(
+            bowTravelSpeedCoordinate, 0x6D2B79F5u);
+        const auto travelForceVariation = rosinSurfaceSample(
+            bowTravelForceCoordinate, 0xB5297A4Du);
+        const auto bowTravelActivity = std::clamp(
+            std::abs(bowSpeed) / 0.18, 0.0, 1.0) * gateValue;
+        const auto speedMicroScale =
+            1.0 + 0.016 * bowTravelActivity * travelSpeedVariation;
+        const auto forceMicroScale =
+            1.0 + 0.020 * bowTravelActivity * travelForceVariation;
+
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
@@ -1009,14 +992,16 @@ struct FiddleEngine::Impl
             * shuffleEnergyScale
             * strokeBiteGain
             * gateValue
-            * oneShotLiftGain;
+            * oneShotLiftGain
+            * forceMicroScale;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection)
             * bowTargetSpeed
             * gateValue
-            * oneShotLiftGain;
+            * oneShotLiftGain
+            * speedMicroScale;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
@@ -1198,9 +1183,9 @@ struct FiddleEngine::Impl
                 * ((1.0 - lossAlpha[i]) * incidentNut[i] + lossAlpha[i] * lossX1[i]);
             lossX1[i] = incidentNut[i];
 
-            const auto filtered = speakingAllpassA[i] * lossFiltered
+            const auto filtered = runtimeAllpassA[i] * lossFiltered
                                 + allpassX1[i]
-                                - speakingAllpassA[i] * allpassY1[i];
+                                - runtimeAllpassA[i] * allpassY1[i];
             allpassX1[i] = lossFiltered;
             allpassY1[i] = filtered;
 
