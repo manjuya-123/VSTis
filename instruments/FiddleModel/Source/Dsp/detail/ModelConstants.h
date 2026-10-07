@@ -45,7 +45,7 @@ inline constexpr double finiteWidthContactBlend = 0.35;
 // physical contact; this only changes how much spatial wave information the
 // contact law observes.
 inline constexpr std::array<double, stringCount> finiteWidthStringScale {
-    1.00, 1.00, 1.14, 1.22
+    1.00, 1.00, 1.00, 1.22
 };
 
 inline constexpr std::array<double, stringCount> lossGain {
