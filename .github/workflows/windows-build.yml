@@ -42,6 +42,7 @@ jobs:
         run: |
           cat build/linux-core/instruments/FiddleModel/regression-audio/metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/high_string_listening_metrics.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/cycle_similarity_diagnostics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/same_string_pitch_sweep.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_startup_contact_metrics.csv
