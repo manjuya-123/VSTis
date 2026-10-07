@@ -1562,10 +1562,10 @@ struct FiddleEngine::Impl
         directRadiationRound2 += cornerAlpha
             * (directRadiationRound1 - directRadiationRound2);
 
-        const auto directRocking =
+        const auto directRockingResidual =
             bridgeRockingVelocity - rockingModalVelocity;
         rockingRadiationRound1 += cornerAlpha
-            * (directRocking - rockingRadiationRound1);
+            * (directRockingResidual - rockingRadiationRound1);
         rockingRadiationRound2 += cornerAlpha
             * (rockingRadiationRound1 - rockingRadiationRound2);
 
