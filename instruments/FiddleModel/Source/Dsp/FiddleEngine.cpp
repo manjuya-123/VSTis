@@ -1236,9 +1236,20 @@ struct FiddleEngine::Impl
             const auto finiteWidthAverage =
                 0.50 * incomingVelocity
                 + 0.25 * (bridgewardIncoming + nutwardIncoming);
+            // The single-junction reduction is reliable while the hair
+            // ribbon is well resolved on both string segments. Very close to
+            // the bridge, 44.1/48 kHz provides too few delay samples across
+            // the short segment to represent a distributed contact faithfully.
+            // Taper only that under-resolved region; normal/fingerboard bow
+            // positions retain the full physical-width effect.
+            const auto nearBridgeUnderResolution = std::clamp(
+                (pos - 0.70) / 0.25, 0.0, 1.0);
+            const auto resolvedFiniteWidthBlend =
+                finiteWidthContactBlend
+                * (1.0 - 0.85 * nearBridgeUnderResolution);
             const auto contactIncomingVelocity =
                 incomingVelocity
-                + finiteWidthContactBlend
+                + resolvedFiniteWidthBlend
                     * (finiteWidthAverage - incomingVelocity);
             debug.finiteWidthContactVelocityDeltaMps[i] =
                 static_cast<float>(
