@@ -213,9 +213,14 @@ struct EmpiricalRadiativity
 
     void updateCoefficients(bool resetState) noexcept
     {
+        // The traditional reference follows the broad shape seen in
+        // bridge-impact measurements of good violins: strong low/signature
+        // radiation, a midrange valley around 1.6-1.8 kHz, then a broad
+        // high-frequency hill above it. Keep these intentionally broad so
+        // individual mechanical body modes still supply the fine structure.
         lowBody.prepare(sampleRate, 520.0, 0.75, lowBodyDb, resetState);
-        presenceDip.prepare(sampleRate, 1080.0, 0.85, presenceDb, resetState);
-        bridgeHill.prepare(sampleRate, 2550.0, 0.95, bridgeHillDb, resetState);
+        presenceDip.prepare(sampleRate, 1680.0, 0.78, presenceDb, resetState);
+        bridgeHill.prepare(sampleRate, 2720.0, 0.88, bridgeHillDb, resetState);
     }
 
     void prepare(double newSampleRate) noexcept
