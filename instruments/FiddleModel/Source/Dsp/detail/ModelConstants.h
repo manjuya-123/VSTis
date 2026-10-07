@@ -48,6 +48,15 @@ inline constexpr std::array<double, stringCount> finiteWidthStringScale {
     1.00, 1.00, 1.00, 1.00
 };
 
+// The short residual velocity burst used to make rosin catch/release audible
+// is not the nonlinear friction solve itself. On the low-impedance E string,
+// the same absolute added velocity becomes disproportionately prominent and
+// can sound like a pitch-synchronous "tick". Keep the physical stick/slip
+// transition intact, but scale only this residual surface-texture velocity.
+inline constexpr std::array<double, stringCount> rosinTransitionVelocityScale {
+    1.00, 1.00, 1.00, 0.42
+};
+
 inline constexpr std::array<double, stringCount> lossGain {
     0.9988, 0.9990, 0.9992, 0.99935
 };
