@@ -1111,6 +1111,15 @@ struct FiddleEngine::Impl
         body.push(bodyForce);
         bodyRocking.push(bodyRockingForce);
 
+        // Mechanical bridge mobility and acoustic radiation are related but
+        // not identical. The solve above intentionally includes a broadband
+        // conductance so the strings see a realistic nonzero bridge mobility
+        // between resonances. For radiation, distributed resonant body motion
+        // should dominate; otherwise the broadband bridge velocity passes an
+        // almost ideal string waveform straight to the listener.
+        const auto bodyModalVelocity = body.currentModalVelocity();
+        const auto rockingModalVelocity = bodyRocking.currentModalVelocity();
+
         std::array<double, stringCount> bridgeStringVelocity {};
         for (std::size_t i = 0; i < stringCount; ++i)
             bridgeStringVelocity[i] =
@@ -1500,10 +1509,25 @@ struct FiddleEngine::Impl
         // radiation is intentionally narrower at long wavelengths and slightly
         // stronger at short wavelengths, matching the increasing directivity of
         // a small resonant body as frequency rises.
+        // Retain only a minority of the broadband mechanical coordinate in
+        // the acoustic path. Modal motion carries the characteristic violin
+        // body colour, while the residual direct path preserves attack and
+        // prevents an unrealistically hollow modal-only sound.
+        constexpr double broadbandRadiationFraction = 0.32;
+        constexpr double rockingBroadbandRadiationFraction = 0.45;
+        const auto radiatingBridgeVelocity =
+            bodyModalVelocity
+            + broadbandRadiationFraction
+                * (bridgeVelocity - bodyModalVelocity);
+        const auto radiatingRockingVelocity =
+            rockingModalVelocity
+            + rockingBroadbandRadiationFraction
+                * (bridgeRockingVelocity - rockingModalVelocity);
+
         rockingRadiationLow += rockingRadiationAlpha
-            * (bridgeRockingVelocity - rockingRadiationLow);
+            * (radiatingRockingVelocity - rockingRadiationLow);
         const auto rockingRadiationHigh =
-            bridgeRockingVelocity - rockingRadiationLow;
+            radiatingRockingVelocity - rockingRadiationLow;
         constexpr double lowBandRockingMix = 0.16;
         constexpr double highBandRockingMix = 0.24;
         const auto directionalRocking =
@@ -1517,9 +1541,9 @@ struct FiddleEngine::Impl
         constexpr double radiationCalibration = 17.90;
         return {
             radiationCalibration * radiationLeft.process(
-                bridgeVelocity + directionalRocking),
+                radiatingBridgeVelocity + directionalRocking),
             radiationCalibration * radiationRight.process(
-                bridgeVelocity - directionalRocking)
+                radiatingBridgeVelocity - directionalRocking)
         };
     }
 };
