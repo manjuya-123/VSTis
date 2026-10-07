@@ -1199,9 +1199,9 @@ struct FiddleEngine::Impl
         const auto bodyModalVelocity = body.currentModalVelocity();
         const auto rockingModalVelocity = bodyRocking.currentModalVelocity();
         const auto acousticBodyModalVelocity =
-            acousticBody.currentAcousticProjection();
+            acousticBody.currentModalVelocity();
         const auto acousticRockingModalVelocity =
-            acousticRocking.currentAcousticProjection();
+            acousticRocking.currentModalVelocity();
 
         std::array<double, stringCount> bridgeStringVelocity {};
         for (std::size_t i = 0; i < stringCount; ++i)
@@ -1596,8 +1596,11 @@ struct FiddleEngine::Impl
         // the acoustic path. Modal motion carries the characteristic violin
         // body colour, while the residual direct path preserves attack and
         // prevents an unrealistically hollow modal-only sound.
-        constexpr double broadbandRadiationFraction = 0.32;
-        constexpr double rockingBroadbandRadiationFraction = 0.45;
+        // The broadband bridge coordinate is essential for mechanical loading,
+        // but a microphone should hear only a small residual of that nearly
+        // ideal string waveform. Let resonant body motion dominate radiation.
+        constexpr double broadbandRadiationFraction = 0.14;
+        constexpr double rockingBroadbandRadiationFraction = 0.28;
 
         // Round only the non-modal bridge component before it becomes sound.
         // Fritz et al. report that measured violin bridge-force waveforms have
