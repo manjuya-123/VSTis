@@ -51,7 +51,6 @@ struct FiddleEngine::Impl
     std::array<DelayRail, stringCount> fromBridge{};
     std::array<DelayRail, stringCount> toNut{};
     std::array<DelayRail, stringCount> fromNut{};
-    std::array<DelayRail, stringCount> torsionalRoundTrip{};
 
     std::array<double, stringCount> lossX1{};
     std::array<double, stringCount> allpassX1{};
@@ -203,7 +202,6 @@ struct FiddleEngine::Impl
         for (auto& rail : fromBridge) rail.clear();
         for (auto& rail : toNut) rail.clear();
         for (auto& rail : fromNut) rail.clear();
-        for (auto& rail : torsionalRoundTrip) rail.clear();
         for (auto& contact : contacts) contact.reset();
 
         lossX1.fill(0.0);
@@ -1047,7 +1045,6 @@ struct FiddleEngine::Impl
         std::array<double, stringCount> bridgeDelay{};
         std::array<double, stringCount> nutDelay{};
         std::array<double, stringCount> finiteWidthHalfDelay{};
-        std::array<double, stringCount> torsionalDelay{};
 
         for (std::size_t i = 0; i < currentFrequency.size(); ++i)
         {
@@ -1097,11 +1094,6 @@ struct FiddleEngine::Impl
                        / violinSpeakingLengthMeters),
                 0.0,
                 3.0);
-            torsionalDelay[i] = std::clamp(
-                sampleRate
-                    / (torsionalWaveSpeedRatio[i] * currentFrequency[i]),
-                2.2,
-                static_cast<double>(delaySize - 8));
         }
 
         std::array<double, stringCount> incidentBridge{};
@@ -1333,8 +1325,6 @@ struct FiddleEngine::Impl
                 * sympatheticLoss;
 
             const auto incomingVelocity = incomingBridge[i] + incomingNut[i];
-            const auto torsionalSurfaceVelocity =
-                torsionalRoundTrip[i].read(torsionalDelay[i]);
 
             // Approximate the finite width of the bow-hair ribbon without
             // inventing another oscillator or filtering the radiated output.
@@ -1387,10 +1377,6 @@ struct FiddleEngine::Impl
                 incomingVelocity
                 + resolvedFiniteWidthBlend
                     * (finiteWidthAverage - incomingVelocity);
-            const auto torsionalContactVelocity =
-                torsionalContactCoupling[i] * torsionalSurfaceVelocity;
-            const auto contactSolveIncomingVelocity =
-                contactIncomingVelocity + torsionalContactVelocity;
             debug.finiteWidthContactVelocityDeltaMps[i] =
                 static_cast<float>(
                     contactIncomingVelocity - incomingVelocity);
@@ -1437,8 +1423,8 @@ struct FiddleEngine::Impl
                     slidingGripScale * (1.0 + gripPerturbation);
 
                 const auto wasSticking = contacts[i].sticking;
-                contacts[i].solve(
-                    contactSolveIncomingVelocity,
+                const auto stringVelocity = contacts[i].solve(
+                    contactIncomingVelocity,
                     bowSpeed,
                     bowForce[i],
                     stringImpedance[i],
@@ -1448,12 +1434,7 @@ struct FiddleEngine::Impl
                     contactStateRateScale);
                 // Convert the nonlinear contact solution back to its
                 // equivalent force-wave injection at the centre junction.
-                // Only the solved friction force drives the transverse
-                // speaking-length wave. Torsional surface motion affects the
-                // relative velocity seen by friction but is not copied into
-                // the radiated transverse wave itself.
-                injection = contacts[i].lastFrictionForceN
-                    / (2.0 * stringImpedance[i]);
+                injection = stringVelocity - contactIncomingVelocity;
 
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
@@ -1561,21 +1542,8 @@ struct FiddleEngine::Impl
             }
 
             injection += chopImpactInjection[i];
-
-            const auto torsionalDrive =
-                torsionalContactCoupling[i]
-                * contacts[i].lastFrictionForceN
-                / (2.0 * torsionalSurfaceImpedance);
-            torsionalRoundTrip[i].write(
-                torsionalRoundTripGain * torsionalSurfaceVelocity
-                + torsionalDrive);
-
             debug.bowInjectionVelocityMps[i] =
                 static_cast<float>(injection);
-            debug.torsionalSurfaceVelocityMps[i] =
-                static_cast<float>(torsionalSurfaceVelocity);
-            debug.torsionalInjectionVelocityMps[i] =
-                static_cast<float>(torsionalDrive);
 
             toBridge[i].write(incomingNut[i] + injection);
             toNut[i].write(incomingBridge[i] + injection);
@@ -1609,7 +1577,6 @@ struct FiddleEngine::Impl
             toNut[i].advance();
             fromBridge[i].advance();
             fromNut[i].advance();
-            torsionalRoundTrip[i].advance();
         }
 
         debug.bowSpeedMps = static_cast<float>(bowSpeed);
