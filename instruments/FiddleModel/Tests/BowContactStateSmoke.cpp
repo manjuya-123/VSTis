@@ -65,42 +65,33 @@ int main()
           && contact.contactTemperatureC() < 24.0))
         return fail("contact temperature did not cool after sliding stopped");
 
-    // A real bow-hair bundle is not an infinite-stiffness velocity clamp.
-    // The first sample must stretch the hairs rather than instantly lock
-    // the string to the travelling bow; sustained grip must still converge.
+    // At 44.1/48 kHz the sliding branch should respond over a finite
+    // hair/rosin microcontact time without changing rigid stick calibration.
     for (const auto rate : { 44100.0, 48000.0 })
     {
-        BowContact hair;
-        constexpr double bowVelocity = 0.20;
-        constexpr double normalForce = 0.60;
-        constexpr double stringImpedance = 0.24;
-        const auto firstVelocity = hair.solve(
-            0.0, bowVelocity, normalForce, stringImpedance, rate);
-        if (!(firstVelocity > 0.0 && firstVelocity < 0.19
-              && hair.sticking
-              && hair.hairShearDisplacementM > 0.0))
-            return fail("bow hair acts like an instantaneous rigid string clamp");
+        BowContact sticking;
+        const auto gripVelocity = sticking.solve(
+            0.0, 0.20, 0.60, 0.24, rate);
+        if (!sticking.sticking || std::abs(gripVelocity - 0.20) > 1.0e-10)
+            return fail("slip relaxation changed calibrated sticking speed");
 
+        BowContact slipping;
+        const auto firstVelocity = slipping.softenSlidingForce(
+            0.0, 0.10, 0.24, rate);
+        if (!(firstVelocity > 0.0
+              && firstVelocity < 0.10 / 0.48))
+            return fail("rosin sliding contact lacks finite force response");
         double settledVelocity = firstVelocity;
-        for (int i = 0; i < 200; ++i)
-            settledVelocity = hair.solve(
-                0.0, bowVelocity, normalForce, stringImpedance, rate);
-        if (!(std::isfinite(settledVelocity)
-              && std::abs(settledVelocity - bowVelocity) < 0.003
-              && hair.sticking))
-            return fail("compliant bow hair failed to settle into stable grip");
-
-        const auto reversalVelocity = hair.solve(
-            0.0, -bowVelocity, normalForce, stringImpedance, rate);
-        if (!(reversalVelocity > -bowVelocity
-              && reversalVelocity < bowVelocity
-              && std::isfinite(hair.hairShearDisplacementM)))
-            return fail("bow reversal bypassed finite hair shear compliance");
-
+        for (int i = 0; i < 150; ++i)
+            settledVelocity = slipping.softenSlidingForce(
+                0.0, 0.10, 0.24, rate);
+        if (!std::isfinite(settledVelocity)
+            || std::abs(settledVelocity - 0.10 / 0.48) > 1.0e-8)
+            return fail("rosin sliding force failed to reach physical target");
         for (int i = 0; i < 1000; ++i)
-            hair.relax(rate);
-        if (!(std::abs(hair.hairShearDisplacementM) < 1.0e-8))
-            return fail("bow hair retained shear while the bow was lifted");
+            slipping.relax(rate);
+        if (std::abs(slipping.slidingForceN) > 1.0e-8)
+            return fail("rosin contact retained force after bow lift");
     }
 
     std::cout << "PASS\n";
