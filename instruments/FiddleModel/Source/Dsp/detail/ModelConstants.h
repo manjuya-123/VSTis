@@ -48,6 +48,16 @@ inline constexpr std::array<double, stringCount> finiteWidthStringScale {
     1.00, 1.00, 1.00, 1.00
 };
 
+// Reduced distributed-hair contact. The existing finite-width read already
+// samples the travelling wave across the ribbon, but one BowContact state made
+// every hair section stick and slip in lockstep. Keep the calibrated single
+// contact on G/D; on the thinner A/E strings, blend a small contribution from
+// independent bridgeward/nutward contact states. These are quadrature samples
+// of one physical ribbon, so their forces are averaged rather than summed.
+inline constexpr std::array<double, stringCount> distributedHairContactBlend {
+    0.0, 0.0, 0.08, 0.12
+};
+
 // The short residual velocity burst used to make rosin catch/release audible
 // is not the nonlinear friction solve itself. On the low-impedance E string,
 // the same absolute added velocity becomes disproportionately prominent and
