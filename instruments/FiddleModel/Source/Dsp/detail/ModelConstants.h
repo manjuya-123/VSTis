@@ -84,7 +84,7 @@ inline constexpr std::array<double, stringCount> torsionalDriveVelocityPerNewton
     0.0032, 0.0036, 0.0041, 0.0046
 };
 inline constexpr std::array<double, stringCount> torsionalFeedbackScale {
-    0.0, 0.0, 0.06, 0.0
+    0.0, 0.0, 0.0, 0.0
 };
 
 // Delayed torsion can alter the local friction reserve without being summed as
