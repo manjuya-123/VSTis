@@ -51,6 +51,15 @@ struct Metrics
     bool finite = true;
 };
 
+struct CycleCorrelationStats
+{
+    double mean = 0.0;
+    double standardDeviation = 0.0;
+    double minimum = 0.0;
+    double maximum = 0.0;
+    std::size_t pairCount = 0;
+};
+
 void writeU16(std::ofstream& out, std::uint16_t value)
 {
     const char b[2] {
@@ -226,6 +235,107 @@ double adjacentCycleDifferenceRatio(const std::vector<float>& x,
     if (count == 0)
         return 0.0;
     return std::sqrt(differenceSq / (signalSq + 1.0e-30));
+}
+
+double interpolatedSample(const std::vector<float>& x, double index)
+{
+    if (x.empty())
+        return 0.0;
+
+    index = std::clamp(
+        index, 0.0, static_cast<double>(x.size() - 1));
+    const auto i0 = static_cast<std::size_t>(std::floor(index));
+    const auto i1 = std::min(i0 + 1, x.size() - 1);
+    const auto frac = index - static_cast<double>(i0);
+    return (1.0 - frac) * static_cast<double>(x[i0])
+        + frac * static_cast<double>(x[i1]);
+}
+
+CycleCorrelationStats adjacentCycleCorrelationStats(
+    const std::vector<float>& x,
+    std::size_t begin,
+    std::size_t end,
+    double frequency)
+{
+    CycleCorrelationStats result;
+    begin = std::min(begin, x.size());
+    end = std::min(end, x.size());
+
+    if (frequency <= 0.0 || end <= begin)
+        return result;
+
+    const auto period = sampleRate / frequency;
+    if (period < 4.0
+        || static_cast<double>(end - begin) < 3.0 * period)
+        return result;
+
+    constexpr int phaseSamples = 96;
+    std::vector<double> correlations;
+    for (double cycleStart = static_cast<double>(begin);
+         cycleStart + 2.0 * period < static_cast<double>(end);
+         cycleStart += period)
+    {
+        double meanA = 0.0;
+        double meanB = 0.0;
+        for (int phase = 0; phase < phaseSamples; ++phase)
+        {
+            const auto phaseOffset =
+                (static_cast<double>(phase) + 0.5)
+                * period / static_cast<double>(phaseSamples);
+            meanA += interpolatedSample(x, cycleStart + phaseOffset);
+            meanB += interpolatedSample(
+                x, cycleStart + period + phaseOffset);
+        }
+        meanA /= static_cast<double>(phaseSamples);
+        meanB /= static_cast<double>(phaseSamples);
+
+        double dot = 0.0;
+        double energyA = 0.0;
+        double energyB = 0.0;
+        for (int phase = 0; phase < phaseSamples; ++phase)
+        {
+            const auto phaseOffset =
+                (static_cast<double>(phase) + 0.5)
+                * period / static_cast<double>(phaseSamples);
+            const auto a =
+                interpolatedSample(x, cycleStart + phaseOffset) - meanA;
+            const auto b = interpolatedSample(
+                x, cycleStart + period + phaseOffset) - meanB;
+            dot += a * b;
+            energyA += a * a;
+            energyB += b * b;
+        }
+
+        const auto denominator = std::sqrt(energyA * energyB);
+        if (denominator > 1.0e-24)
+            correlations.push_back(
+                std::clamp(dot / denominator, -1.0, 1.0));
+    }
+
+    if (correlations.empty())
+        return result;
+
+    result.pairCount = correlations.size();
+    result.minimum = correlations.front();
+    result.maximum = correlations.front();
+    double sum = 0.0;
+    for (const auto value : correlations)
+    {
+        sum += value;
+        result.minimum = std::min(result.minimum, value);
+        result.maximum = std::max(result.maximum, value);
+    }
+    result.mean = sum / static_cast<double>(correlations.size());
+
+    double variance = 0.0;
+    for (const auto value : correlations)
+    {
+        const auto deviation = value - result.mean;
+        variance += deviation * deviation;
+    }
+    result.standardDeviation = std::sqrt(
+        variance / static_cast<double>(correlations.size()));
+    return result;
 }
 
 std::vector<double> makeHannSegment(const std::vector<float>& x,
@@ -514,6 +624,62 @@ fiddle::Controls baseControls()
     return c;
 }
 
+struct CycleTrace
+{
+    std::vector<float> contactFrictionForce;
+    std::vector<float> bowInjectionVelocity;
+    std::vector<float> incidentBridgeVelocity;
+    std::vector<float> bridgeVelocity;
+    std::vector<float> radiated;
+};
+
+CycleTrace renderCycleTrace(int stringIndex,
+                            int pairLower,
+                            float balance,
+                            float targetHz)
+{
+    fiddle::FiddleEngine engine;
+    engine.prepare(sampleRate);
+
+    auto controls = baseControls();
+    controls.balance = balance;
+    controls.singleStringIsolation = 1.0f;
+    engine.setControls(controls);
+
+    std::array<float, 4> layout {};
+    layout[static_cast<std::size_t>(stringIndex)] = targetHz;
+    engine.setFingeringLayout(
+        layout, stringIndex, pairLower, 0.85f);
+    engine.startBow(+1);
+
+    const auto samples =
+        static_cast<std::size_t>(sustainSeconds * sampleRate);
+    CycleTrace trace;
+    trace.contactFrictionForce.reserve(samples);
+    trace.bowInjectionVelocity.reserve(samples);
+    trace.incidentBridgeVelocity.reserve(samples);
+    trace.bridgeVelocity.reserve(samples);
+    trace.radiated.reserve(samples);
+
+    for (std::size_t sample = 0; sample < samples; ++sample)
+    {
+        float left = 0.0f;
+        float right = 0.0f;
+        engine.process(&left, &right, 1);
+        const auto state = engine.debugSnapshot();
+        const auto index = static_cast<std::size_t>(stringIndex);
+        trace.contactFrictionForce.push_back(
+            state.contactFrictionForceN[index]);
+        trace.bowInjectionVelocity.push_back(
+            state.bowInjectionVelocityMps[index]);
+        trace.incidentBridgeVelocity.push_back(
+            state.incidentBridgeVelocityMps[index]);
+        trace.bridgeVelocity.push_back(state.bridgeVelocity);
+        trace.radiated.push_back(left);
+    }
+    return trace;
+}
+
 Render renderSamePitchOnString(int stringIndex,
                               int pairLower,
                               float balance,
@@ -756,6 +922,90 @@ int main(int argc, char** argv)
                 rosinShowcaseLeft.end(), silenceSamples, 0.0f);
             rosinShowcaseRight.insert(
                 rosinShowcaseRight.end(), silenceSamples, 0.0f);
+        }
+    }
+
+    // Diagnostic only: locate where the held tone becomes cycle-locked.
+    // No pass/fail threshold is attached to these values. The purpose is to
+    // compare bow-contact force, string injection, bridge arrival, body motion
+    // and radiated output on the same nominal period before/after physical
+    // contact-model changes.
+    {
+        struct CycleProbe
+        {
+            const char* name;
+            int stringIndex;
+            int pairLower;
+            float balance;
+            float frequencyHz;
+        };
+        constexpr std::array<CycleProbe, 4> probes {{
+            { "G3_open", 0, 0, -0.95f, 195.9977f },
+            { "D4_open", 1, 1, -0.95f, 293.6648f },
+            { "A4_open", 2, 1, +0.95f, 440.0000f },
+            { "E5_open", 3, 2, +0.95f, 659.2551f },
+        }};
+
+        std::ofstream cycleCsv(
+            outputDirectory / "cycle_similarity_diagnostics.csv");
+        if (!cycleCsv)
+            ok = false;
+        else
+            cycleCsv
+                << "case,pitch_hz,point,adjacent_cycle_corr_mean,"
+                   "adjacent_cycle_corr_std,adjacent_cycle_corr_min,"
+                   "adjacent_cycle_corr_max,cycle_pair_count,"
+                   "adjacent_cycle_difference_ratio\n"
+                << std::setprecision(9);
+
+        const auto begin =
+            static_cast<std::size_t>(0.85 * sampleRate);
+        const auto end =
+            static_cast<std::size_t>(1.55 * sampleRate);
+
+        for (const auto& probe : probes)
+        {
+            const auto trace = renderCycleTrace(
+                probe.stringIndex,
+                probe.pairLower,
+                probe.balance,
+                probe.frequencyHz);
+
+            const auto writePoint =
+                [&](const char* point, const std::vector<float>& signal)
+            {
+                const auto stats = adjacentCycleCorrelationStats(
+                    signal, begin, end, probe.frequencyHz);
+                const auto difference = adjacentCycleDifferenceRatio(
+                    signal, begin, end, probe.frequencyHz);
+                if (cycleCsv)
+                {
+                    cycleCsv << probe.name << ',' << probe.frequencyHz
+                        << ',' << point
+                        << ',' << stats.mean
+                        << ',' << stats.standardDeviation
+                        << ',' << stats.minimum
+                        << ',' << stats.maximum
+                        << ',' << stats.pairCount
+                        << ',' << difference << '\n';
+                }
+            };
+
+            writePoint(
+                "contact_friction_force",
+                trace.contactFrictionForce);
+            writePoint(
+                "bow_injection_velocity",
+                trace.bowInjectionVelocity);
+            writePoint(
+                "incident_bridge_velocity",
+                trace.incidentBridgeVelocity);
+            writePoint(
+                "bridge_velocity",
+                trace.bridgeVelocity);
+            writePoint(
+                "radiated_left",
+                trace.radiated);
         }
     }
 
