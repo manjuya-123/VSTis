@@ -72,6 +72,7 @@ struct FiddleEngine::Impl
 
     ModalBank body{};
     ModalBank bodyRocking{true};
+    RadiationModalBank radiationModes{};
     RadiationFilter radiationLeft{};
     RadiationFilter radiationRight{};
     BowGeometryMapper bowGeometry{};
@@ -134,6 +135,7 @@ struct FiddleEngine::Impl
         sampleRate = std::clamp(newSampleRate, 32000.0, 192000.0);
         body.prepare(sampleRate);
         bodyRocking.prepare(sampleRate);
+        radiationModes.prepare(sampleRate);
         // Two nearby radiation angles: left keeps slightly more body, right
         // slightly more bridge air. The mechanical body itself remains shared.
         radiationLeft.prepare(sampleRate, 6900.0, 0.19);
@@ -191,6 +193,7 @@ struct FiddleEngine::Impl
         rosinTransitionEnvelope.fill(0.0);
         body.reset();
         bodyRocking.reset();
+        radiationModes.reset();
         radiationLeft.reset();
         radiationRight.reset();
         rockingRadiationLow = 0.0;
@@ -1489,6 +1492,20 @@ struct FiddleEngine::Impl
             lowBandRockingMix * rockingRadiationLow
             + highBandRockingMix * rockingRadiationHigh;
 
+        // Bridge mobility and acoustic radiation efficiency are different
+        // transfer functions. Preserve most of the mechanically solved bridge
+        // velocity as a broadband path, but let broad structural radiation
+        // modes carry part of the sound. This reduces the unrealistically
+        // direct harmonic staircase of a point velocity radiator without
+        // changing the string/body feedback loop or speaking-length phase.
+        constexpr double structuralRadiationBlend = 0.32;
+        constexpr double structuralRadiationGain = 1.80;
+        const auto modalRadiation = radiationModes.process(bridgeVelocity);
+        const auto radiatingCore =
+            (1.0 - structuralRadiationBlend) * bridgeVelocity
+            + structuralRadiationBlend
+                * structuralRadiationGain * modalRadiation;
+
         // Listening/output calibration only; the low-body-mode
         // rebalance increased the loudest double-stop by about 0.5%. Keep the
         // physical mechanics untouched and recover the previous headroom with
@@ -1496,9 +1513,9 @@ struct FiddleEngine::Impl
         constexpr double radiationCalibration = 17.90;
         return {
             radiationCalibration * radiationLeft.process(
-                bridgeVelocity + directionalRocking),
+                radiatingCore + directionalRocking),
             radiationCalibration * radiationRight.process(
-                bridgeVelocity - directionalRocking)
+                radiatingCore - directionalRocking)
         };
     }
 };
