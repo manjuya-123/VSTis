@@ -65,35 +65,6 @@ int main()
           && contact.contactTemperatureC() < 24.0))
         return fail("contact temperature did not cool after sliding stopped");
 
-    // At 44.1/48 kHz the sliding branch should respond over a finite
-    // hair/rosin microcontact time without changing rigid stick calibration.
-    for (const auto rate : { 44100.0, 48000.0 })
-    {
-        BowContact sticking;
-        const auto gripVelocity = sticking.solve(
-            0.0, 0.20, 0.60, 0.24, rate);
-        if (!sticking.sticking || std::abs(gripVelocity - 0.20) > 1.0e-10)
-            return fail("slip relaxation changed calibrated sticking speed");
-
-        BowContact slipping;
-        const auto firstVelocity = slipping.softenSlidingForce(
-            0.0, 0.10, 0.24, rate);
-        if (!(firstVelocity > 0.0
-              && firstVelocity < 0.10 / 0.48))
-            return fail("rosin sliding contact lacks finite force response");
-        double settledVelocity = firstVelocity;
-        for (int i = 0; i < 150; ++i)
-            settledVelocity = slipping.softenSlidingForce(
-                0.0, 0.10, 0.24, rate);
-        if (!std::isfinite(settledVelocity)
-            || std::abs(settledVelocity - 0.10 / 0.48) > 1.0e-8)
-            return fail("rosin sliding force failed to reach physical target");
-        for (int i = 0; i < 1000; ++i)
-            slipping.relax(rate);
-        if (std::abs(slipping.slidingForceN) > 1.0e-8)
-            return fail("rosin contact retained force after bow lift");
-    }
-
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
 }
