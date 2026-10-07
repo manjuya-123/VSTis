@@ -45,7 +45,7 @@ inline constexpr double finiteWidthContactBlend = 0.35;
 // physical contact; this only changes how much spatial wave information the
 // contact law observes.
 inline constexpr std::array<double, stringCount> finiteWidthStringScale {
-    1.00, 1.00, 1.00, 1.22
+    1.00, 1.00, 1.00, 1.00
 };
 
 inline constexpr std::array<double, stringCount> lossGain {
@@ -63,7 +63,7 @@ inline constexpr std::array<double, stringCount> lossGain {
 // existing reflectionPhaseDelaySamples() calculation compensates the added
 // low-frequency filter phase when setting the speaking length.
 inline constexpr std::array<double, stringCount> lossAlpha {
-    0.018, 0.022, 0.012, 0.010
+    0.018, 0.022, 0.012, 0.016
 };
 
 inline constexpr std::array<double, stringCount> allpassA {
