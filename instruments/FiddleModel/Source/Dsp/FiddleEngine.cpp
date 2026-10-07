@@ -1464,9 +1464,9 @@ struct FiddleEngine::Impl
                     0.008 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
-                const auto localStaticGrip =
+                auto localStaticGrip =
                     staticGripScale * (1.0 + 0.35 * gripPerturbation);
-                const auto localSlidingGrip =
+                auto localSlidingGrip =
                     slidingGripScale * (1.0 + gripPerturbation);
 
                 // Keep the reduced adhesion state diagnostic-only here.
@@ -1481,6 +1481,30 @@ struct FiddleEngine::Impl
                     1.0 - std::exp(-1.0 / (sampleRate * 0.010));
                 torsionSurfaceMean[i] += torsionMeanAlpha
                     * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
+                const auto torsionHighPassed =
+                    rawTorsionalSurfaceVelocity - torsionSurfaceMean[i];
+
+                // A twisting string changes the local tangential friction
+                // reserve even when its surface velocity is too small to add
+                // directly to the transverse Helmholtz motion. Normalize the
+                // delayed torsional state and use only a very small fraction
+                // to move the stick/slip threshold.
+                const auto torsionStringFocus =
+                    singleIsolation > 0.5
+                        && static_cast<int>(i) != primaryString
+                    ? 0.06
+                    : 1.0;
+                const auto torsionGripPerturbation =
+                    torsionalGripModulationDepth[i]
+                    * torsionStringFocus
+                    * std::clamp(
+                        torsionHighPassed / 0.00075,
+                        -1.0, 1.0);
+                localStaticGrip *=
+                    1.0 + 0.75 * torsionGripPerturbation;
+                localSlidingGrip *=
+                    1.0 + 0.35 * torsionGripPerturbation;
+
                 // Apply torsional memory only near the friction boundary.
                 // Continuous stick-phase feedback pulled the average Helmholtz
                 // period enough to fail pitch/control-surface regressions.
@@ -1499,16 +1523,11 @@ struct FiddleEngine::Impl
                         nearYieldGate
                             * (contacts[i].sticking ? 0.52 : 0.82)),
                     0.0, 1.0);
-                const auto torsionStringFocus =
-                    singleIsolation > 0.5
-                        && static_cast<int>(i) != primaryString
-                    ? 0.06
-                    : 1.0;
                 const auto torsionalSurfaceVelocity =
                     torsionalFeedbackScale[i]
                     * boundaryGate
                     * torsionStringFocus
-                    * (rawTorsionalSurfaceVelocity - torsionSurfaceMean[i]);
+                    * torsionHighPassed;
 
                 const auto torsionEnvelopeDecay =
                     std::exp(-1.0 / (sampleRate * 0.0010));
