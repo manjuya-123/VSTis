@@ -37,6 +37,13 @@ inline constexpr std::array<double, stringCount> stringImpedance {
 // thin E string and made the model sample-rate sensitive.
 inline constexpr double torsionalWaveSpeedRatio = 5.2;
 inline constexpr double torsionalSurfaceImpedance = 1.8;
+// This reduced model has one lumped torsional surface coordinate while a real
+// finite-width bow excites a distributed ribbon/string contact. Couple only
+// part of the lumped coordinate back into the point-contact solve so the
+// reduced mode cannot stand in for the entire distributed torsional field.
+// The same coefficient is used reciprocally for force -> torsion and torsion
+// -> contact velocity, preserving a passive generalized coupling.
+inline constexpr double torsionalReducedOrderCoupling = 0.55;
 
 // Approximate constant-Q torsional loss. Q~45 corresponds to a complete-cycle
 // amplitude retention exp(-pi/Q); split equally between the two ends.
