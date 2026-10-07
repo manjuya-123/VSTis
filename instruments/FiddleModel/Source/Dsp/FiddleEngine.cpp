@@ -52,6 +52,13 @@ struct FiddleEngine::Impl
     std::array<DelayRail, stringCount> toNut{};
     std::array<DelayRail, stringCount> fromNut{};
 
+    // Surface-referred torsional velocity waves. They share the bow friction
+    // force with transverse motion but are not mixed directly into audio.
+    std::array<DelayRail, stringCount> torsionToBridge{};
+    std::array<DelayRail, stringCount> torsionFromBridge{};
+    std::array<DelayRail, stringCount> torsionToNut{};
+    std::array<DelayRail, stringCount> torsionFromNut{};
+
     std::array<double, stringCount> lossX1{};
     std::array<double, stringCount> allpassX1{};
     std::array<double, stringCount> allpassY1{};
@@ -176,6 +183,10 @@ struct FiddleEngine::Impl
         for (auto& rail : fromBridge) rail.clear();
         for (auto& rail : toNut) rail.clear();
         for (auto& rail : fromNut) rail.clear();
+        for (auto& rail : torsionToBridge) rail.clear();
+        for (auto& rail : torsionFromBridge) rail.clear();
+        for (auto& rail : torsionToNut) rail.clear();
+        for (auto& rail : torsionFromNut) rail.clear();
         for (auto& contact : contacts) contact.reset();
 
         lossX1.fill(0.0);
@@ -986,6 +997,8 @@ struct FiddleEngine::Impl
         std::array<double, stringCount> currentFrequency{};
         std::array<double, stringCount> bridgeDelay{};
         std::array<double, stringCount> nutDelay{};
+        std::array<double, stringCount> torsionBridgeDelay{};
+        std::array<double, stringCount> torsionNutDelay{};
 
         for (std::size_t i = 0; i < currentFrequency.size(); ++i)
         {
@@ -1015,12 +1028,29 @@ struct FiddleEngine::Impl
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
             bridgeDelay[i] = std::max(1.2, oneWay * beta);
             nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
+
+            // Torsional waves travel much faster than transverse waves. Use
+            // the same speaking length/bow location but no transverse body or
+            // termination phase compensation: this is a separate wave family.
+            const auto torsionOneWay = std::clamp(
+                sampleRate
+                    / (2.0 * currentFrequency[i] * torsionalWaveSpeedRatio),
+                2.4,
+                static_cast<double>(delaySize - 8));
+            torsionBridgeDelay[i] =
+                std::max(1.2, torsionOneWay * beta);
+            torsionNutDelay[i] =
+                std::max(1.2, torsionOneWay * (1.0 - beta));
         }
 
         std::array<double, stringCount> incidentBridge{};
         std::array<double, stringCount> incidentNut{};
         std::array<double, stringCount> incomingBridge{};
         std::array<double, stringCount> incomingNut{};
+        std::array<double, stringCount> torsionIncidentBridge{};
+        std::array<double, stringCount> torsionIncidentNut{};
+        std::array<double, stringCount> torsionIncomingBridge{};
+        std::array<double, stringCount> torsionIncomingNut{};
 
         std::array<double, stringCount> bridgeLever {};
         double incidentForce = 0.0;
@@ -1036,6 +1066,14 @@ struct FiddleEngine::Impl
             incidentNut[i] = toNut[i].read(nutDelay[i]);
             incomingBridge[i] = fromBridge[i].read(bridgeDelay[i]);
             incomingNut[i] = fromNut[i].read(nutDelay[i]);
+            torsionIncidentBridge[i] =
+                torsionToBridge[i].read(torsionBridgeDelay[i]);
+            torsionIncidentNut[i] =
+                torsionToNut[i].read(torsionNutDelay[i]);
+            torsionIncomingBridge[i] =
+                torsionFromBridge[i].read(torsionBridgeDelay[i]);
+            torsionIncomingNut[i] =
+                torsionFromNut[i].read(torsionNutDelay[i]);
             debug.incidentBridgeVelocityMps[i] =
                 static_cast<float>(incidentBridge[i]);
 
