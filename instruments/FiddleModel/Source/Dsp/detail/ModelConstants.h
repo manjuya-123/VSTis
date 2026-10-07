@@ -5,7 +5,7 @@
 namespace fiddle::detail
 {
 inline constexpr int stringCount = 4;
-inline constexpr int bodyModeCount = 20;
+inline constexpr int bodyModeCount = 28;
 inline constexpr int delaySize = 4096;
 inline constexpr double pi = 3.1415926535897932384626433832795;
 inline constexpr double balanceSharpness = 1.75;
@@ -100,6 +100,20 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> bodyModes {{
     { 6350.0, 0.265, 0.00088 },
     { 7050.0, 0.285, 0.00076 },
 
+    // Above roughly 1 kHz, a violin body has a dense forest of overlapping
+    // structural modes rather than a few isolated formants. Add weak, broad
+    // intermediate modes so upper string harmonics encounter an irregular
+    // mechanical admittance instead of a near-smooth staircase. Their low
+    // peak mobility keeps them secondary to the established calibrated modes.
+    { 1320.0, 0.150, 0.00155 },
+    { 1715.0, 0.165, 0.00185 },
+    { 2135.0, 0.175, 0.00165 },
+    { 2635.0, 0.195, 0.00190 },
+    { 3185.0, 0.215, 0.00155 },
+    { 3890.0, 0.235, 0.00130 },
+    { 4685.0, 0.255, 0.00105 },
+    { 5920.0, 0.285, 0.00082 },
+
     // Broad residual low-frequency mobility. These heavily damped modes fill
     // the gaps below A0/B1 without creating another narrow body note, so low
     // strings can project their moving fundamental/low partials through the
@@ -134,6 +148,18 @@ inline constexpr std::array<BodyModeDefinition, bodyModeCount> rockingBodyModes 
     { 7560.0, 0.300, 0.00076 },
     { 8380.0, 0.325, 0.00062 },
     { 9250.0, 0.355, 0.00048 },
+
+    // Rocking motion also becomes increasingly modal above the low body
+    // resonances. Keep these extra modes broad and weak so they add spatial
+    // colour without creating a second narrow pitched oscillator.
+    { 1210.0, 0.150, 0.00145 },
+    { 1495.0, 0.160, 0.00155 },
+    { 1840.0, 0.175, 0.00170 },
+    { 2280.0, 0.190, 0.00185 },
+    { 2760.0, 0.205, 0.00175 },
+    { 3360.0, 0.225, 0.00150 },
+    { 4120.0, 0.250, 0.00120 },
+    { 5230.0, 0.280, 0.00090 },
 }};
 
 // Broadband mechanical mobility between the sparse resonant peaks. Keeping
