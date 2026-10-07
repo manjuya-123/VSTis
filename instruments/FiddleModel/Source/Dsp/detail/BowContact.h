@@ -177,7 +177,8 @@ struct BowContact
                  double sampleRate,
                  double staticGripScale = 1.0,
                  double slidingGripScale = 1.0,
-                 double stateRateScale = 1.0) noexcept
+                 double stateRateScale = 1.0,
+                 double adhesionMemoryAmount = 0.0) noexcept
     {
         usedStaticFallback = false;
         const auto strength = rosinStrengthScale();
@@ -189,9 +190,13 @@ struct BowContact
         const auto staticStateScale = std::clamp(
             0.85 + 0.15 * strength, 0.78, 1.08);
         const auto adhesionStaticScale =
-            0.97 + 0.06 * adhesionState;
+            1.0
+            + adhesionMemoryAmount
+                * (0.06 * (adhesionState - 0.5));
         const auto adhesionSlidingScale =
-            0.985 + 0.030 * adhesionState;
+            1.0
+            + adhesionMemoryAmount
+                * (0.030 * (adhesionState - 0.5));
         const auto staticLimit =
             1.2 * staticGripScale * normalForce
             * staticStateScale * adhesionStaticScale;
