@@ -1011,6 +1011,35 @@ int main(int argc, char** argv)
         writeIdentityMetrics("open_A4", openAMetrics);
     }
 
+    {
+        struct SameStringPitchProbe { const char* name; float hz; };
+        constexpr std::array<SameStringPitchProbe, 4> probes {{
+            { "D_string_E4", 329.6276f },
+            { "D_string_Fsharp4", 369.9944f },
+            { "D_string_G4", 391.9954f },
+            { "D_string_A4", 440.0f },
+        }};
+        std::ofstream sweepCsv(
+            outputDirectory / "same_string_pitch_sweep.csv");
+        if (!sweepCsv)
+            ok = false;
+        else
+        {
+            sweepCsv << "case,pitch_hz,centroid_hz,high_band_ratio,periodicity\n"
+                     << std::setprecision(9);
+            for (const auto& probe : probes)
+            {
+                const auto render = renderSamePitchOnString(
+                    1, 1, -0.95f, probe.hz, true);
+                const auto metrics = measure(render, probe.hz);
+                sweepCsv << probe.name << ',' << probe.hz << ','
+                         << metrics.spectralCentroidHz << ','
+                         << metrics.highBandRatio << ','
+                         << metrics.periodicity << '\n';
+            }
+        }
+    }
+
     std::cout << "string_identity_A4_D_vs_A_difference_rms="
               << stringIdentityDifference << '\n'
               << "string_identity_A4_on_D_side_ratio="
