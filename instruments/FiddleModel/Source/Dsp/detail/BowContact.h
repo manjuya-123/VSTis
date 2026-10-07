@@ -299,7 +299,8 @@ struct BowContact
             lastFrictionForceN = force;
             const auto stringVelocity =
                 incomingVelocity + force / (2.0 * characteristicImpedance);
-            const auto slip = stringVelocity - bowVelocity;
+            const auto slip =
+                stringVelocity + localTorsionalVelocity - bowVelocity;
             lastSlipSpeedMps = slip;
             updateAdhesion(false, slip, sampleRate, stateRateScale);
             updateTemperature(
@@ -325,7 +326,8 @@ struct BowContact
         const auto frictionForce =
             2.0 * characteristicImpedance
             * (stringVelocity - incomingVelocity);
-        const auto slip = stringVelocity - bowVelocity;
+        const auto slip =
+            stringVelocity + localTorsionalVelocity - bowVelocity;
         lastFrictionForceN = frictionForce;
         lastSlipSpeedMps = slip;
 
