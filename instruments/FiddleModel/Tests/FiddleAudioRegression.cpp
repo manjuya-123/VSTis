@@ -505,25 +505,6 @@ std::vector<Scenario> makeScenarios()
         c.vibratoPace = 0.55f;
         scenarios.push_back({ "07_stopped_vibrato_B4_on_A", c, 493.8833f, 0.85f });
     }
-    // Explicit high-string sustained tones for listening: the existing
-    // E4-on-D reference cannot expose the reported bare sawtooth character
-    // of the A/E strings. These go through the real physical engine and the
-    // same amplitude, release, and stereo sanity checks as other scenarios.
-    {
-        auto c = baseControls();
-        c.balance = -0.95f;
-        scenarios.push_back({ "13_A4_open_high_string", c, 440.0f, 0.85f });
-    }
-    {
-        auto c = baseControls();
-        c.balance = 0.95f;
-        scenarios.push_back({ "14_E5_open_high_string", c, 659.2551f, 0.85f });
-    }
-    {
-        auto c = baseControls();
-        c.balance = 0.95f;
-        scenarios.push_back({ "15_Fsharp5_stopped_E_string", c, 739.9888f, 0.85f });
-    }
     {
         auto c = baseControls();
         fiddle::MaterialSettings m;
@@ -684,6 +665,64 @@ int main(int argc, char** argv)
                 rosinShowcaseLeft.end(), silenceSamples, 0.0f);
             rosinShowcaseRight.insert(
                 rosinShowcaseRight.end(), silenceSamples, 0.0f);
+        }
+    }
+
+    // The new high E/A recordings are separate listening diagnostics.
+    // The legacy acceptance suite's calibrated low-vs-high stereo checks
+    // concern its D-string scenarios and remain entirely unchanged. For E5,
+    // keep the actual measured stereo response visible rather than silently
+    // treating those D-string ratios as instrument-wide ground truth.
+    {
+        std::array<Scenario, 3> highStringProbes{};
+        auto a = baseControls();
+        a.balance = -0.95f;
+        highStringProbes[0] = { "13_A4_open_high_string", a, 440.0f, 0.85f };
+        auto e = baseControls();
+        e.balance = 0.95f;
+        highStringProbes[1] = { "14_E5_open_high_string", e, 659.2551f, 0.85f };
+        highStringProbes[2] = { "15_Fsharp5_stopped_E_string", e, 739.9888f, 0.85f };
+
+        std::ofstream listeningCsv(
+            outputDirectory / "high_string_listening_metrics.csv");
+        if (!listeningCsv)
+            ok = false;
+        else
+            listeningCsv << "scenario,periodicity,centroid_hz,high_band_ratio,"
+                            "low_stereo_ratio,high_stereo_ratio,rms,peak\n";
+
+        for (const auto& probe : highStringProbes)
+        {
+            const auto render = renderScenario(probe);
+            const auto metrics = measure(render, probe.noteHz);
+            // Universal audio safety checks, not a substitute for the
+            // separately preserved tone/gesture/pitch acceptance suite.
+            const bool safe = metrics.finite
+                && metrics.sustainRms > 1.0e-5
+                && metrics.peak * static_cast<double>(listeningGain) < 0.95
+                && metrics.tailRms < metrics.sustainRms * 0.85 + 1.0e-8;
+            if (!safe)
+            {
+                std::cerr << "FAIL: high-string listening safety "
+                          << probe.name << '\n';
+                ok = false;
+            }
+            if (listeningCsv)
+                listeningCsv << probe.name << ',' << metrics.periodicity
+                    << ',' << metrics.spectralCentroidHz
+                    << ',' << metrics.highBandRatio
+                    << ',' << metrics.stereoLowBandSideRatio
+                    << ',' << metrics.stereoHighBandSideRatio
+                    << ',' << metrics.sustainRms
+                    << ',' << metrics.peak << '\n';
+            if (!writeStereoWav16(
+                outputDirectory / (probe.name + ".wav"),
+                render.left, render.right))
+            {
+                std::cerr << "FAIL: cannot write high-string listening WAV "
+                          << probe.name << '\n';
+                ok = false;
+            }
         }
     }
 
