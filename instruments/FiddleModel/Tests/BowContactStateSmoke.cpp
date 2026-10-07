@@ -65,6 +65,44 @@ int main()
           && contact.contactTemperatureC() < 24.0))
         return fail("contact temperature did not cool after sliding stopped");
 
+    // A real bow-hair bundle is not an infinite-stiffness velocity clamp.
+    // The first sample must stretch the hairs rather than instantly lock
+    // the string to the travelling bow; sustained grip must still converge.
+    for (const auto rate : { 44100.0, 48000.0 })
+    {
+        BowContact hair;
+        constexpr double bowVelocity = 0.20;
+        constexpr double normalForce = 0.60;
+        constexpr double stringImpedance = 0.24;
+        const auto firstVelocity = hair.solve(
+            0.0, bowVelocity, normalForce, stringImpedance, rate);
+        if (!(firstVelocity > 0.0 && firstVelocity < 0.19
+              && hair.sticking
+              && hair.hairShearDisplacementM > 0.0))
+            return fail("bow hair acts like an instantaneous rigid string clamp");
+
+        double settledVelocity = firstVelocity;
+        for (int i = 0; i < 200; ++i)
+            settledVelocity = hair.solve(
+                0.0, bowVelocity, normalForce, stringImpedance, rate);
+        if (!(std::isfinite(settledVelocity)
+              && std::abs(settledVelocity - bowVelocity) < 0.003
+              && hair.sticking))
+            return fail("compliant bow hair failed to settle into stable grip");
+
+        const auto reversalVelocity = hair.solve(
+            0.0, -bowVelocity, normalForce, stringImpedance, rate);
+        if (!(reversalVelocity > -bowVelocity
+              && reversalVelocity < bowVelocity
+              && std::isfinite(hair.hairShearDisplacementM)))
+            return fail("bow reversal bypassed finite hair shear compliance");
+
+        for (int i = 0; i < 1000; ++i)
+            hair.relax(rate);
+        if (!(std::abs(hair.hairShearDisplacementM) < 1.0e-8))
+            return fail("bow hair retained shear while the bow was lifted");
+    }
+
     std::cout << "PASS\n";
     return EXIT_SUCCESS;
 }
