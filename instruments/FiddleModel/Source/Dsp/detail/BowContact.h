@@ -81,7 +81,7 @@ struct BowContact
         const auto dt = 1.0 / sampleRate;
         const auto omega = 2.0 * 3.14159265358979323846 * resonanceHz;
         const auto acceleration =
-            coupling * forceToAcceleration * frictionForce
+            forceToAcceleration * frictionForce
             - 2.0 * dampingRatio * omega * torsionalSurfaceVelocity
             - omega * omega * torsionalDisplacement;
 
