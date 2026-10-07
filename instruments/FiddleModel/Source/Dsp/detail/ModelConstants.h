@@ -27,21 +27,6 @@ inline constexpr std::array<double, stringCount> stringImpedance {
     0.13873751546881677
 };
 
-// Weak torsional surface feedback for the thin A/E strings only. The earlier
-// prototype used one 5.2x speed ratio and comparatively strong coupling on all
-// strings, which phase-locked the E string and increased periodicity. These
-// string-specific, non-integer ratios are deliberately incommensurate with the
-// transverse round trip; strong damping and weak coupling keep torsion as a
-// contact perturbation rather than a second pitched oscillator.
-inline constexpr std::array<double, stringCount> torsionalWaveSpeedRatio {
-    5.91, 5.63, 5.17, 4.79
-};
-inline constexpr std::array<double, stringCount> torsionalContactCoupling {
-    0.0, 0.0, 0.0045, 0.0065
-};
-inline constexpr double torsionalSurfaceImpedance = 2.4;
-inline constexpr double torsionalRoundTripGain = 0.52;
-
 // Reduced finite-width bow contact. A violin bow does not constrain one
 // mathematical point of the string: roughly a centimetre of hair ribbon
 // samples a small span of the travelling wave. The current waveguide still
