@@ -43,6 +43,7 @@ struct Metrics
     double periodicity = 0.0;
     double spectralCentroidHz = 0.0;
     double highBandRatio = 0.0;
+    double harmonicEnvelopeIrregularityDb = 0.0;
     double stereoSideRatio = 0.0;
     double stereoLowBandSideRatio = 0.0;
     double stereoHighBandSideRatio = 0.0;
@@ -332,6 +333,57 @@ Metrics measure(const Render& render, double fundamentalHz)
 
     m.spectralCentroidHz = totalEnergy > 0.0 ? weightedFrequency / totalEnergy : 0.0;
     m.highBandRatio = totalEnergy > 0.0 ? highEnergy / totalEnergy : 0.0;
+
+    // Diagnostic only: an ideal oscillator/sawtooth tends to have a very
+    // smooth harmonic envelope. A real violin body/radiativity transfer puts
+    // broad peaks, dips and antiresonances across that harmonic comb. Measure
+    // the RMS departure (in dB) from the best straight line versus log2 of
+    // harmonic number. No acceptance threshold is attached to this yet.
+    {
+        constexpr int maxHarmonics = 12;
+        std::array<double, maxHarmonics> xLog{};
+        std::array<double, maxHarmonics> yDb{};
+        int count = 0;
+        for (int harmonic = 1; harmonic <= maxHarmonics; ++harmonic)
+        {
+            const auto frequency = fundamentalHz * harmonic;
+            if (frequency >= 8000.0 || frequency >= 0.48 * sampleRate)
+                break;
+            const auto power = std::max(
+                1.0e-30, goertzelPower(spectralSegment, frequency));
+            xLog[static_cast<std::size_t>(count)] =
+                std::log2(static_cast<double>(harmonic));
+            yDb[static_cast<std::size_t>(count)] = 10.0 * std::log10(power);
+            ++count;
+        }
+        if (count >= 4)
+        {
+            double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+            for (int i = 0; i < count; ++i)
+            {
+                const auto xx = xLog[static_cast<std::size_t>(i)];
+                const auto yy = yDb[static_cast<std::size_t>(i)];
+                sx += xx;
+                sy += yy;
+                sxx += xx * xx;
+                sxy += xx * yy;
+            }
+            const auto denom = count * sxx - sx * sx;
+            const auto slope = std::abs(denom) > 1.0e-20
+                ? (count * sxy - sx * sy) / denom
+                : 0.0;
+            const auto intercept = (sy - slope * sx) / count;
+            double residual = 0.0;
+            for (int i = 0; i < count; ++i)
+            {
+                const auto error = yDb[static_cast<std::size_t>(i)]
+                    - (intercept + slope * xLog[static_cast<std::size_t>(i)]);
+                residual += error * error;
+            }
+            m.harmonicEnvelopeIrregularityDb =
+                std::sqrt(residual / static_cast<double>(count));
+        }
+    }
     m.stereoLowBandSideRatio =
         std::sqrt(lowSideEnergy / (lowMidEnergy + 1.0e-30));
     m.stereoHighBandSideRatio =
@@ -689,6 +741,7 @@ int main(int argc, char** argv)
             ok = false;
         else
             listeningCsv << "scenario,periodicity,centroid_hz,high_band_ratio,"
+                            "harmonic_envelope_irregularity_db,"
                             "low_stereo_ratio,high_stereo_ratio,rms,peak\n";
 
         for (const auto& probe : highStringProbes)
@@ -711,6 +764,7 @@ int main(int argc, char** argv)
                 listeningCsv << probe.name << ',' << metrics.periodicity
                     << ',' << metrics.spectralCentroidHz
                     << ',' << metrics.highBandRatio
+                    << ',' << metrics.harmonicEnvelopeIrregularityDb
                     << ',' << metrics.stereoLowBandSideRatio
                     << ',' << metrics.stereoHighBandSideRatio
                     << ',' << metrics.sustainRms
