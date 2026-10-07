@@ -27,18 +27,6 @@ inline constexpr std::array<double, stringCount> stringImpedance {
     0.13873751546881677
 };
 
-// Reduced torsional surface mode used only at the bow contact. A full
-// bidirectional torsional waveguide previously proved too influential: it
-// could move the nonlinear contact into alternate attractors. This version
-// keeps one strongly damped round-trip state per physical string. Friction
-// excites it weakly and its surface velocity returns weakly to the *next*
-// contact solve; it is never mixed directly into audio or the transverse
-// speaking-length delay.
-inline constexpr double torsionalWaveSpeedRatio = 5.2;
-inline constexpr double torsionalSurfaceImpedance = 1.8;
-inline constexpr double torsionalRoundTripGain = 0.82;
-inline constexpr double torsionalContactCoupling = 0.030;
-
 // Reduced finite-width bow contact. A violin bow does not constrain one
 // mathematical point of the string: roughly a centimetre of hair ribbon
 // samples a small span of the travelling wave. The current waveguide still
