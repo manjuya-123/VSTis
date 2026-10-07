@@ -1199,9 +1199,9 @@ struct FiddleEngine::Impl
         const auto bodyModalVelocity = body.currentModalVelocity();
         const auto rockingModalVelocity = bodyRocking.currentModalVelocity();
         const auto acousticBodyModalVelocity =
-            acousticBody.currentModalVelocity();
+            acousticBody.currentAcousticProjection();
         const auto acousticRockingModalVelocity =
-            acousticRocking.currentModalVelocity();
+            acousticRocking.currentAcousticProjection();
 
         std::array<double, stringCount> bridgeStringVelocity {};
         for (std::size_t i = 0; i < stringCount; ++i)
