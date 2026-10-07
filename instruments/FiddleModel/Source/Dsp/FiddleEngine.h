@@ -71,6 +71,7 @@ struct DebugState
     std::array<float, 4> contactSlipSpeedMps{};
     std::array<float, 4> contactFrictionForceN{};
     std::array<bool, 4> contactStaticFallback{};
+    std::array<float, 4> finiteWidthContactVelocityDeltaMps{};
     std::array<float, 4> rosinNoiseVelocityMps{};
     std::array<float, 4> rosinTransitionEnvelope{};
     std::array<float, 4> rosinSurfaceCoordinate{};
