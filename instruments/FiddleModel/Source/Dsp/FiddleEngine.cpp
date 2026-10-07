@@ -1700,12 +1700,13 @@ struct FiddleEngine::Impl
                 static_cast<float>(contacts[i].lastFrictionForceN);
             const auto rawTorsionalDebug =
                 torsionIncomingBridge[i] + torsionIncomingNut[i];
+            // Diagnostic reports the delayed, mean-removed torsional
+            // surface motion itself, not only the amount currently routed as
+            // transverse velocity feedback. This remains observable when the
+            // active experiment uses torsion solely to perturb friction reserve.
             debug.torsionalSurfaceVelocityMps[i] =
                 static_cast<float>(
-                    torsionalFeedbackScale[i]
-                    * (rawTorsionalDebug - torsionSurfaceMean[i])
-                    + torsionalContactCoupling[i]
-                        * contacts[i].torsionalVelocityMps());
+                    rawTorsionalDebug - torsionSurfaceMean[i]);
             debug.contactStaticFallback[i] =
                 contacts[i].usedStaticFallback;
             debug.rosinNoiseVelocityMps[i] =
