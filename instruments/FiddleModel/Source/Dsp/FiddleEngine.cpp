@@ -70,6 +70,11 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
+    // Slow, deterministic variations along the physical bow. These model
+    // small changes in effective hair loading/camber over centimetres of bow
+    // travel. They alter bow kinematics and normal force, not the audio output.
+    double bowTravelSpeedCoordinate = 23.0;
+    double bowTravelForceCoordinate = 71.0;
 
     ModalBank body{};
     ModalBank bodyRocking{true};
@@ -216,6 +221,8 @@ struct FiddleEngine::Impl
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
+        bowTravelSpeedCoordinate = 23.0;
+        bowTravelForceCoordinate = 71.0;
         body.reset();
         bodyRocking.reset();
         acousticBody.reset();
@@ -1014,6 +1021,26 @@ struct FiddleEngine::Impl
             --strokeBiteSamplesRemaining;
         }
 
+        // Human bow travel is never mathematically stationary. Use very
+        // low-density spatial fields attached to the bow so reversals retrace
+        // the same physical irregularity. The amplitude is deliberately below
+        // one percent; it should prevent exact cycle cloning without pushing
+        // the nonlinear contact into another attractor.
+        bowTravelSpeedCoordinate += bowSpeed * 9.0 / sampleRate;
+        bowTravelForceCoordinate += bowSpeed * 5.0 / sampleRate;
+        const auto speedTravelVariation = rosinSurfaceSample(
+            bowTravelSpeedCoordinate, 0x3C6EF372u);
+        const auto forceTravelVariation = rosinSurfaceSample(
+            bowTravelForceCoordinate, 0xA54FF53Au);
+        const auto primaryImpedance = stringImpedance[
+            static_cast<std::size_t>(std::clamp(primaryString, 0, stringCount - 1))];
+        const auto thinStringSensitivity = std::clamp(
+            std::sqrt(0.19 / primaryImpedance), 0.72, 1.18);
+        const auto speedTravelScale =
+            1.0 + 0.0040 * thinStringSensitivity * speedTravelVariation;
+        const auto forceTravelScale =
+            1.0 + 0.0060 * thinStringSensitivity * forceTravelVariation;
+
         const auto totalForce =
             (0.06 * std::pow(8.0, p))
             * contactForceCompensation
@@ -1021,14 +1048,16 @@ struct FiddleEngine::Impl
             * shuffleEnergyScale
             * strokeBiteGain
             * gateValue
-            * oneShotLiftGain;
+            * oneShotLiftGain
+            * forceTravelScale;
         const auto beta = bowBetaFingerboard + (bowBetaBridge - bowBetaFingerboard) * pos;
 
         const auto desiredSpeed =
             static_cast<double>(bowDirection)
             * bowTargetSpeed
             * gateValue
-            * oneShotLiftGain;
+            * oneShotLiftGain
+            * speedTravelScale;
         const auto maxDelta = bowAcceleration / sampleRate;
         bowSpeed += std::clamp(desiredSpeed - bowSpeed, -maxDelta, maxDelta);
 
