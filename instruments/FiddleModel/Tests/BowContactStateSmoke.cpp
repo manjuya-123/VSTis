@@ -65,6 +65,10 @@ int main()
         return fail("hair below yield failed to stick to the bow");
 
     distributedHair.reset();
+    // Let the bow remain on the string past the 25-45 ms catch phase.
+    for (int i = 0; i < static_cast<int>(0.055 * sampleRate); ++i)
+        distributedHair.solve(
+            bowSpeed, bowSpeed, normalForce, impedance, sampleRate);
     distributedHair.temperatureC = BowContact::crossingTemperatureC;
     const auto partialVelocity = distributedHair.solve(
         bowSpeed - 0.94 * staticLimit / (2.0 * impedance),
