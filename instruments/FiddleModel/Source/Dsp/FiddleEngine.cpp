@@ -59,6 +59,11 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> bridgeLoadPhaseDelay{};
     std::array<double, stringCount> runtimeLossGain = lossGain;
     std::array<double, stringCount> runtimeAllpassA = allpassA;
+    // Active dispersion coefficient at the current speaking length. Keep the
+    // calibrated G/D/A paths unchanged; stopped E receives a modest stiffness
+    // increase with shorter speaking length, with fundamental phase explicitly
+    // compensated below.
+    std::array<double, stringCount> speakingAllpassA = allpassA;
     std::array<double, stringCount> fingerTouch{};
     std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
@@ -330,6 +335,36 @@ struct FiddleEngine::Impl
             bridgeReflectionPhaseDelaySamples(stringIndex, frequencyHz);
     }
 
+    void refreshSpeakingDispersion(
+        std::size_t stringIndex,
+        double frequencyHz) noexcept
+    {
+        auto coefficient = runtimeAllpassA[stringIndex];
+        // The thin E string exposes the ideal-delay/sawtooth character most
+        // strongly. A real stopped string becomes relatively stiffer as its
+        // speaking length shortens, giving upper partials extra phase delay.
+        // Restrict this first re-introduction to E only: an earlier all-string
+        // version could move D-string bowing into a different nonlinear
+        // attractor. Fundamental delay is compensated by filterPhaseDelay.
+        if (stringIndex == 3
+            && frequencyHz > openFrequency[stringIndex] * 1.0005)
+        {
+            const auto ratio = std::clamp(
+                frequencyHz / openFrequency[stringIndex], 1.0, 2.0);
+            const auto stiffnessScale = 1.0 + 4.0 * (ratio - 1.0);
+            coefficient = std::clamp(
+                runtimeAllpassA[stringIndex] * stiffnessScale,
+                -0.080, 0.080);
+        }
+        speakingAllpassA[stringIndex] = coefficient;
+        filterPhaseDelay[stringIndex] = reflectionPhaseDelaySamples(
+            sampleRate,
+            frequencyHz,
+            runtimeLossGain[stringIndex],
+            lossAlpha[stringIndex],
+            speakingAllpassA[stringIndex]);
+    }
+
     void setMaterials(const MaterialSettings& materials) noexcept
     {
         const bool unchanged =
@@ -442,14 +477,11 @@ struct FiddleEngine::Impl
             runtimeAllpassA[i] = std::clamp(
                 allpassA[i] * dispersionScale, -0.20, 0.20);
 
-            filterPhaseDelay[i] = reflectionPhaseDelaySamples(
-                sampleRate, openFrequency[i],
-                runtimeLossGain[i], lossAlpha[i], runtimeAllpassA[i]);
-
             const auto currentTarget =
                 speakingFrequency[i].target > 20.0
                     ? speakingFrequency[i].target
                     : openFrequency[i];
+            refreshSpeakingDispersion(i, currentTarget);
             refreshBridgeLoadPhaseDelay(i, currentTarget);
         }
     }
@@ -521,6 +553,7 @@ struct FiddleEngine::Impl
                         static_cast<std::int64_t>(0.012 * sampleRate));
             }
 
+            refreshSpeakingDispersion(i, target);
             refreshBridgeLoadPhaseDelay(i, target);
             if (newlyStopped)
                 fingerTouch[i] = 1.0;
@@ -555,6 +588,7 @@ struct FiddleEngine::Impl
         const auto requested = std::clamp(
             frequencyHz, openFrequency[primary], 2500.0);
         speakingFrequency[primary].setTarget(requested);
+        refreshSpeakingDispersion(primary, requested);
         refreshBridgeLoadPhaseDelay(primary, requested);
     }
 
@@ -1154,9 +1188,9 @@ struct FiddleEngine::Impl
                 * ((1.0 - lossAlpha[i]) * incidentNut[i] + lossAlpha[i] * lossX1[i]);
             lossX1[i] = incidentNut[i];
 
-            const auto filtered = runtimeAllpassA[i] * lossFiltered
+            const auto filtered = speakingAllpassA[i] * lossFiltered
                                 + allpassX1[i]
-                                - runtimeAllpassA[i] * allpassY1[i];
+                                - speakingAllpassA[i] * allpassY1[i];
             allpassX1[i] = lossFiltered;
             allpassY1[i] = filtered;
 
