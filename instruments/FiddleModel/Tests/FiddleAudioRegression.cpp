@@ -171,9 +171,7 @@ double periodicityAtFrequency(const std::vector<float>& x,
     if (frequency <= 0.0 || end <= begin + 100)
         return 0.0;
 
-    separationCycles = std::max(1, separationCycles);
-    const auto lag =
-        static_cast<double>(separationCycles) * sampleRate / frequency;
+    const auto lag = sampleRate / frequency;
     const auto lagInt = static_cast<std::size_t>(std::floor(lag));
     const auto frac = lag - static_cast<double>(lagInt);
     if (begin + lagInt + 2 >= end)
@@ -214,7 +212,9 @@ double cycleDifferenceRatio(const std::vector<float>& x,
     if (frequency <= 0.0 || end <= begin + 100)
         return 0.0;
 
-    const auto lag = sampleRate / frequency;
+    separationCycles = std::max(1, separationCycles);
+    const auto lag =
+        static_cast<double>(separationCycles) * sampleRate / frequency;
     const auto lagInt = static_cast<std::size_t>(std::floor(lag));
     const auto frac = lag - static_cast<double>(lagInt);
     if (begin + lagInt + 2 >= end)
