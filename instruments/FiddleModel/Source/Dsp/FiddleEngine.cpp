@@ -1439,7 +1439,8 @@ struct FiddleEngine::Impl
                     localStaticGrip,
                     localSlidingGrip,
                     contactStateRateScale,
-                    adhesionMemoryAmount);
+                    adhesionMemoryAmount,
+                    torsionalContactCoupling[i]);
                 // Convert the nonlinear contact solution back to its
                 // equivalent force-wave injection at the centre junction.
                 injection = stringVelocity - contactIncomingVelocity;
