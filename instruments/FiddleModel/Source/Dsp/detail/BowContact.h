@@ -74,8 +74,8 @@ struct BowContact
         // Coupling is kept small by the engine and scales the force drive, not
         // an arbitrary noise source.
         constexpr double resonanceHz = 1850.0;
-        constexpr double dampingRatio = 0.34;
-        constexpr double forceToAcceleration = 220.0;
+        constexpr double dampingRatio = 0.08;
+        constexpr double forceToAcceleration = 260.0;
         constexpr double maxSurfaceVelocity = 0.012;
 
         const auto dt = 1.0 / sampleRate;
