@@ -75,8 +75,14 @@ inline constexpr std::array<double, stringCount> fingerReflectionAlpha {
     0.00, 0.00, 0.00, 0.45
 };
 
+// The low strings already receive strongly cycle-varying bow force, but the
+// stored linear wave can dominate the next round trip. Increase only the
+// frequency-neutral G/D decay very slightly so a sustained bowed cycle depends
+// more on current contact work. This does not alter the frequency-dependent
+// termination filter that previously damaged G pitch presence, and introduces
+// no extra phase delay or synthesized modulation.
 inline constexpr std::array<double, stringCount> lossGain {
-    0.9988, 0.9990, 0.9992, 0.99935
+    0.9982, 0.9984, 0.9992, 0.99935
 };
 
 // Passive, frequency-dependent reflection losses at the finger/string
