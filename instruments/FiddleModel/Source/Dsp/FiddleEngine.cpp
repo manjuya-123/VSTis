@@ -1422,6 +1422,14 @@ struct FiddleEngine::Impl
                 const auto localSlidingGrip =
                     slidingGripScale * (1.0 + gripPerturbation);
 
+                // A-string baseline is uniquely cycle-locked while the
+                // lower strings are already contact-irregular and the E string
+                // did not respond usefully to the full adhesion experiment.
+                // Keep those paths exactly at zero depth and probe only a
+                // tenth-strength A-string contact memory first.
+                const auto adhesionMemoryAmount =
+                    i == 2 ? 0.10 : 0.0;
+
                 const auto wasSticking = contacts[i].sticking;
                 const auto stringVelocity = contacts[i].solve(
                     contactIncomingVelocity,
@@ -1431,7 +1439,8 @@ struct FiddleEngine::Impl
                     sampleRate,
                     localStaticGrip,
                     localSlidingGrip,
-                    contactStateRateScale);
+                    contactStateRateScale,
+                    adhesionMemoryAmount);
                 // Convert the nonlinear contact solution back to its
                 // equivalent force-wave injection at the centre junction.
                 injection = stringVelocity - contactIncomingVelocity;
