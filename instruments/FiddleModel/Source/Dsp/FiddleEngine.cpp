@@ -77,6 +77,10 @@ struct FiddleEngine::Impl
     };
     std::array<double, stringCount> rosinNoisePrevious{};
     std::array<double, stringCount> rosinSurfaceCoordinate{};
+    // Mesoscopic contact-patch coordinate: much slower than microscopic
+    // roughness and never added directly to audio. It represents changing
+    // horsehair/rosin contact populations as the bow travels.
+    std::array<double, stringCount> contactPatchCoordinate{};
     std::array<double, stringCount> rosinNoiseEnvelope{};
     std::array<double, stringCount> rosinTransitionEnvelope{};
     double rosinNoiseScale = 1.0;
@@ -230,6 +234,7 @@ struct FiddleEngine::Impl
         };
         rosinNoisePrevious.fill(0.0);
         rosinSurfaceCoordinate = { 17.25, 53.75, 91.50, 137.0 };
+        contactPatchCoordinate = { 3.25, 11.50, 23.75, 41.0 };
         rosinNoiseEnvelope.fill(0.0);
         rosinTransitionEnvelope.fill(0.0);
         body.reset();
@@ -1464,10 +1469,35 @@ struct FiddleEngine::Impl
                     0.008 * rosinNoiseScale * (0.85 + 0.30 * pos);
                 const auto gripPerturbation = std::clamp(
                     roughnessDepth * colouredNoise, -0.06, 0.06);
+
+                // Mesoscopic contact heterogeneity. A bow does not present the
+                // exact same subset of hairs/rosin grains every Helmholtz cycle.
+                // Move through a smooth, deterministic spatial field so bow
+                // speed and reversal remain physically causal. This state only
+                // changes friction reserve; it is not an additive noise source.
+                constexpr double contactPatchFeaturesPerMeter = 180.0;
+                contactPatchCoordinate[i] +=
+                    bowSpeed * contactPatchFeaturesPerMeter / sampleRate;
+                const auto contactPatch = rosinSurfaceSample(
+                    contactPatchCoordinate[i],
+                    rosinNoiseState[i] ^ 0x6D2B79F5u);
+                const auto patchDepth =
+                    static_cast<int>(i) == primaryString && i == 2
+                    ? 0.022
+                    : 0.0;
+                const auto patchGripPerturbation =
+                    patchDepth * contactPatch;
+
                 auto localStaticGrip =
-                    staticGripScale * (1.0 + 0.35 * gripPerturbation);
+                    staticGripScale
+                    * (1.0
+                       + 0.35 * gripPerturbation
+                       + patchGripPerturbation);
                 auto localSlidingGrip =
-                    slidingGripScale * (1.0 + gripPerturbation);
+                    slidingGripScale
+                    * (1.0
+                       + gripPerturbation
+                       + 0.40 * patchGripPerturbation);
 
                 // Keep the reduced adhesion state diagnostic-only here.
                 // The A-only 0.10 coupling experiment broke established string
