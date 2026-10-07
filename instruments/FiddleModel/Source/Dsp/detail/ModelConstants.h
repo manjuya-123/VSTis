@@ -43,7 +43,12 @@ inline constexpr double torsionalSurfaceImpedance = 1.8;
 // reduced mode cannot stand in for the entire distributed torsional field.
 // The same coefficient is used reciprocally for force -> torsion and torsion
 // -> contact velocity, preserving a passive generalized coupling.
-inline constexpr double torsionalReducedOrderCoupling = 0.10;
+// Keep the first torsional integration deliberately secondary. At 0.10-0.15
+// the nonlinear contact could fall into alternate attractors for otherwise
+// identical A-string GUI/MIDI starts. A smaller reciprocal coupling still
+// converts transverse bow work into the heavily damped torsional wave family
+// without letting this single lumped torsional coordinate dominate the contact.
+inline constexpr double torsionalReducedOrderCoupling = 0.05;
 
 // Approximate constant-Q torsional loss. Q~45 corresponds to a complete-cycle
 // amplitude retention exp(-pi/Q); split equally between the two ends.
