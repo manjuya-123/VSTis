@@ -168,7 +168,8 @@ struct RadiationPeakingBiquad
     void prepare(double sampleRate,
                  double frequencyHz,
                  double q,
-                 double gainDb) noexcept
+                 double gainDb,
+                 bool resetState = true) noexcept
     {
         const auto A = std::pow(10.0, gainDb / 40.0);
         const auto w0 = 2.0 * pi * frequencyHz / sampleRate;
@@ -180,7 +181,8 @@ struct RadiationPeakingBiquad
         b2 = (1.0 - alpha * A) / a0;
         a1 = (-2.0 * cw) / a0;
         a2 = (1.0 - alpha / A) / a0;
-        reset();
+        if (resetState)
+            reset();
     }
 
     void reset() noexcept { z1 = z2 = 0.0; }
@@ -204,11 +206,32 @@ struct EmpiricalRadiativity
     RadiationPeakingBiquad presenceDip{};
     RadiationPeakingBiquad bridgeHill{};
 
-    void prepare(double sampleRate) noexcept
+    double sampleRate = 48000.0;
+    double lowBodyDb = 1.2;
+    double presenceDb = -1.6;
+    double bridgeHillDb = 2.0;
+
+    void updateCoefficients(bool resetState) noexcept
     {
-        lowBody.prepare(sampleRate, 520.0, 0.75, 1.2);
-        presenceDip.prepare(sampleRate, 1080.0, 0.85, -1.6);
-        bridgeHill.prepare(sampleRate, 2550.0, 0.95, 2.0);
+        lowBody.prepare(sampleRate, 520.0, 0.75, lowBodyDb, resetState);
+        presenceDip.prepare(sampleRate, 1080.0, 0.85, presenceDb, resetState);
+        bridgeHill.prepare(sampleRate, 2550.0, 0.95, bridgeHillDb, resetState);
+    }
+
+    void prepare(double newSampleRate) noexcept
+    {
+        sampleRate = newSampleRate;
+        updateCoefficients(true);
+    }
+
+    void setProfile(double newLowBodyDb,
+                    double newPresenceDb,
+                    double newBridgeHillDb) noexcept
+    {
+        lowBodyDb = newLowBodyDb;
+        presenceDb = newPresenceDb;
+        bridgeHillDb = newBridgeHillDb;
+        updateCoefficients(false);
     }
 
     void reset() noexcept
@@ -255,6 +278,13 @@ struct RadiationFilter
     {
         hpX1 = hpY1 = lpY = 0.0;
         empirical.reset();
+    }
+
+    void setEmpiricalProfile(double lowBodyDb,
+                             double presenceDb,
+                             double bridgeHillDb) noexcept
+    {
+        empirical.setProfile(lowBodyDb, presenceDb, bridgeHillDb);
     }
 
     double process(double x) noexcept
