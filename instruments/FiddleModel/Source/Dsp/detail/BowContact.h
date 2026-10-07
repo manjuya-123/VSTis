@@ -154,7 +154,9 @@ struct BowContact
         // Implicit integration avoids numerical overshoot when hair stiffness
         // exceeds the per-sample characteristic impedance. This compliance is
         // *inside* the friction/string feedback loop, never output filtering.
-        const auto hairStiffnessNm = 4500.0 * std::clamp(
+        // A stiff hair bundle avoids shifting string-pitch calibration while
+        // retaining a finite, sample-resolved shear transient at each catch.
+        const auto hairStiffnessNm = 30000.0 * std::clamp(
             normalForce / 0.18, 0.65, 1.50);
         const auto dt = 1.0 / std::max(sampleRate, 1.0);
         const auto elasticTrialForce =
