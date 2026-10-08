@@ -664,6 +664,43 @@ int main(int argc, char** argv)
         }
     }
 
+    // Upper-A stopped note must not *directly bow* open E accidentally.
+    // An unplayed E can still respond sympathetically at the shared bridge,
+    // especially at the exact E5 unison, but there should be no extra
+    // independent hair-driven voice when String Focus isolates A.
+    {
+        fiddle::FiddleEngine upperA;
+        upperA.prepare(sampleRate);
+        fiddle::Controls c;
+        c.pressure = 0.56f;
+        c.speed = 0.66f;
+        c.attack = 0.78f;
+        c.position = 0.48f;
+        c.balance = -0.95f;
+        c.singleStringIsolation = 1.0f;
+        upperA.setControls(c);
+        std::array<float, 4> stoppedA {};
+        stoppedA[2] = 659.2551f;
+        upperA.setFingeringLayout(stoppedA, 2, 2, 0.85);
+        upperA.startBow(+1);
+        std::vector<float> audioL, audioR;
+        render(upperA, audioL, audioR, 0.25);
+        auto state = upperA.debugSnapshot();
+        if (!(state.contactNormalForceN[2] > 0.001f)
+            || state.contactNormalForceN[3] > 1.0e-7f)
+            return fail("Single A-string E5 still directly bows unplayed open E");
+
+        // An intentional balanced A/E bow must retain both hair contacts.
+        c.balance = 0.0f;
+        c.singleStringIsolation = 0.0f;
+        upperA.setControls(c);
+        render(upperA, audioL, audioR, 0.30);
+        state = upperA.debugSnapshot();
+        if (!(state.contactNormalForceN[2] > 0.001f
+              && state.contactNormalForceN[3] > 0.001f))
+            return fail("A/E double-stop lost intentional E-string contact");
+    }
+
     // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
     // primarily bow D, not silently turn every melody note into a D+A drone.
     std::array<float, 4> singleFingering {};
