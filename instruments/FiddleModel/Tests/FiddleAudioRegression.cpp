@@ -1510,6 +1510,73 @@ int main(int argc, char** argv)
         }
     }
 
+
+    // A-string upper-register bowed tones occur repeatedly in the reel's
+    // D5 -> E5 passage. Identify whether the plucked-sounding upper note is
+    // a bowed-string contact bifurcation, not just an open-E crossing.
+    {
+        struct UpperNote { const char* name; float hz; };
+        constexpr std::array<UpperNote, 5> notes {{
+            {"A_string_B4", 493.8833f},
+            {"A_string_Csharp5", 554.3653f},
+            {"A_string_D5", 587.3295f},
+            {"A_string_Dsharp5", 622.2540f},
+            {"A_string_E5", 659.2551f}
+        }};
+        std::ofstream upper(
+            outputDirectory / "A_string_high_fingering_contact.csv");
+        if (!upper)
+            ok = false;
+        else
+        {
+            upper << "note,hz,sticking_fraction,release_count,"
+                     "releases_per_cycle,normal_force_rms,"
+                     "bridge_incident_rms,output_rms,centroid_hz,"
+                     "high_band_ratio\n";
+            for (const auto& note : notes)
+            {
+                const auto render = renderSamePitchOnString(
+                    2, 2, -0.95f, note.hz, true);
+                const auto metrics = measure(render, note.hz);
+                const auto trace = renderCycleTrace(
+                    2, 2, -0.95f, note.hz);
+                const auto first = std::min(
+                    trace.sticking.size(),
+                    static_cast<std::size_t>(0.30 * sampleRate));
+                const auto span = trace.sticking.size() - first;
+                double stickingCount = 0.0, forceEnergy = 0.0,
+                       bridgeEnergy = 0.0, audioEnergy = 0.0;
+                std::size_t releases = 0;
+                for (std::size_t k = first; k < trace.sticking.size(); ++k)
+                {
+                    stickingCount += trace.sticking[k] ? 1.0 : 0.0;
+                    if (k > first && trace.sticking[k-1]
+                                  && !trace.sticking[k])
+                        ++releases;
+                    const auto force = static_cast<double>(
+                        trace.contactFrictionForce[k]);
+                    const auto bridge = static_cast<double>(
+                        trace.incidentBridgeVelocity[k]);
+                    const auto radiated = static_cast<double>(
+                        trace.radiated[k]);
+                    forceEnergy += force*force;
+                    bridgeEnergy += bridge*bridge;
+                    audioEnergy += radiated*radiated;
+                }
+                const auto denominator =
+                    static_cast<double>(std::max<std::size_t>(1,span));
+                upper << note.name << ',' << note.hz << ','
+                      << stickingCount/denominator << ',' << releases
+                      << ',' << releases/(denominator*note.hz/sampleRate)
+                      << ',' << std::sqrt(forceEnergy/denominator)
+                      << ',' << std::sqrt(bridgeEnergy/denominator)
+                      << ',' << std::sqrt(audioEnergy/denominator)
+                      << ',' << metrics.spectralCentroidHz
+                      << ',' << metrics.highBandRatio << '\n';
+            }
+        }
+    }
+
     std::cout << "string_identity_A4_D_vs_A_difference_rms="
               << stringIdentityDifference << '\n'
               << "string_identity_A4_on_D_side_ratio="
