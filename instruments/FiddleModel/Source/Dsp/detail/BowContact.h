@@ -233,7 +233,8 @@ struct BowContact
                  double adhesionMemoryAmount = 0.0,
                  double torsionalCoupling = 0.0,
                  double externalSurfaceVelocityMps = 0.0,
-                 double releaseInterpolationAmount = 0.0) noexcept
+                 double releaseInterpolationAmount = 0.0,
+                 double recatchInterpolationAmount = 0.0) noexcept
     {
         usedStaticFallback = false;
         const auto wasSticking = sticking;
@@ -326,13 +327,46 @@ struct BowContact
 
         if (std::abs(requiredForce) <= staticLimit)
         {
+            // A sliding-to-sticking recapture also happens between two audio
+            // samples. The previous solve gives us the last sliding traction;
+            // blend only the threshold-crossing sample towards that traction
+            // for the fraction spent sliding. This keeps the friction force
+            // continuous without smoothing the string output or modifying the
+            // stable Helmholtz cycle after recapture.
+            double slidingFraction = 0.0;
+            if (recatchInterpolationAmount > 0.0
+                && !wasSticking
+                && previousGripUtilization > 1.0
+                && lastGripUtilization < 1.0)
+            {
+                const auto gripSpan =
+                    previousGripUtilization - lastGripUtilization;
+                if (gripSpan > 1.0e-9)
+                {
+                    const auto crossingFraction = std::clamp(
+                        (previousGripUtilization - 1.0) / gripSpan,
+                        0.0, 1.0);
+                    slidingFraction = std::clamp(
+                        recatchInterpolationAmount, 0.0, 1.0)
+                        * crossingFraction;
+                }
+            }
+
+            const auto lastSlidingForce = std::clamp(
+                lastFrictionForceN, -staticLimit, staticLimit);
+            const auto effectiveForce =
+                (1.0 - slidingFraction) * requiredForce
+                + slidingFraction * lastSlidingForce;
             sticking = true;
-            lastFrictionForceN = requiredForce;
+            lastFrictionForceN = effectiveForce;
             lastSlipSpeedMps = 0.0;
-            updateAdhesion(true, 0.0, sampleRate, stateRateScale);
+            updateAdhesion(
+                true, 0.0, sampleRate,
+                stateRateScale * (1.0 - slidingFraction));
             updateTemperature(0.0, 0.0, sampleRate, stateRateScale);
-            advanceTorsion(requiredForce, sampleRate, torsionalCoupling);
-            return bowVelocity - localTorsionalVelocity;
+            advanceTorsion(effectiveForce, sampleRate, torsionalCoupling);
+            return incomingVelocity
+                + effectiveForce / (2.0 * characteristicImpedance);
         }
 
         sticking = false;
