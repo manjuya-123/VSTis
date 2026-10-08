@@ -72,6 +72,10 @@ struct FiddleEngine::Impl
     std::array<double, stringCount> fingerTouch{};
     std::array<double, stringCount> fingerLossX1{};
     std::array<BowContact, stringCount> contacts{};
+    // Three sections of the same physical hair ribbon share total traction;
+    // the two outer sections retain independent stick/slip histories.
+    std::array<BowContact, stringCount> edgeBridgeContacts{};
+    std::array<BowContact, stringCount> edgeNutContacts{};
     std::array<std::uint32_t, stringCount> rosinNoiseState {
         0x13579BDFu, 0x2468ACE1u, 0xA5A5F00Du, 0xC001D00Du
     };
@@ -223,6 +227,8 @@ struct FiddleEngine::Impl
         torsionSurfaceMean.fill(0.0);
         torsionContactEnvelope.fill(0.0);
         for (auto& contact : contacts) contact.reset();
+        for (auto& contact : edgeBridgeContacts) contact.reset();
+        for (auto& contact : edgeNutContacts) contact.reset();
 
         lossX1.fill(0.0);
         allpassX1.fill(0.0);
@@ -1593,6 +1599,39 @@ struct FiddleEngine::Impl
                 // equivalent force-wave injection at the centre junction.
                 injection = stringVelocity - contactIncomingVelocity;
 
+                // Reduced three-point contact quadrature. Independent edge
+                // patches respond to the existing incident wave at the two
+                // physical ribbon margins. Their *tractions* are averaged,
+                // never summed, so extra contact points cannot invent energy
+                // or an additive string voice. A conservative per-string
+                // weight preserves the well-calibrated centre junction while
+                // testing whether a spread of slip instants avoids the
+                // unnatural triple-slip orbit on stopped D-string notes.
+                const auto edgeWeight = std::clamp(
+                    distributedHairContactBlend[i]
+                        * (1.0 - 0.85 * nearBridgeUnderResolution),
+                    0.0, 0.20);
+                if (edgeWeight > 0.0)
+                {
+                    const auto edgeBridgeVelocity =
+                        edgeBridgeContacts[i].solve(
+                            bridgewardIncoming, bowSpeed, bowForce[i],
+                            stringImpedance[i], sampleRate,
+                            localStaticGrip, localSlidingGrip,
+                            contactStateRateScale);
+                    const auto edgeNutVelocity =
+                        edgeNutContacts[i].solve(
+                            nutwardIncoming, bowSpeed, bowForce[i],
+                            stringImpedance[i], sampleRate,
+                            localStaticGrip, localSlidingGrip,
+                            contactStateRateScale);
+                    const auto edgeTraction = 0.5 * (
+                        (edgeBridgeVelocity - bridgewardIncoming)
+                        + (edgeNutVelocity - nutwardIncoming));
+                    injection = (1.0 - edgeWeight) * injection
+                        + edgeWeight * edgeTraction;
+                }
+
                 const auto transitioned =
                     wasSticking != contacts[i].sticking;
                 if (transitioned)
@@ -1698,6 +1737,8 @@ struct FiddleEngine::Impl
             else
             {
                 contacts[i].relax(sampleRate, contactStateRateScale);
+                edgeBridgeContacts[i].relax(sampleRate, contactStateRateScale);
+                edgeNutContacts[i].relax(sampleRate, contactStateRateScale);
                 torsionContactEnvelope[i] *= std::exp(
                     -1.0 / (sampleRate * 0.0010));
                 rosinNoisePrevious[i] *= 0.98;
