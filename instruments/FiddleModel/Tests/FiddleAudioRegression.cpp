@@ -700,6 +700,7 @@ fiddle::Controls baseControls()
 struct CycleTrace
 {
     std::vector<std::uint8_t> sticking;
+    std::vector<std::uint8_t> staticFallback;
     std::vector<float> contactFrictionForce;
     std::vector<float> contactGripUtilization;
     std::vector<float> torsionalSurfaceVelocity;
@@ -732,6 +733,7 @@ CycleTrace renderCycleTrace(int stringIndex,
         static_cast<std::size_t>(sustainSeconds * sampleRate);
     CycleTrace trace;
     trace.sticking.reserve(samples);
+    trace.staticFallback.reserve(samples);
     trace.contactFrictionForce.reserve(samples);
     trace.contactGripUtilization.reserve(samples);
     trace.torsionalSurfaceVelocity.reserve(samples);
@@ -749,6 +751,8 @@ CycleTrace renderCycleTrace(int stringIndex,
         const auto index = static_cast<std::size_t>(stringIndex);
         trace.sticking.push_back(
             state.sticking[index] ? std::uint8_t{1} : std::uint8_t{0});
+        trace.staticFallback.push_back(
+            state.contactStaticFallback[index] ? std::uint8_t{1} : std::uint8_t{0});
         trace.contactFrictionForce.push_back(
             state.contactFrictionForceN[index]);
         trace.contactGripUtilization.push_back(
@@ -1421,7 +1425,7 @@ int main(int argc, char** argv)
             contactCsv << "case,pitch_hz,sticking_fraction,release_events,"
                           "recatch_events,releases_per_cycle,contact_force_rms,"
                           "bow_injection_rms,bridge_incident_rms,radiated_rms,"
-                          "mean_grip_utilization\n";
+                          "mean_grip_utilization,static_fallback_fraction\n";
         else
             ok = false;
         std::ofstream sweepCsv(
@@ -1456,6 +1460,7 @@ int main(int argc, char** argv)
                 double bridgeEnergy = 0.0;
                 double audioEnergy = 0.0;
                 double gripSum = 0.0;
+                double fallbackCount = 0.0;
                 std::size_t releases = 0, recatches = 0;
                 for (std::size_t k = first; k < last; ++k)
                 {
@@ -1474,6 +1479,7 @@ int main(int argc, char** argv)
                     bridgeEnergy += bridge * bridge;
                     audioEnergy += audio * audio;
                     gripSum += trace.contactGripUtilization[k];
+                    fallbackCount += trace.staticFallback[k] != 0 ? 1.0 : 0.0;
                 }
                 const auto span = std::max<std::size_t>(1, last-first);
                 if (contactCsv)
@@ -1485,7 +1491,8 @@ int main(int argc, char** argv)
                                << ',' << std::sqrt(injectionEnergy/span)
                                << ',' << std::sqrt(bridgeEnergy/span)
                                << ',' << std::sqrt(audioEnergy/span)
-                               << ',' << gripSum/span << '\n';
+                               << ',' << gripSum/span
+                               << ',' << fallbackCount/span << '\n';
                 sweepLeft.insert(
                     sweepLeft.end(), render.left.begin(), render.left.end());
                 sweepRight.insert(
