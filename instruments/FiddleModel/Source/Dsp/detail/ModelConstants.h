@@ -107,9 +107,9 @@ inline constexpr std::array<double, stringCount> releaseEventInterpolation {
 // Sliding-to-stick recapture crosses the friction threshold between host
 // samples too. Retain a small fraction of the preceding sliding traction on
 // that single sample; do not low-pass the sustained waveform or change the
-// stick/slip threshold. Trial is A-only so G/D/E remain at their baseline.
+// stick/slip threshold. Use a very weak D/A correction; keep G/E untouched.
 inline constexpr std::array<double, stringCount> recatchEventInterpolation {
-    0.0, 0.0, 0.12, 0.0
+    0.0, 0.05, 0.06, 0.0
 };
 
 // Mesoscopic horsehair/rosin contact-patch variation. Open and stopped strings
