@@ -1500,12 +1500,23 @@ struct FiddleEngine::Impl
                        + gripPerturbation
                        + 0.40 * patchGripPerturbation);
 
-                // Keep the reduced adhesion state diagnostic-only here.
-                // The A-only 0.10 coupling experiment broke established string
-                // identity/control-surface regressions, so do not feed it back
-                // into the friction law while the torsional/contact DOF is
-                // redesigned.
-                constexpr double adhesionMemoryAmount = 0.0;
+                // Re-introduce the existing adhesion state only during the
+                // brief bow-catch/reversal preload. Earlier steady-state
+                // adhesion feedback changed string identity and control-surface
+                // behaviour, so leave the settled Helmholtz regime untouched.
+                // During the first few milliseconds, however, microscopic
+                // rosin junctions are genuinely forming/stripping and should
+                // weakly influence the stick/slip threshold instead of acting
+                // as a diagnostic-only state.
+                const auto catchMemoryEnvelope =
+                    strokeBiteTotalSamples > 0
+                        ? std::clamp(
+                            static_cast<double>(strokeBiteSamplesRemaining)
+                                / static_cast<double>(strokeBiteTotalSamples),
+                            0.0, 1.0)
+                        : 0.0;
+                const auto adhesionMemoryAmount =
+                    0.12 * catchMemoryEnvelope;
                 const auto rawTorsionalSurfaceVelocity =
                     torsionIncomingBridge[i] + torsionIncomingNut[i];
                 const auto torsionMeanAlpha =
