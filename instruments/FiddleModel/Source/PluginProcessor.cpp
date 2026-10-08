@@ -570,8 +570,17 @@ void FiddleModelAudioProcessor::updateFiddlePlayFingering()
     visualFingeringMask_.store(
         fingeringMask, std::memory_order_relaxed);
 
+    // Preserve a connected physical bow angle across an adjacent-string
+    // monophonic slur: D -> A should not jump the bow-pair reference to A/E.
+    // Prepared chords and separate new gestures retain automatic pairing.
+    const auto preferredBowPair =
+        bowActive && playModeMonophonicPhrase_
+            && playModePreferredPrimaryString_ >= 0
+            ? activePairLowerString_.load(std::memory_order_relaxed)
+            : -1;
     const auto layout = fiddle::voiceFingering(
-        heldNotes, count, current.note, playModePreferredPrimaryString_);
+        heldNotes, count, current.note,
+        playModePreferredPrimaryString_, preferredBowPair);
 
     playModeAutoFocusEnabled_ = count == 1;
     playModeAutoFocusValue_ =
