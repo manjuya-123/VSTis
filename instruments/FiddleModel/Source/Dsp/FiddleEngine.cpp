@@ -1333,10 +1333,25 @@ struct FiddleEngine::Impl
                 fingerFiltered =
                     (1.0 - fingerAlpha) * filtered
                     + fingerAlpha * fingerLossX1[i];
+                // The fingertip must briefly absorb transverse wave
+                // energy while it establishes a newly stopped reflection
+                // point. Upper A-string positions in the reel (D5/E5) were
+                // reflecting almost as a rigid nut during this motion,
+                // leaving a plucked-sounding attack even though stick/slip
+                // counts showed a normal one release per bowed cycle.
+                // Increase *only transient finger settling loss* on high
+                // stopped A notes. The ordinary sustained contact, open E,
+                // and all other string reflection losses stay untouched.
+                const auto upperAStringFingering =
+                    i == std::size_t{2}
+                    && currentFrequency[i] > 560.0;
+                const auto settlingLoss = upperAStringFingering
+                    ? 0.024 : 0.0060;
                 fingerTerminationGain =
-                    0.9975 * (1.0 - 0.0060 * fingerTouch[i]);
+                    0.9975 * (1.0 - settlingLoss * fingerTouch[i]);
                 const auto touchDecay =
-                    std::exp(-1.0 / (sampleRate * 0.005));
+                    std::exp(-1.0 / (sampleRate
+                        * (upperAStringFingering ? 0.010 : 0.005)));
                 fingerTouch[i] *= touchDecay;
             }
             else
