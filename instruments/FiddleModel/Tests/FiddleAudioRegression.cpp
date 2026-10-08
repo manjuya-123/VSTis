@@ -1421,7 +1421,7 @@ int main(int argc, char** argv)
             contactCsv << "case,pitch_hz,sticking_fraction,release_events,"
                           "recatch_events,releases_per_cycle,contact_force_rms,"
                           "bow_injection_rms,bridge_incident_rms,radiated_rms,"
-                          "mean_grip_utilization\\n";
+                          "mean_grip_utilization\n";
         else
             ok = false;
         std::ofstream sweepCsv(
@@ -1485,7 +1485,7 @@ int main(int argc, char** argv)
                                << ',' << std::sqrt(injectionEnergy/span)
                                << ',' << std::sqrt(bridgeEnergy/span)
                                << ',' << std::sqrt(audioEnergy/span)
-                               << ',' << gripSum/span << '\\n';
+                               << ',' << gripSum/span << '\n';
                 sweepLeft.insert(
                     sweepLeft.end(), render.left.begin(), render.left.end());
                 sweepRight.insert(
