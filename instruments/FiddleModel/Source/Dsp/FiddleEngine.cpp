@@ -1104,37 +1104,34 @@ struct FiddleEngine::Impl
                     + bridgeLoadPhaseDelay[i]
                     + fingerPhaseDelay);
             oneWay = std::clamp(oneWay, 4.0, static_cast<double>(delaySize - 8));
-            // The right hand stays at a fixed physical distance from the
-            // bridge when the left hand stops the string. Earlier, the
-            // bridge-to-bow delay shrank in proportion to played pitch, which
-            // unintentionally moved the bow towards the bridge on EVERY
-            // fingering change. Keep the bridge-side propagation time based
-            // on the open length; only the fingerward side loses length.
-            // Reserve a resolvable fingerward delay for extreme high notes.
-            const auto openOneWay = std::max(
-                4.0,
-                sampleRate / (2.0 * openFrequency[i])
-                    - 0.5 * (filterPhaseDelay[i] + bridgeLoadPhaseDelay[i]));
-            bridgeDelay[i] = std::clamp(
-                openOneWay * beta, 1.2, oneWay - 1.2);
-            nutDelay[i] = std::max(1.2, oneWay - bridgeDelay[i]);
+            bridgeDelay[i] = std::max(1.2, oneWay * beta);
+            nutDelay[i] = std::max(1.2, oneWay * (1.0 - beta));
 
-            // Torsion travels faster through the SAME physical segments as
-            // the transverse wave, so inherit the fixed bridgeward distance.
-            torsionBridgeDelay[i] = std::max(
-                1.2, bridgeDelay[i] / torsionalSpeedRatio[i]);
-            torsionNutDelay[i] = std::max(
-                1.2, nutDelay[i] / torsionalSpeedRatio[i]);
+            // Torsional waves travel substantially faster than the transverse
+            // Helmholtz motion. Keep the same geometric bow fraction but use a
+            // shorter, fractional delay so the torsional round trip is not
+            // locked to one played period.
+            const auto torsionOneWay =
+                std::max(2.6, oneWay / torsionalSpeedRatio[i]);
+            torsionBridgeDelay[i] =
+                std::max(1.2, torsionOneWay * beta);
+            torsionNutDelay[i] =
+                std::max(1.2, torsionOneWay * (1.0 - beta));
 
-            // Bow hair has an approximately fixed physical width, even when
-            // a stopped note shortens the speaking length. Express half that
-            // width as a propagation time at OPEN string length; the older
-            // formula inadvertently narrowed the ribbon as pitch increased.
+            // The hair ribbon has a nearly fixed width in metres while
+            // the left hand shortens the speaking length. Convert half its
+            // width to travelling-wave delay at the OPEN-string propagation
+            // speed; using oneWay here made the physical ribbon artificially
+            // narrower at every higher stopped pitch. Change only the
+            // in-contact wave sampling, not the calibrated bow junction
+            // geometry or the low-frequency string reflection delays.
+            const auto physicalHalfHairWidthDelay =
+                (sampleRate / (2.0 * openFrequency[i])
+                 - 0.5 * (filterPhaseDelay[i] + bridgeLoadPhaseDelay[i]))
+                * (0.5 * bowHairContactWidthMeters
+                   / violinSpeakingLengthMeters);
             finiteWidthHalfDelay[i] = std::clamp(
-                openOneWay
-                    * (0.5 * bowHairContactWidthMeters
-                       / violinSpeakingLengthMeters),
-                0.0, 3.0);
+                physicalHalfHairWidthDelay, 0.0, 3.0);
         }
 
         std::array<double, stringCount> incidentBridge{};
