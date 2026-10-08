@@ -502,6 +502,28 @@ int main(int argc, char** argv)
         }
     }
 
+    // Connected D -> A melodic string crossing. B4 is above the practical
+    // stopped D position and needs the A string, but changing fingers should
+    // not teleport the bow-pair reference from D/A to A/E while it is moving.
+    {
+        std::array<int, 4> gOnD { 67, -1, -1, -1 };
+        const auto dLayout = fiddle::voiceFingering(
+            gOnD, 1, 67, 1, 1);
+        std::array<int, 4> bOnA { 71, -1, -1, -1 };
+        const auto bLayout = fiddle::voiceFingering(
+            bOnA, 1, 71, dLayout.primaryString,
+            dLayout.bowPairLowerString);
+        if (dLayout.primaryString != 1
+            || bLayout.primaryString != 2
+            || bLayout.bowPairLowerString != 1
+            || fiddle::singleStringFocusForLayout(bLayout, 1) < 0.90f)
+            return fail("Connected B4 fingering unexpectedly jumped the physical bow pair");
+        // A new, unconnected B4 attack remains free to select A/E normally.
+        const auto isolatedB = fiddle::voiceFingering(bOnA, 1, 71);
+        if (isolatedB.bowPairLowerString != 2)
+            return fail("New B4 stroke lost independent bow-pair selection");
+    }
+
     // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
     // primarily bow D, not silently turn every melody note into a D+A drone.
     std::array<float, 4> singleFingering {};
