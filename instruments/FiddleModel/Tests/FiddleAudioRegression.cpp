@@ -1410,6 +1410,11 @@ int main(int argc, char** argv)
             { "D_string_G4", 391.9954f },
             { "D_string_A4", 440.0f },
         }};
+        // Four sustained stopped notes on the SAME D string, at identical
+        // bow controls. This isolates the F#4-to-A4 colour step heard in
+        // the user's reel without changing the engine or pass/fail limits.
+        std::vector<float> sweepLeft;
+        std::vector<float> sweepRight;
         std::ofstream sweepCsv(
             outputDirectory / "same_string_pitch_sweep.csv");
         if (!sweepCsv)
@@ -1427,7 +1432,20 @@ int main(int argc, char** argv)
                          << metrics.spectralCentroidHz << ','
                          << metrics.highBandRatio << ','
                          << metrics.periodicity << '\n';
+                sweepLeft.insert(
+                    sweepLeft.end(), render.left.begin(), render.left.end());
+                sweepRight.insert(
+                    sweepRight.end(), render.right.begin(), render.right.end());
+                sweepLeft.insert(sweepLeft.end(), silenceSamples, 0.0f);
+                sweepRight.insert(sweepRight.end(), silenceSamples, 0.0f);
             }
+        }
+        if (!writeStereoWav16(
+                outputDirectory / "18_D_string_pitch_sweep.wav",
+                sweepLeft, sweepRight))
+        {
+            std::cerr << "FAIL: cannot write D-string pitch sweep WAV\n";
+            ok = false;
         }
     }
 
