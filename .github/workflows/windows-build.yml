@@ -48,6 +48,7 @@ jobs:
           cat build/linux-core/instruments/FiddleModel/regression-audio/same_string_contact_dynamics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/legato_continuity_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/e5_fingering_and_crossing_metrics.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/A_string_high_fingering_contact.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_startup_contact_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_release_metrics.csv
