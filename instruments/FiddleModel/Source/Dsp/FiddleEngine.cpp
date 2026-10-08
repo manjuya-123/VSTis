@@ -1588,7 +1588,8 @@ struct FiddleEngine::Impl
                     adhesionMemoryAmount,
                     torsionalContactCoupling[i],
                     torsionalSurfaceVelocity,
-                    releaseEventInterpolation[i]);
+                    releaseEventInterpolation[i],
+                    recatchEventInterpolation[i]);
                 // Convert the nonlinear contact solution back to its
                 // equivalent force-wave injection at the centre junction.
                 injection = stringVelocity - contactIncomingVelocity;
