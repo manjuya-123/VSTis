@@ -48,14 +48,14 @@ inline constexpr std::array<double, stringCount> finiteWidthStringScale {
     1.00, 1.00, 1.00, 1.00
 };
 
-// Reduced distributed-hair contact. The existing finite-width read already
-// samples the travelling wave across the ribbon, but one BowContact state made
-// every hair section stick and slip in lockstep. Keep the calibrated single
-// contact on G/D; on the thinner A/E strings, blend a small contribution from
-// independent bridgeward/nutward contact states. These are quadrature samples
-// of one physical ribbon, so their forces are averaged rather than summed.
+// Reduced distributed-hair contact. The physical hair ribbon spans a small
+// distance along the string, and its bridgeward and nutward sections need not
+// release simultaneously. These are traction quadrature weights on the one
+// existing waveguide junction, not extra string oscillators or output noise.
+// Trial D alone at 4% to test whether distributed friction avoids the
+// pitch-sensitive triple-slip mode without changing already stable G/A/E.
 inline constexpr std::array<double, stringCount> distributedHairContactBlend {
-    0.0, 0.0, 0.08, 0.12
+    0.0, 0.04, 0.0, 0.0
 };
 
 // Weak feedback depth for the reduced torsional/contact surface-velocity state.
