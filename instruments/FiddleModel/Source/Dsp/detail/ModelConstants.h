@@ -48,14 +48,13 @@ inline constexpr std::array<double, stringCount> finiteWidthStringScale {
     1.00, 1.00, 1.00, 1.00
 };
 
-// Reduced distributed-hair contact. The physical hair ribbon spans a small
-// distance along the string, and its bridgeward and nutward sections need not
-// release simultaneously. These are traction quadrature weights on the one
-// existing waveguide junction, not extra string oscillators or output noise.
-// Trial D alone at 4% to test whether distributed friction avoids the
-// pitch-sensitive triple-slip mode without changing already stable G/A/E.
+// Reserved for a future full multi-junction bow-hair model. The 4% D-string
+// reduced edge-contact trial altered the spectrum but did not demonstrate
+// consistently better Helmholtz motion across F#4/A4, so the engine currently
+// retains the validated single-contact force solve. Do not mistake these
+// calibration candidates for active independent contact states.
 inline constexpr std::array<double, stringCount> distributedHairContactBlend {
-    0.0, 0.04, 0.0, 0.0
+    0.0, 0.0, 0.08, 0.12
 };
 
 // Weak feedback depth for the reduced torsional/contact surface-velocity state.
