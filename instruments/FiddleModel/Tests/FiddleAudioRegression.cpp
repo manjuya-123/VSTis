@@ -1577,6 +1577,90 @@ int main(int argc, char** argv)
         }
     }
 
+
+    // Musical E5 is generally fingered on the A string by the Play-mode
+    // left hand. At this exact pitch, the *unused open E string* is tuned
+    // to unison and receives bridge-transmitted energy. A too-strong
+    // sympathetically resonating open E can make a bowed A-string note
+    // sound as if a separate bell/pluck is ringing. Measure the physical
+    // travelling-wave energy on both strings before changing any losses.
+    {
+        std::ofstream sympatheticCsv(
+            outputDirectory / "A_E_unison_sympathetic_metrics.csv");
+        if (!sympatheticCsv)
+            ok = false;
+        else
+        {
+            sympatheticCsv << "case,primary_hz,bowed_A_incident_rms,"
+                              "open_E_incident_rms,E_over_A_rms,"
+                              "radiated_rms,E_tail_rms\n";
+            constexpr std::array<float, 5> notes {
+                554.3653f, 587.3295f, 622.2540f, 659.2551f, 698.4565f
+            };
+            constexpr std::array<const char*, 5> labels {
+                "Csharp5_A", "D5_A", "Dsharp5_A", "E5_A_unison", "F5_A"
+            };
+            for (std::size_t n = 0; n < notes.size(); ++n)
+            {
+                fiddle::FiddleEngine sim;
+                sim.prepare(sampleRate);
+                auto controls = baseControls();
+                controls.balance = -0.95f;
+                controls.singleStringIsolation = 1.0f;
+                sim.setControls(controls);
+                std::array<float, 4> fingering {};
+                fingering[2] = notes[n];
+                sim.setFingeringLayout(fingering, 2, 2, 0.85f);
+                sim.startBow(+1);
+
+                double aPower = 0.0, ePower = 0.0, soundPower = 0.0;
+                constexpr double duration = 1.1;
+                const auto total = static_cast<std::size_t>(
+                    duration * sampleRate);
+                const auto start = static_cast<std::size_t>(
+                    0.35 * sampleRate);
+                for (std::size_t i = 0; i < total; ++i)
+                {
+                    float l = 0.0f, r = 0.0f;
+                    sim.process(&l, &r, 1);
+                    if (i < start) continue;
+                    const auto debug = sim.debugSnapshot();
+                    const auto a = static_cast<double>(
+                        debug.incidentBridgeVelocityMps[2]);
+                    const auto e = static_cast<double>(
+                        debug.incidentBridgeVelocityMps[3]);
+                    aPower += a * a;
+                    ePower += e * e;
+                    soundPower += static_cast<double>(l) * l;
+                }
+                const auto count = std::max<std::size_t>(1, total-start);
+                const auto aRms = std::sqrt(aPower/count);
+                const auto eRms = std::sqrt(ePower/count);
+                const auto outRms = std::sqrt(soundPower/count);
+
+                sim.stopBow();
+                double eTailPower = 0.0;
+                const auto tailSamples = static_cast<std::size_t>(
+                    0.085 * sampleRate);
+                for (std::size_t i = 0; i < tailSamples; ++i)
+                {
+                    float l = 0.0f, r = 0.0f;
+                    sim.process(&l, &r, 1);
+                    const auto debug = sim.debugSnapshot();
+                    const auto e = static_cast<double>(
+                        debug.incidentBridgeVelocityMps[3]);
+                    eTailPower += e * e;
+                }
+                const auto eTailRms = std::sqrt(eTailPower /
+                    std::max<std::size_t>(1,tailSamples));
+                sympatheticCsv << labels[n] << ',' << notes[n] << ','
+                               << aRms << ',' << eRms << ','
+                               << eRms/(aRms+1.0e-12) << ','
+                               << outRms << ',' << eTailRms << '\n';
+            }
+        }
+    }
+
     std::cout << "string_identity_A4_D_vs_A_difference_rms="
               << stringIdentityDifference << '\n'
               << "string_identity_A4_on_D_side_ratio="
