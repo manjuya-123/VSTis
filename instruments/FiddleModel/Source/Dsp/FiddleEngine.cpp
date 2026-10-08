@@ -166,6 +166,11 @@ struct FiddleEngine::Impl
     std::int64_t reversalAssistTotalSamples = 0;
     int primaryString = 1;
     int pairLower = 1;
+    // A physical bow does not jump to a new string the same audio sample
+    // that MIDI changes its left-hand fingering. While crossing one adjacent
+    // pair, retain contact with the old string until the bow angle has moved.
+    int crossingFromString = -1;
+    std::int64_t crossingContactSamplesRemaining = 0;
 
     void prepare(double newSampleRate)
     {
@@ -296,6 +301,8 @@ struct FiddleEngine::Impl
         reversalAssistTotalSamples = 0;
         primaryString = 1;
         pairLower = 1;
+        crossingFromString = -1;
+        crossingContactSamplesRemaining = 0;
         debug = {};
     }
 
@@ -564,8 +571,33 @@ struct FiddleEngine::Impl
                             int newPairLower,
                             double velocity)
     {
+        const auto previousPrimaryString = primaryString;
+        const auto previousBowPair = pairLower;
         primaryString = std::clamp(newPrimaryString, 0, stringCount - 1);
         pairLower = std::clamp(newPairLower, 0, stringCount - 2);
+
+        if (primaryString != previousPrimaryString)
+        {
+            const auto sameAdjacentBowPair =
+                previousBowPair == pairLower
+                && std::abs(primaryString - previousPrimaryString) == 1
+                && previousPrimaryString >= pairLower
+                && previousPrimaryString <= pairLower + 1
+                && primaryString >= pairLower
+                && primaryString <= pairLower + 1;
+            if (sameAdjacentBowPair && gate.target > 0.5
+                && controlTargets.singleStringIsolation > 0.75f)
+            {
+                crossingFromString = previousPrimaryString;
+                crossingContactSamplesRemaining =
+                    static_cast<std::int64_t>(0.075 * sampleRate);
+            }
+            else
+            {
+                crossingFromString = -1;
+                crossingContactSamplesRemaining = 0;
+            }
+        }
 
         for (std::size_t i = 0; i < speakingFrequency.size(); ++i)
         {
@@ -821,6 +853,8 @@ struct FiddleEngine::Impl
         reversalAssistSamplesRemaining = 0;
         reversalAssistTotalSamples = 0;
         gate.setTarget(0.0);
+        crossingFromString = -1;
+        crossingContactSamplesRemaining = 0;
     }
 
     void noteOff() noexcept
@@ -839,47 +873,79 @@ struct FiddleEngine::Impl
 
         auto forces = geometry.normalForceN;
         isolationAmount = clamp01(isolationAmount);
-        if (isolationAmount <= 1.0e-6)
+        if (isolationAmount <= 1.0e-6 || std::abs(balanceValue) < 0.80)
             return forces;
 
+        // A deliberate single-string lean narrows the effective hair footprint.
+        // The neighbouring string is still present in the waveguide and shared
+        // bridge/body, so sympathetic resonance remains; only direct bow force
+        // on that neighbour is reduced. Reassign the unloaded force to the
+        // primary string to conserve the player's total normal force.
         const auto lower = static_cast<std::size_t>(pairLower);
         const auto upper = lower + 1;
-
-        // A MIDI fingering can select the E string instantly while the bow
-        // angle is still pointed at A. The old isolation solver moved all
-        // normal force from A to E in that sample, like a pluck impulse.
-        // The smoothed physical bow angle -- not the instantaneous MIDI
-        // primary string -- must determine where the bow hair is pressing.
-        // During the crossing retain the curved-bridge distribution; only
-        // focus the contact after the bow actually leans to a single string.
-        const auto lean = std::clamp(
-            (std::abs(balanceValue) - 0.76) / 0.16, 0.0, 1.0);
-        const auto smoothLean = lean * lean * (3.0 - 2.0 * lean);
-        const auto isolation = isolationAmount * smoothLean;
-        if (isolation <= 1.0e-9)
-            return forces;
-
-        const auto contacted = balanceValue < 0.0 ? lower : upper;
-        const auto neighbour = contacted == lower ? upper : lower;
-
-        // Remove residual direct contact on the outside G, and on the
-        // unplayed open E when bowing isolated A. Both remain connected via
-        // the common bridge; a deliberate double stop has isolation=0.
+        auto primary = static_cast<std::size_t>(
+            std::clamp(primaryString, pairLower, pairLower + 1));
+        // MIDI can move the left hand from B4 on A to F#5 on E before the
+        // right hand rotates. Do not teleport A's normal force to E while
+        // the *smoothed* bow angle still leans on A; leave the old string
+        // contacted until geometry itself begins the transfer. This special
+        // case is only active for a continuing, isolated adjacent-string
+        // crossing. Settled single notes and deliberate double stops retain
+        // the original force calibration.
+        if (crossingContactSamplesRemaining > 0
+            && crossingFromString >= pairLower
+            && crossingFromString <= pairLower + 1)
+        {
+            const auto stillTouchingOldSide =
+                crossingFromString == pairLower
+                    ? balanceValue < -0.80
+                    : balanceValue > +0.80;
+            if (stillTouchingOldSide)
+                primary = static_cast<std::size_t>(crossingFromString);
+        }
+        const auto neighbour = primary == lower ? upper : lower;
+        // A player leaning the hair onto one string should not keep
+        // directly driving the neighbouring open string. Leave only a tiny
+        // residual footprint for hair width; sympathetic motion still travels
+        // through the shared bridge/body waveguide. The earlier 15% residual
+        // could become perceptually dominant on low strings once the body
+        // fundamentals were restored.
+        // The G string is the outside string of the bridge. During an
+        // intentional monophonic G stroke the hair cannot also directly bow
+        // open D: even the old 3% residue may sustain a second audible
+        // stationary pitch. Preserve D's sympathetic motion through the
+        // bridge/rocking junction. Keep the small residual compliance for
+        // the other string pairs, where the same-string identity regression
+        // has shown that removing it globally is not acceptable.
+        // When a single stopped A-string note is being bowed, the hair
+        // must not directly drive the outer open E string. Its low impedance
+        // and resonant E5 unison can turn the former 3% residual hair force
+        // into an independently ringing, pluck-like E voice. The open E
+        // remains acoustically coupled through the physical bridge, so this
+        // does NOT mute natural sympathetic resonance or affect E-string
+        // notes and intentional A/E double stops.
         const auto outerEUnbowed =
-            contacted == std::size_t{2} && neighbour == std::size_t{3};
+            primary == std::size_t{2} && neighbour == std::size_t{3};
         const auto residualContact =
-            contacted == std::size_t{0} || outerEUnbowed ? 0.0 : 0.03;
+            primary == std::size_t{0} || outerEUnbowed ? 0.0 : 0.03;
         const auto neighbourScale =
-            1.0 - (1.0 - residualContact) * isolation;
+            1.0 - (1.0 - residualContact) * isolationAmount;
         const auto removed =
             forces[neighbour] * (1.0 - neighbourScale);
         forces[neighbour] *= neighbourScale;
-        forces[contacted] += removed;
+        forces[primary] += removed;
         return forces;
     }
 
     std::array<double, 2> processSample() noexcept
     {
+        if (crossingContactSamplesRemaining > 0)
+        {
+            --crossingContactSamplesRemaining;
+            if (crossingContactSamplesRemaining == 0)
+                crossingFromString = -1;
+        }
+
         if (shortStrokeSamplesRemaining > 0)
         {
             --shortStrokeSamplesRemaining;
