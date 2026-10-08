@@ -1415,6 +1415,15 @@ int main(int argc, char** argv)
         // the user's reel without changing the engine or pass/fail limits.
         std::vector<float> sweepLeft;
         std::vector<float> sweepRight;
+        std::ofstream contactCsv(
+            outputDirectory / "same_string_contact_dynamics.csv");
+        if (contactCsv)
+            contactCsv << "case,pitch_hz,sticking_fraction,release_events,"
+                          "recatch_events,releases_per_cycle,contact_force_rms,"
+                          "bow_injection_rms,bridge_incident_rms,radiated_rms,"
+                          "mean_grip_utilization\\n";
+        else
+            ok = false;
         std::ofstream sweepCsv(
             outputDirectory / "same_string_pitch_sweep.csv");
         if (!sweepCsv)
@@ -1432,6 +1441,51 @@ int main(int argc, char** argv)
                          << metrics.spectralCentroidHz << ','
                          << metrics.highBandRatio << ','
                          << metrics.periodicity << '\n';
+                // Same bow and same speaking length as the listening WAV.
+                // Count real friction state transitions to distinguish a
+                // bow-contact bifurcation from fixed body-formant filtering.
+                const auto trace = renderCycleTrace(
+                    1, 1, -0.95f, probe.hz);
+                const auto first = std::min(
+                    trace.sticking.size(),
+                    static_cast<std::size_t>(0.30 * sampleRate));
+                const auto last = trace.sticking.size();
+                double stickingCount = 0.0;
+                double frictionEnergy = 0.0;
+                double injectionEnergy = 0.0;
+                double bridgeEnergy = 0.0;
+                double audioEnergy = 0.0;
+                double gripSum = 0.0;
+                std::size_t releases = 0, recatches = 0;
+                for (std::size_t k = first; k < last; ++k)
+                {
+                    stickingCount += trace.sticking[k] != 0 ? 1.0 : 0.0;
+                    if (k > first && trace.sticking[k] != trace.sticking[k-1])
+                    {
+                        if (trace.sticking[k] == 0) ++releases;
+                        else ++recatches;
+                    }
+                    const auto force = static_cast<double>(trace.contactFrictionForce[k]);
+                    const auto inj = static_cast<double>(trace.bowInjectionVelocity[k]);
+                    const auto bridge = static_cast<double>(trace.incidentBridgeVelocity[k]);
+                    const auto audio = static_cast<double>(trace.radiated[k]);
+                    frictionEnergy += force * force;
+                    injectionEnergy += inj * inj;
+                    bridgeEnergy += bridge * bridge;
+                    audioEnergy += audio * audio;
+                    gripSum += trace.contactGripUtilization[k];
+                }
+                const auto span = std::max<std::size_t>(1, last-first);
+                if (contactCsv)
+                    contactCsv << probe.name << ',' << probe.hz << ','
+                               << stickingCount/span << ',' << releases << ','
+                               << recatches << ','
+                               << releases / ((last-first)*probe.hz/sampleRate)
+                               << ',' << std::sqrt(frictionEnergy/span)
+                               << ',' << std::sqrt(injectionEnergy/span)
+                               << ',' << std::sqrt(bridgeEnergy/span)
+                               << ',' << std::sqrt(audioEnergy/span)
+                               << ',' << gripSum/span << '\\n';
                 sweepLeft.insert(
                     sweepLeft.end(), render.left.begin(), render.left.end());
                 sweepRight.insert(
