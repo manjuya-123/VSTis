@@ -701,6 +701,109 @@ int main(int argc, char** argv)
             return fail("A/E double-stop lost intentional E-string contact");
     }
 
+
+    // Regression for the reported pitched "pon" at every A -> E string
+    // crossing. The bow is still physically touching A on the very first
+    // sample after MIDI moves the left hand to E. The contact-force transfer
+    // must follow the smoothed bow angle, not the new string ID.
+    {
+        fiddle::FiddleEngine cross;
+        cross.prepare(sampleRate);
+        fiddle::Controls cc;
+        cc.pressure = 0.56f;
+        cc.speed = 0.66f;
+        cc.attack = 0.78f;
+        cc.position = 0.48f;
+        cc.balance = -0.95f;
+        cc.singleStringIsolation = 1.0f;
+        cross.setControls(cc);
+        std::array<float, 4> pitches {};
+        pitches[2] = 493.8833f; // B4 on A
+        cross.setFingeringLayout(pitches, 2, 2, 0.85f);
+        cross.startBow(+1);
+
+        std::vector<float> crossingLeft, crossingRight;
+        render(cross, crossingLeft, crossingRight, 0.34);
+        const auto beforeCross = cross.debugSnapshot();
+        if (beforeCross.contactNormalForceN[2] < 0.001f)
+            return fail("A/E transfer probe did not establish A-string bowing");
+
+        pitches.fill(0.0f);
+        pitches[3] = 739.9888f; // F#5, cannot be fingered on A in this mode
+        cross.setFingeringLayout(pitches, 3, 2, 0.85f);
+        cc.balance = +0.95f;
+        cross.setControls(cc);
+
+        std::ofstream transferCsv;
+        if (argc >= 2)
+        {
+            transferCsv.open(std::filesystem::path(argv[1]).parent_path()
+                / "a_to_e_bow_force_transfer.csv");
+            if (!transferCsv)
+                return fail("Cannot write A/E string crossing force trace");
+            transferCsv << "time_ms,a_normal_force_n,e_normal_force_n,"
+                           "a_sticking,e_sticking,bow_direction\n";
+        }
+
+        float firstA = 0.0f, firstE = 0.0f;
+        double maxForceJump = 0.0;
+        double lastA = beforeCross.contactNormalForceN[2];
+        double lastE = beforeCross.contactNormalForceN[3];
+        constexpr auto crossingSamples = static_cast<std::size_t>(
+            0.080 * sampleRate);
+        for (std::size_t k = 0; k < crossingSamples; ++k)
+        {
+            float l = 0.0f, r = 0.0f;
+            cross.process(&l, &r, 1);
+            crossingLeft.push_back(l);
+            crossingRight.push_back(r);
+            const auto state = cross.debugSnapshot();
+            const auto aForce = static_cast<double>(
+                state.contactNormalForceN[2]);
+            const auto eForce = static_cast<double>(
+                state.contactNormalForceN[3]);
+            if (k == 0)
+            {
+                firstA = state.contactNormalForceN[2];
+                firstE = state.contactNormalForceN[3];
+            }
+            maxForceJump = std::max(maxForceJump,
+                std::max(std::abs(aForce-lastA), std::abs(eForce-lastE)));
+            lastA = aForce;
+            lastE = eForce;
+            if (transferCsv && k % 24 == 0)
+                transferCsv << (1000.0 * k / sampleRate)
+                            << ',' << aForce << ',' << eForce
+                            << ',' << (state.sticking[2] ? 1 : 0)
+                            << ',' << (state.sticking[3] ? 1 : 0)
+                            << ',' << state.bowDirection << '\n';
+        }
+        const auto afterCross = cross.debugSnapshot();
+        std::cout << "a_to_e_transfer force_A_pre="
+                  << beforeCross.contactNormalForceN[2]
+                  << " force_E_first=" << firstE
+                  << " force_A_first=" << firstA
+                  << " force_E_post=" << afterCross.contactNormalForceN[3]
+                  << " max_single_sample_force_jump=" << maxForceJump
+                  << '\n';
+        if (!(firstA > beforeCross.contactNormalForceN[2] * 0.70f)
+            || !(firstE < beforeCross.contactNormalForceN[2] * 0.15f)
+            || !(afterCross.contactNormalForceN[3] > 0.001f)
+            || !(afterCross.contactNormalForceN[2]
+                 < afterCross.contactNormalForceN[3] * 0.01f)
+            || maxForceJump > 0.025
+            || afterCross.bowDirection != +1)
+            return fail("A to E crossing teleported bow force or failed to settle");
+        cross.stopBow();
+        render(cross, crossingLeft, crossingRight, 0.16);
+        if (argc >= 2
+            && !writeWav(
+                std::filesystem::path(argv[1]).parent_path()
+                    / "21_A_to_E_continuous_bow_crossing.wav",
+                crossingLeft, crossingRight))
+            return fail("Cannot write A to E bowed crossing WAV");
+    }
+
     // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
     // primarily bow D, not silently turn every melody note into a D+A drone.
     std::array<float, 4> singleFingering {};
