@@ -332,6 +332,176 @@ int main(int argc, char** argv)
         }
     }
 
+
+    // Musical continuity probe: the right hand holds one uninterrupted bow
+    // while the left hand changes D-string positions. Pitch-only steady-state
+    // regression cannot detect a disappearing bow, a transient amplitude hole,
+    // a click at the note boundary, or an abrupt harmonic-colour change.
+    // Keep colour metrics diagnostic until they can be calibrated against
+    // matched real bowed-string transitions rather than flattening expressive
+    // differences that may be entirely natural.
+    {
+        fiddle::FiddleEngine legato;
+        legato.prepare(sampleRate);
+        fiddle::Controls legatoControls;
+        legatoControls.pressure = 0.56f;
+        legatoControls.speed = 0.66f;
+        legatoControls.attack = 0.78f;
+        legatoControls.position = 0.48f;
+        legatoControls.balance = -0.95f;
+        legatoControls.singleStringIsolation = 1.0f;
+        legato.setControls(legatoControls);
+
+        constexpr std::array<float, 5> notes {
+            293.6648f, 369.9944f, 440.0f, 369.9944f, 329.6276f
+        };
+        constexpr std::array<const char*, 5> noteNames {
+            "D4", "Fsharp4", "A4", "Fsharp4_return", "E4"
+        };
+        constexpr double noteSeconds = 0.26;
+        const auto segmentSamples =
+            static_cast<std::size_t>(noteSeconds * sampleRate);
+        const auto analysisSamples =
+            static_cast<std::size_t>(0.060 * sampleRate);
+
+        std::vector<float> legatoLeft;
+        std::vector<float> legatoRight;
+        legato.startBow(+1);
+        for (std::size_t n = 0; n < notes.size(); ++n)
+        {
+            std::array<float, 4> fingers {};
+            fingers[1] = notes[n];
+            legato.setFingeringLayout(fingers, 1, 1, 0.88f);
+            render(legato, legatoLeft, legatoRight, noteSeconds);
+            if (legato.debugSnapshot().bowDirection != +1)
+                return fail("Legato fingering interrupted the active bow direction");
+        }
+        legato.stopBow();
+        render(legato, legatoLeft, legatoRight, 0.15);
+
+        const auto rmsRange = [](const std::vector<float>& data,
+                                 std::size_t from,
+                                 std::size_t to)
+        {
+            from = std::min(from, data.size());
+            to = std::min(to, data.size());
+            double sum = 0.0;
+            for (auto i = from; i < to; ++i)
+                sum += static_cast<double>(data[i]) * data[i];
+            return std::sqrt(sum / static_cast<double>(
+                std::max<std::size_t>(1, to - from)));
+        };
+        const auto harmonicBalance = [](const std::vector<float>& data,
+                                        std::size_t from,
+                                        std::size_t to,
+                                        double fundamental)
+        {
+            from = std::min(from, data.size());
+            to = std::min(to, data.size());
+            double low = 0.0, high = 0.0;
+            for (int harmonic = 1; harmonic <= 8; ++harmonic)
+            {
+                const auto omega = 2.0 * 3.14159265358979323846
+                    * fundamental * harmonic / sampleRate;
+                double real = 0.0, imag = 0.0;
+                for (auto i = from; i < to; ++i)
+                {
+                    const auto phase = omega * static_cast<double>(i - from);
+                    const auto value = static_cast<double>(data[i]);
+                    real += value * std::cos(phase);
+                    imag += value * std::sin(phase);
+                }
+                const auto power = real * real + imag * imag;
+                if (harmonic <= 3) low += power;
+                else high += power;
+            }
+            return 10.0 * std::log10((high + 1.0e-20)
+                                     / (low + 1.0e-20));
+        };
+
+        std::ofstream continuityCsv;
+        if (argc >= 2)
+        {
+            const auto directory =
+                std::filesystem::path(argv[1]).parent_path();
+            if (!writeWav(directory / "19_continuous_bow_fingering.wav",
+                          legatoLeft, legatoRight))
+                return fail("Could not write continuous-bow fingering WAV");
+            continuityCsv.open(directory / "legato_continuity_metrics.csv");
+            if (!continuityCsv)
+                return fail("Could not write legato continuity metrics CSV");
+            continuityCsv
+                << "from,to,boundary_seconds,pre_rms,transition_rms,"
+                   "post_rms,transition_to_pre,post_to_pre,"
+                   "pre_upper_harmonics_db,post_upper_harmonics_db,"
+                   "boundary_jump_to_local_delta_rms\n";
+        }
+
+        for (std::size_t n = 1; n < notes.size(); ++n)
+        {
+            const auto boundary = n * segmentSamples;
+            const auto preBegin = boundary - analysisSamples - 240;
+            const auto preEnd = boundary - 240;
+            const auto postBegin = boundary + 1920;
+            const auto postEnd = postBegin + analysisSamples;
+            const auto pre = rmsRange(legatoLeft, preBegin, preEnd);
+            const auto transition = rmsRange(
+                legatoLeft, boundary, boundary + 1440);
+            const auto post = rmsRange(legatoLeft, postBegin, postEnd);
+            const auto transitionRatio = transition / (pre + 1.0e-12);
+            const auto postRatio = post / (pre + 1.0e-12);
+            const auto preBalance = harmonicBalance(
+                legatoLeft, preBegin, preEnd, notes[n - 1]);
+            const auto postBalance = harmonicBalance(
+                legatoLeft, postBegin, postEnd, notes[n]);
+
+            double localDeltaPower = 0.0;
+            const auto deltaBegin = boundary - 480;
+            const auto deltaEnd = boundary + 480;
+            for (auto i = deltaBegin; i < deltaEnd; ++i)
+            {
+                const auto diff = static_cast<double>(legatoLeft[i])
+                    - legatoLeft[i - 1];
+                localDeltaPower += diff * diff;
+            }
+            const auto deltaRms = std::sqrt(localDeltaPower
+                / static_cast<double>(deltaEnd - deltaBegin));
+            const auto boundaryJump = std::abs(
+                static_cast<double>(legatoLeft[boundary])
+                - legatoLeft[boundary - 1]) / (deltaRms + 1.0e-12);
+
+            std::cout << "legato_transition " << noteNames[n - 1]
+                      << "->" << noteNames[n]
+                      << " transition_to_pre=" << transitionRatio
+                      << " post_to_pre=" << postRatio
+                      << " upper_harmonics_change_db="
+                      << postBalance - preBalance
+                      << " boundary_jump=" << boundaryJump << '\n';
+            if (continuityCsv)
+                continuityCsv << noteNames[n - 1] << ','
+                              << noteNames[n] << ','
+                              << static_cast<double>(boundary) / sampleRate
+                              << ',' << pre << ',' << transition << ','
+                              << post << ',' << transitionRatio << ','
+                              << postRatio << ',' << preBalance << ','
+                              << postBalance << ',' << boundaryJump << '\n';
+
+            // Only guard catastrophic dropouts, runaways and a digital click.
+            // Do NOT require similar timbre on different pitches: that
+            // question needs reference recordings and a listening decision.
+            if (!std::isfinite(transitionRatio)
+                || !std::isfinite(postRatio)
+                || !std::isfinite(postBalance)
+                || pre < 1.0e-6
+                || transitionRatio < 0.12
+                || transitionRatio > 6.0
+                || postRatio < 0.12
+                || postRatio > 6.0
+                || boundaryJump > 12.0)
+                return fail("Continuous-bow fingering has an audible dropout, runaway or click");
+        }
+    }
+
     // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
     // primarily bow D, not silently turn every melody note into a D+A drone.
     std::array<float, 4> singleFingering {};
