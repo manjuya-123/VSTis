@@ -45,6 +45,7 @@ jobs:
           cat build/linux-core/instruments/FiddleModel/regression-audio/cycle_similarity_diagnostics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/slip_timing_diagnostics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/same_string_pitch_sweep.csv
+          cat build/linux-core/instruments/FiddleModel/regression-audio/legato_continuity_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_onset_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_startup_contact_metrics.csv
           cat build/linux-core/instruments/FiddleModel/regression-audio/gesture_release_metrics.csv
