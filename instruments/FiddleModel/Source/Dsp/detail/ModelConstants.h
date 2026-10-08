@@ -104,6 +104,14 @@ inline constexpr std::array<double, stringCount> releaseEventInterpolation {
     0.0, 0.0, 0.30, 0.0
 };
 
+// Sliding-to-stick recapture crosses the friction threshold between host
+// samples too. Retain a small fraction of the preceding sliding traction on
+// that single sample; do not low-pass the sustained waveform or change the
+// stick/slip threshold. Trial is A-only so G/D/E remain at their baseline.
+inline constexpr std::array<double, stringCount> recatchEventInterpolation {
+    0.0, 0.0, 0.12, 0.0
+};
+
 // Mesoscopic horsehair/rosin contact-patch variation. Open and stopped strings
 // use separate conservative depths because fingertip termination loss changes
 // how much friction-threshold variation can be tolerated without masking the
