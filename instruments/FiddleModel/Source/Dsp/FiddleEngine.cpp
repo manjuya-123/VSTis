@@ -1375,9 +1375,35 @@ struct FiddleEngine::Impl
             // and G12/D8) being wrongly counted as separate D energy.
             // Fix the detector instead of artificially muting sympathetic
             // physical coupling to chase a misleading score.
+            // In an isolated A-string line the E5 stopped on A is exactly
+            // in unison with the neighbouring unbowed open E. The reduced
+            // two-coordinate bridge couples this very low-loss open string
+            // more strongly than is musically useful; it rings as a separate
+            // plucked bell for several note changes. Preserve *some* natural
+            // sympathetic E response, but model the light neighbouring-string
+            // damping from the left hand in this monophonic fingering.
+            // Only the unbowed OPEN E receives the extra passive termination
+            // loss. Explicit double stops, E-string bowing, and unrelated
+            // stopped pitches retain the calibrated reflection path.
+            double unisonEStringDamping = 0.0;
+            if (i == std::size_t{3} && primaryString == 2
+                && singleIsolation > 0.75)
+            {
+                const auto intervalSemitones =
+                    12.0 * std::log2(std::max(1.0, currentFrequency[2])
+                        / openFrequency[3]);
+                // A smooth, narrow response prevents a hard timbral switch
+                // across legato finger changes and small pitch inflections.
+                const auto nearness = std::exp(-0.5 * std::pow(
+                    intervalSemitones / 0.42, 2.0));
+                const auto isolationWeight = std::clamp(
+                    (singleIsolation - 0.75) / 0.25, 0.0, 1.0);
+                unisonEStringDamping = 0.080 * nearness * isolationWeight;
+            }
             const auto sympatheticLoss =
                 isUpperAdjacentSympathetic
                     ? 1.0 - 0.035 * singleIsolation
+                        - unisonEStringDamping
                     : 1.0;
             const auto reflectedNut =
                 -fingerFiltered
