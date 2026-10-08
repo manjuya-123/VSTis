@@ -1554,6 +1554,109 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
         return false;
     }
 
+    // Evaluate the bow-held melodic transitions in the actual MIDI->VSTi
+    // processor path, not only in the DSP core. Bars 1-4 contain 16 fingered
+    // notes with overlapping note-offs, and bow reversals at bar lines.
+    // Record sound continuity separately for within-bow slurs and bow changes.
+    // Timbre remains a descriptive metric: a violin is not expected to have
+    // identical harmonic balance at every stopped pitch.
+    std::ofstream transitionCsv(
+        outputDirectory / "processor_fiddle_slur_transitions.csv");
+    if (!transitionCsv)
+        return false;
+    transitionCsv
+        << "from_note,to_note,seconds,transition_type,"
+           "pre_rms,first_30ms_rms,post_rms,first_to_pre,post_to_pre,"
+           "boundary_jump_over_delta_rms\n";
+
+    const auto rmsRange = [&](std::int64_t from, std::int64_t to)
+    {
+        from = std::max<std::int64_t>(0, from);
+        to = std::min<std::int64_t>(
+            static_cast<std::int64_t>(recording.left.size()), to);
+        double square = 0.0;
+        for (auto index = from; index < to; ++index)
+        {
+            const auto v = static_cast<double>(
+                recording.left[static_cast<std::size_t>(index)]);
+            square += v * v;
+        }
+        return std::sqrt(square
+            / static_cast<double>(std::max<std::int64_t>(1, to - from)));
+    };
+    int priorFingering = -1;
+    int fingeringIndex = 0;
+    for (const auto& event : events)
+    {
+        if (event.tick >= 4 * barTicks)
+            break;
+        if (!event.message.isNoteOn()
+            || event.message.getNoteNumber() < 55)
+            continue;
+        const auto nextFingering = event.message.getNoteNumber();
+        if (priorFingering < 0)
+        {
+            priorFingering = nextFingering;
+            ++fingeringIndex;
+            continue;
+        }
+        const auto at = tickToSample(event.tick);
+        const auto ms = [&](double milliseconds)
+        {
+            return static_cast<std::int64_t>(
+                std::llround(sampleRate * milliseconds / 1000.0));
+        };
+        const auto before = rmsRange(at - ms(70), at - ms(15));
+        const auto during = rmsRange(at, at + ms(30));
+        const auto after = rmsRange(at + ms(40), at + ms(95));
+        const auto localDeltaFrom = at - ms(10);
+        const auto localDeltaTo = at + ms(10);
+        double deltaSquare = 0.0;
+        for (auto i = localDeltaFrom; i < localDeltaTo; ++i)
+        {
+            const auto delta = static_cast<double>(
+                recording.left[static_cast<std::size_t>(i)]
+                - recording.left[static_cast<std::size_t>(i - 1)]);
+            deltaSquare += delta * delta;
+        }
+        const auto deltaRms = std::sqrt(deltaSquare
+            / static_cast<double>(localDeltaTo - localDeltaFrom));
+        const auto jump = std::abs(static_cast<double>(
+            recording.left[static_cast<std::size_t>(at)]
+            - recording.left[static_cast<std::size_t>(at - 1)]))
+            / (deltaRms + 1.0e-12);
+        const auto firstRatio = during / (before + 1.0e-12);
+        const auto laterRatio = after / (before + 1.0e-12);
+        const auto bowChange = fingeringIndex % 4 == 0;
+        transitionCsv
+            << priorFingering << ',' << nextFingering << ','
+            << static_cast<double>(at) / sampleRate << ','
+            << (bowChange ? "bow_change" : "slur") << ','
+            << before << ',' << during << ',' << after << ','
+            << firstRatio << ',' << laterRatio << ',' << jump << '\n';
+
+        // Protect only against a lost voice or obvious digital discontinuity.
+        // Unequal loudness and spectral tilt are not by themselves failures.
+        if (!std::isfinite(firstRatio) || !std::isfinite(laterRatio)
+            || !std::isfinite(jump)
+            || before < 1.0e-5
+            || firstRatio < 0.08 || firstRatio > 8.0
+            || laterRatio < 0.08 || laterRatio > 8.0
+            || jump > 15.0)
+        {
+            std::cerr << "FAIL: processor fiddle slur transition damaged"
+                      << " notes=" << priorFingering << "->"
+                      << nextFingering
+                      << " at=" << static_cast<double>(at) / sampleRate
+                      << " first_ratio=" << firstRatio
+                      << " post_ratio=" << laterRatio
+                      << " jump=" << jump << '\n';
+            return false;
+        }
+        priorFingering = nextFingering;
+        ++fingeringIndex;
+    }
+
     if (!writeStereoWav(
             outputDirectory / "processor_fiddle_validation_reel.wav",
             recording))
