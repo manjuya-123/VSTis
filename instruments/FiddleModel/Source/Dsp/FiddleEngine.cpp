@@ -1275,32 +1275,8 @@ struct FiddleEngine::Impl
                 bridgeVelocity
                 + bridgeLever[i] * bridgeRockingVelocity;
 
-        auto bowForce = makeBowForces(
+        const auto bowForce = makeBowForces(
             totalForce, bal, singleIsolation);
-
-        // The bow/normal-force operating window changes as the left hand
-        // shortens the speaking string. In the sustained-D diagnostics, F#4
-        // and A4 repeatedly entered a three-slip regime whereas neighbouring
-        // E4 and G4 stayed near one Helmholtz release per period. Compensate
-        // the *mechanical normal contact force* for increasing stopped-string
-        // stiffness, rather than masking the resulting upper harmonics with
-        // a post-audio filter. A conservative D-only trial keeps the G/A/E
-        // dynamics unchanged until this behaviour is independently checked.
-        constexpr double dStoppedLengthForceScale = 0.90;
-        const auto dStringIndex = std::size_t{1};
-        const auto dSpeakingFraction = std::clamp(
-            openFrequency[dStringIndex] / currentFrequency[dStringIndex],
-            0.58, 1.0);
-        // Only the isolated, currently bowed D string needs this operating-
-        // window correction. Keep normal-force geometry exactly balanced for
-        // D/A double stops, drone bowing and the unisolated bow-gesture core
-        // tests. Ramp with the existing physical string-isolation smoother.
-        const auto monoDWeight = primaryString == 1
-            ? std::clamp((singleIsolation - 0.75) / 0.25, 0.0, 1.0)
-            : 0.0;
-        const auto dForceGain = 1.0 + dStoppedLengthForceScale
-            * (1.0 - dSpeakingFraction) * monoDWeight;
-        bowForce[dStringIndex] *= dForceGain;
 
         std::array<double, stringCount> chopImpactInjection {};
         if (std::abs(chopImpactVelocity) > 1.0e-12)
