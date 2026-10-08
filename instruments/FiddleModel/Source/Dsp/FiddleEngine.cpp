@@ -1118,20 +1118,16 @@ struct FiddleEngine::Impl
             torsionNutDelay[i] =
                 std::max(1.2, torsionOneWay * (1.0 - beta));
 
-            // The hair ribbon has a nearly fixed width in metres while
-            // the left hand shortens the speaking length. Convert half its
-            // width to travelling-wave delay at the OPEN-string propagation
-            // speed; using oneWay here made the physical ribbon artificially
-            // narrower at every higher stopped pitch. Change only the
-            // in-contact wave sampling, not the calibrated bow junction
-            // geometry or the low-frequency string reflection delays.
-            const auto physicalHalfHairWidthDelay =
-                (sampleRate / (2.0 * openFrequency[i])
-                 - 0.5 * (filterPhaseDelay[i] + bridgeLoadPhaseDelay[i]))
-                * (0.5 * bowHairContactWidthMeters
-                   / violinSpeakingLengthMeters);
+            // Convert half the physical hair-ribbon width into propagation
+            // delay along this speaking length. For the fundamental this is a
+            // small phase span; upper partials see progressively more spatial
+            // variation across the contact patch.
             finiteWidthHalfDelay[i] = std::clamp(
-                physicalHalfHairWidthDelay, 0.0, 3.0);
+                oneWay
+                    * (0.5 * bowHairContactWidthMeters
+                       / violinSpeakingLengthMeters),
+                0.0,
+                3.0);
         }
 
         std::array<double, stringCount> incidentBridge{};
