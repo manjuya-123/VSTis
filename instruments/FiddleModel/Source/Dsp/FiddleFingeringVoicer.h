@@ -60,7 +60,8 @@ inline std::size_t collapseMelodicBowOverlap(
 inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
                                       std::size_t noteCount,
                                       int newestNote,
-                                      int preferredPrimaryString = -1) noexcept
+                                      int preferredPrimaryString = -1,
+                                      int preferredBowPairLowerString = -1) noexcept
 {
     FingeringLayout result;
 
@@ -135,6 +136,20 @@ inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
 
     // Prefer an adjacent pair that actually contains two held/fingered notes.
     int selectedPair = std::clamp(result.primaryString, 0, 2);
+    // A real bow can cross D -> A without jumping its entire contact
+    // geometry from the D/A pair to the A/E pair. During a monophonic
+    // legato phrase, preserve the current pair whenever the new string is
+    // still one of its two physical strings. Let the existing String Focus
+    // smoother shift the bow across that pair instead of instantaneously
+    // remapping its angle and normal force. Explicit double stops still
+    // choose the pair containing both notes below.
+    if (noteCount == 1
+        && preferredBowPairLowerString >= 0
+        && preferredBowPairLowerString < 3
+        && result.primaryString >= preferredBowPairLowerString
+        && result.primaryString <= preferredBowPairLowerString + 1)
+        selectedPair = preferredBowPairLowerString;
+
     for (int pair = 0; pair < 3; ++pair)
     {
         const bool lowerAssigned =
