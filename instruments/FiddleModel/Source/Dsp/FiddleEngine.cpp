@@ -865,8 +865,17 @@ struct FiddleEngine::Impl
         // bridge/rocking junction. Keep the small residual compliance for
         // the other string pairs, where the same-string identity regression
         // has shown that removing it globally is not acceptable.
+        // When a single stopped A-string note is being bowed, the hair
+        // must not directly drive the outer open E string. Its low impedance
+        // and resonant E5 unison can turn the former 3% residual hair force
+        // into an independently ringing, pluck-like E voice. The open E
+        // remains acoustically coupled through the physical bridge, so this
+        // does NOT mute natural sympathetic resonance or affect E-string
+        // notes and intentional A/E double stops.
+        const auto outerEUnbowed =
+            primaryString == 2 && neighbour == std::size_t{3};
         const auto residualContact =
-            primaryString == 0 ? 0.0 : 0.03;
+            primaryString == 0 || outerEUnbowed ? 0.0 : 0.03;
         const auto neighbourScale =
             1.0 - (1.0 - residualContact) * isolationAmount;
         const auto removed =
