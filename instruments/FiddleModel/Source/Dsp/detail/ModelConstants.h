@@ -124,12 +124,15 @@ inline constexpr std::array<double, stringCount> rosinTransitionVelocityScale {
     1.00, 1.00, 1.00, 1.00
 };
 
-// Fingered notes terminate against a soft fingertip rather than the hard nut.
-// Apply additional frequency-dependent reflection loss only on the thin E
-// string, where stopped notes currently retain a very sharp Helmholtz corner.
-// Open E and all G/D/A notes remain on the existing calibrated path.
+// A fingertip is a compliant and lossy reflection point. D-string stopped
+// notes in the musical reel currently retain the ideal, bright termination
+// (unlike E, which has a strong first-order finger filter), leaving many
+// stopped D notes unnaturally metallic. Trial a very small stopped-D loss and
+// ease the excessive stopped-E loss. Both are passive waveguide termination
+// filters, not output EQ, and their low-frequency phase is compensated when
+// computing the speaking delay. Open strings stay on their existing path.
 inline constexpr std::array<double, stringCount> fingerReflectionAlpha {
-    0.00, 0.00, 0.00, 0.45
+    0.00, 0.055, 0.00, 0.38
 };
 
 inline constexpr std::array<double, stringCount> lossGain {
