@@ -1403,7 +1403,10 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
         { 13 * barTicks + 2 * quarter, "tremolo" },
         { 14 * barTicks + 4 * eighth + 80, "a_string_before_crossing" },
         { 14 * barTicks + 5 * eighth + 80, "e_string_crossing" },
-        { 14 * barTicks + 7 * eighth + 80, "a_string_return" }
+        { 14 * barTicks + 7 * eighth + 80, "a_string_return" },
+        // The first real A-string B4 in the slur follows G4 on D. The bow
+        // should traverse the existing D/A pair instead of jumping to A/E.
+        { barTicks + 2 * quarter + 100, "connected_B4_from_D" }
     };
     std::array<bool, std::size(checkpoints)> checkpointWritten {};
     std::ofstream checkpointCsv(
@@ -1523,6 +1526,11 @@ bool renderFiddleValidationReel(const std::filesystem::path& outputDirectory)
                     semanticsPassed = semanticsPassed
                         && state.midiNote == 74
                         && state.primaryString == 2;
+                else if (i == 7)
+                    semanticsPassed = semanticsPassed
+                        && state.midiNote == 71
+                        && state.primaryString == 2
+                        && state.pairLowerString == 1;
 
                 checkpointWritten[i] = true;
             }
