@@ -524,6 +524,146 @@ int main(int argc, char** argv)
             return fail("New B4 stroke lost independent bow-pair selection");
     }
 
+    // The uploaded musical reel plays repeated E5 notes after D5 on A.
+    // Auto fingering can *legitimately* keep E5 as a fourth-finger A-string
+    // note: hearing a "ping" at E5 does not prove the E string was bowed.
+    // Confirm both routes and publish a matched audible comparison of the
+    // same held-bow D5->E5 change on stopped A and open E.
+    {
+        std::array<int, 4> d5Note { 74, -1, -1, -1 };
+        const auto d5Layout = fiddle::voiceFingering(
+            d5Note, 1, 74, 2, 2);
+        std::array<int, 4> e5Note { 76, -1, -1, -1 };
+        const auto e5OnA = fiddle::voiceFingering(
+            e5Note, 1, 76,
+            d5Layout.primaryString, d5Layout.bowPairLowerString);
+        std::array<int, 4> fSharp5Note { 78, -1, -1, -1 };
+        const auto fSharpOnE = fiddle::voiceFingering(
+            fSharp5Note, 1, 78,
+            d5Layout.primaryString, d5Layout.bowPairLowerString);
+        if (d5Layout.primaryString != 2
+            || e5OnA.primaryString != 2
+            || e5OnA.bowPairLowerString != 2
+            || fSharpOnE.primaryString != 3
+            || fSharpOnE.bowPairLowerString != 2)
+            return fail("Musical A/E string assignment differs from E5 diagnostic");
+
+        std::vector<float> eComparisonL, eComparisonR;
+        std::ofstream eComparisonCsv;
+        if (argc >= 2)
+        {
+            const auto path = std::filesystem::path(argv[1]).parent_path()
+                / "e5_fingering_and_crossing_metrics.csv";
+            eComparisonCsv.open(path);
+            if (!eComparisonCsv)
+                return fail("Cannot open E5 crossing metrics");
+            eComparisonCsv
+                << "variant,primary_string,pre_rms,first_35ms_rms,"
+                   "later_rms,first_to_pre,later_to_pre,bow_direction\n";
+        }
+
+        const auto windowRms = [](const std::vector<float>& signal,
+                                  std::size_t first, std::size_t count)
+        {
+            const auto end = std::min(signal.size(), first + count);
+            double energy = 0.0;
+            for (auto i = first; i < end; ++i)
+            {
+                const auto sample = static_cast<double>(signal[i]);
+                energy += sample * sample;
+            }
+            return std::sqrt(energy
+                / static_cast<double>(std::max<std::size_t>(1, end-first)));
+        };
+
+        for (int variant = 0; variant < 2; ++variant)
+        {
+            fiddle::FiddleEngine crossing;
+            crossing.prepare(sampleRate);
+            fiddle::Controls crossControls;
+            crossControls.pressure = 0.56f;
+            crossControls.speed = 0.66f;
+            crossControls.attack = 0.78f;
+            crossControls.position = 0.48f;
+            crossControls.balance = -0.95f;
+            crossControls.singleStringIsolation = 1.0f;
+            crossing.setControls(crossControls);
+
+            std::array<float, 4> pitch {};
+            pitch[2] = 587.3295f; // stopped D5 on the physical A string
+            crossing.setFingeringLayout(pitch, 2, 2, 0.85);
+            crossing.startBow(+1);
+            std::vector<float> segmentL, segmentR;
+            render(crossing, segmentL, segmentR, 0.30);
+
+            const auto boundary = segmentL.size();
+            pitch.fill(0.0f);
+            if (variant == 0)
+                pitch[2] = 659.2551f; // fourth finger on A
+            else
+            {
+                // Maintain bow direction but move the bow footprint onto E;
+                // E5 on the E string is open (no fingered shortening).
+                crossControls.balance = +0.95f;
+                crossing.setControls(crossControls);
+            }
+            crossing.setFingeringLayout(
+                pitch, variant == 0 ? 2 : 3, 2, 0.85);
+            render(crossing, segmentL, segmentR, 0.36);
+            const auto state = crossing.debugSnapshot();
+            if (state.bowDirection != +1
+                || state.primaryString != (variant == 0 ? 2 : 3))
+                return fail("E5 crossing changed bow direction or physical string");
+
+            const auto ms = [](double duration)
+            {
+                return static_cast<std::size_t>(
+                    duration * sampleRate / 1000.0);
+            };
+            const auto before = windowRms(
+                segmentL, boundary - ms(65), ms(55));
+            const auto early = windowRms(segmentL, boundary, ms(35));
+            const auto later = windowRms(
+                segmentL, boundary + ms(70), ms(70));
+            const auto firstRatio = early / (before + 1.0e-12);
+            const auto laterRatio = later / (before + 1.0e-12);
+            if (!std::isfinite(firstRatio)
+                || !std::isfinite(laterRatio)
+                || before < 1.0e-6)
+                return fail("Invalid E5 physical crossing amplitude");
+
+            const auto* name = variant == 0
+                ? "E5_fourth_finger_A" : "E5_open_E_crossing";
+            std::cout << "e5_transition " << name
+                      << " pre_rms=" << before
+                      << " first35_to_pre=" << firstRatio
+                      << " later_to_pre=" << laterRatio
+                      << " primary_string=" << state.primaryString
+                      << '\n';
+            if (eComparisonCsv)
+                eComparisonCsv << name << ',' << state.primaryString << ','
+                               << before << ',' << early << ',' << later
+                               << ',' << firstRatio << ',' << laterRatio
+                               << ',' << state.bowDirection << '\n';
+
+            crossing.stopBow();
+            render(crossing, segmentL, segmentR, 0.13);
+            eComparisonL.insert(eComparisonL.end(),
+                                segmentL.begin(), segmentL.end());
+            eComparisonR.insert(eComparisonR.end(),
+                                segmentR.begin(), segmentR.end());
+            appendSilence(eComparisonL, eComparisonR, 0.20);
+        }
+
+        if (argc >= 2)
+        {
+            const auto out = std::filesystem::path(argv[1]).parent_path()
+                / "20_E5_stopped_A_vs_open_E_crossing.wav";
+            if (!writeWav(out, eComparisonL, eComparisonR))
+                return fail("Could not write E5 comparison WAV");
+        }
+    }
+
     // Monophonic Fiddle Play auto-focus: one stopped E4 on D should
     // primarily bow D, not silently turn every melody note into a D+A drone.
     std::array<float, 4> singleFingering {};
