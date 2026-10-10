@@ -34,6 +34,8 @@ bool runCrossing(const char* path){
     TwoStringFiddleBridge::Gesture gesture;
     gesture.bowSpeed=0.22;gesture.normalForce=0.30;
     std::vector<float> sound;sound.reserve(total);
+    std::array<std::vector<float>,2> stringVelocities,bowForceTraces;
+    for(int j=0;j<2;++j){stringVelocities[j].reserve(total);bowForceTraces[j].reserve(total);}
     double worstLedger=0,worstRoot=0,minHairDiss=0;
     double peak=0,peakBridge=0,peakEnergy=0;
     double aNormalSum=0,eNormalSum=0;
@@ -64,10 +66,40 @@ bool runCrossing(const char* path){
         const int segment=t<0.7?0:(t>1.1&&t<1.7?1:(t>2.2?2:-1));
         if(segment>=0){rmsStage[segment]+=velocity*velocity;++countStage[segment];}
         sound.push_back(float(velocity));
+        const auto vs=model.stringBowVelocities();
+        const auto fb=model.bowForces();
+        for(int j=0;j<2;++j){
+            stringVelocities[j].push_back(float(vs[j]));
+            bowForceTraces[j].push_back(float(fb[j]));
+        }
     }
     if(sound.size()!=total)ok=false;
     for(int j=0;j<3;++j)if(countStage[j]>0)
         rmsStage[j]=std::sqrt(rmsStage[j]/countStage[j]);
+
+    const auto lockIn=[&](const std::vector<float>& samples,
+                          double start,double stop,double hz){
+        const int from=int(start*rate),end=int(stop*rate);
+        double real=0,imag=0;
+        for(int n=from;n<end;++n){
+            const double angle=6.2831853071795864769*hz*double(n-from)/rate;
+            real+=samples[std::size_t(n)]*std::cos(angle);
+            imag+=samples[std::size_t(n)]*std::sin(angle);
+        }
+        return 2*std::hypot(real,imag)/(end-from);
+    };
+    const double bridgeE440=lockIn(sound,1.2,1.7,440.0);
+    const double bridgeE659=lockIn(sound,1.2,1.7,659.2551138257);
+    const double contactE440=lockIn(stringVelocities[1],1.2,1.7,440.0);
+    const double contactE659=lockIn(stringVelocities[1],1.2,1.7,659.2551138257);
+    const double forceE440=lockIn(bowForceTraces[1],1.2,1.7,440.0);
+    const double forceE659=lockIn(bowForceTraces[1],1.2,1.7,659.2551138257);
+    std::cout<<"E-bow stage spectral bridge A440="<<bridgeE440
+             <<" E659="<<bridgeE659
+             <<" ; E-string velocity A440="<<contactE440
+             <<" E659="<<contactE659
+             <<" ; E-bow force A440="<<forceE440
+             <<" E659="<<forceE659<<"\\n";
     std::cout<<"physical A-E-A crossover: max energy residual "<<worstLedger
         <<" J; root residual "<<worstRoot
         <<" N; minimum hair dissipation "<<minHairDiss
