@@ -78,3 +78,48 @@ References for later modeling (not a claim these were implemented):
   https://dael.euracoustics.org/bin/EAA/aaua_dl?document_id=64660
 - Real E-string torsional whistling:
   https://euphonics.org/9-5-getting-that-perfect-start-guettlers-diagram/
+
+## Reverse crossing diagnostic and modal corpus rebuild
+
+A->E->A on the two-port bridge was further decomposed into true actuator
+work and the vibrational displacement of both strings:
+
+- Returned A period 2.25-2.75 s: A-bow RMS traction 0.103 N;
+  **E-bow RMS traction exactly zero**.
+- Despite this, the returning A-string bow-contact 440-Hz velocity
+  amplitude is about 0.042 m/s, while the unbowed E string has a 659-Hz
+  bow-contact velocity amplitude about 0.233 m/s.
+- Independent A-only and E-only steady tests produce their proper notes.
+  Therefore the wrong-pitch symptom is *not* simply incorrect MIDI-to-string
+  routing or a second note being re-triggered. The old string retains
+  stored vibration and the body termination transfers/dissipates too little
+  energy in that state.
+
+A controlled passive grounded dashpot sweep (5, 15, 30, 60, 120, 240
+N s/m) reduced the E-string residual but **every candidate destroyed
+or drastically weakened E's bowed fundamental**. None passed the
+bidirectional A/E/A pitch gate. No bulk-string-damping or high-pass EQ
+"fix" is accepted.
+
+The reusable `TwoPortBridgePair` now supports two simultaneously
+integrated *passive corpus oscillators* with positive masses, stiffness,
+viscous damping and two signed attachment locations. Stored energy now
+includes strings, bridge feet, each body mass/spring and every
+port-to-body coupling spring; dissipated work includes mode and coupling
+dashpots. Two symmetric/antisymmetric mode simulations with and without
+damping passed the JUCE-free energy ledger at 44.1/48 kHz, with
+maximum numerical step residual about 8.8e-21 J.
+
+`TwoStringFiddleBridge::BridgeImpedance` exposes the bridge impedance and
+an opt-in pair of **synthetic** (not measured) symmetric and rocking corpus
+modes. These are exploratory and do not yet implement calibrated violin
+bridge admittance or audio radiation. Continuous-crossing tests compare
+modal damping against the failed constant-dashpot approach without
+changing existing VST3/Play Mode.
+
+Scientific design check: empirical bowed-violin models treat the
+bowed string, measured bridge driving-point admittance and radiation
+transfer as three different physical subsystems. See Sterling & Bocko,
+"Empirical Physical Modeling for Bowed String Instruments" (2010),
+DOI:10.1109/ICASSP.2010.5495754, and Smith,
+"Physical Audio Signal Processing", section 9.5.2.
