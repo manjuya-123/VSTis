@@ -26,10 +26,12 @@ jobs:
       - name: Build portable physical core regressions
         run: cmake --build --preset linux-core-release
 
-      # A tiny reference solver should fail fast instead of sitting behind
-      # minutes of legacy musical regressions. This is not an audio quality gate.
+      # Numerical pilot is independent of musical/timbre acceptance.
       - name: Verify experimental physical string
-        run: ctest --test-dir build/linux-core -R '^FiddleModelPhysicalStringPrototype
+        run: ctest --test-dir build/linux-core -R FiddleModelPhysicalStringPrototype --verbose --output-on-failure
+
+      - name: Run portable physical core regressions
+        run: ctest --test-dir build/linux-core --output-on-failure
 
       - name: Print bowed-string contact mechanics by string and sample rate
         if: always()
