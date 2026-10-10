@@ -40,6 +40,11 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
     for(int j=0;j<2;++j){stringVelocities[j].reserve(total);bowForceTraces[j].reserve(total);portVelocities[j].reserve(total);}
     double worstLedger=0,worstRoot=0,minHairDiss=0;
     double peak=0,peakBridge=0,peakEnergy=0;
+    // Physical decay diagnostics are distinct from pitch spectrum and must
+    // not be confused with listener evaluation or emitted acoustic power.
+    double EenergyAtRelease=0,EenergyAfterCrossing=0,EenergyAtEnd=0;
+    double AenergyAtEnd=0,bridgeCorpusDissipation=0;
+    double EforceWorkAfterRelease=0;
     double aNormalSum=0,eNormalSum=0;
     std::array<double,3> rmsStage{};
     std::array<int,3> countStage{};
@@ -71,6 +76,22 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
         sound.push_back(float(velocity));
         const auto vs=model.stringBowVelocities();
         const auto fb=model.bowForces();
+        const auto& plant=model.mechanics();
+        const double eString=plant.string(1).energy(plant.bridgePosition(1));
+        if(n==int(rate*1.8))EenergyAtRelease=eString;
+        if(n==int(rate*2.05))EenergyAfterCrossing=eString;
+        if(n==int(rate*2.75)){
+            EenergyAtEnd=eString;
+            AenergyAtEnd=plant.string(0).energy(plant.bridgePosition(0));
+        }
+        if(t>=1.8 && t<2.75){
+            const double allLoss=plant.dampingWork();
+            const double stringLoss=plant.string(0).dampingWork()+
+                                    plant.string(1).dampingWork();
+            bridgeCorpusDissipation-=allLoss-stringLoss;
+            EforceWorkAfterRelease+=fb[1]*vs[1]/rate;
+        }
+
         for(int j=0;j<2;++j){
             stringVelocities[j].push_back(float(vs[j]));
             bowForceTraces[j].push_back(float(fb[j]));
@@ -152,6 +173,15 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
              <<", returned A440="<<bridgeAReturn440
              <<", returned E659="<<bridgeAReturn659
              <<" => "<<(pitchGate?"PASS":"FAIL")<<"\\n";
+    std::cout<<"string-energy and corpus ledger: E at 1.8 / 2.05 / 2.75s="
+             <<EenergyAtRelease<<"/"<<EenergyAfterCrossing<<"/"
+             <<EenergyAtEnd<<" J; retained="
+             <<EenergyAtEnd/std::max(1.e-30,EenergyAtRelease)
+             <<" ; A at 2.75="<<AenergyAtEnd
+             <<" J; bridge+body passive loss (1.8 to 2.75)="
+             <<bridgeCorpusDissipation
+             <<" J; E-bow work over this interval="<<EforceWorkAfterRelease
+             <<" J\n";
     std::cout<<"physical A-E-A crossover: max energy residual "<<worstLedger
         <<" J; root residual "<<worstRoot
         <<" N; minimum hair dissipation "<<minHairDiss
