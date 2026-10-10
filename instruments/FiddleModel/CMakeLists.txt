@@ -268,3 +268,20 @@ if (BUILD_TESTING)
                 ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
     )
 endif()
+
+# Independent fiddle rebuild pilot. Not used by the existing VST3 signal path.
+if (BUILD_TESTING)
+    add_executable(FiddleRebuildNumerics
+        Tests/FiddleRebuildPilot.cpp
+        Source/Rebuild/BowedStringPilot.h
+    )
+    target_link_libraries(FiddleRebuildNumerics PRIVATE vstis_physical_core)
+    target_include_directories(FiddleRebuildNumerics PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleRebuildNumerics PRIVATE cxx_std_17)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio)
+    add_test(
+        NAME FiddleRebuildNumerics
+        COMMAND FiddleRebuildNumerics
+                ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/one_string_bridge_reaction_probe.wav
+    )
+endif()
