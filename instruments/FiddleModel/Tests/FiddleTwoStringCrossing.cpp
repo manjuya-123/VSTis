@@ -28,7 +28,7 @@ bool writeWave(const char* path,const std::vector<float>& s) {
     out.write(reinterpret_cast<const char*>(s.data()),bytes);
     return out.good();
 }
-bool runCrossing(const char* path){
+bool runCrossing(const char* path,bool requireTonalPitch=false){
     constexpr int rate=48000,total=rate*3;
     TwoStringFiddleBridge model;
     if(!model.prepare(rate))return false;
@@ -90,6 +90,10 @@ bool runCrossing(const char* path){
         }
         return 2*std::hypot(real,imag)/(end-from);
     };
+    const double bridgeAFirst440=lockIn(sound,0.2,0.7,440.0);
+    const double bridgeAFirst659=lockIn(sound,0.2,0.7,659.2551138257);
+    const double bridgeAReturn440=lockIn(sound,2.25,2.75,440.0);
+    const double bridgeAReturn659=lockIn(sound,2.25,2.75,659.2551138257);
     const double bridgeE440=lockIn(sound,1.2,1.7,440.0);
     const double bridgeE659=lockIn(sound,1.2,1.7,659.2551138257);
     const double contactE440=lockIn(stringVelocities[1],1.2,1.7,440.0);
@@ -102,6 +106,19 @@ bool runCrossing(const char* path){
              <<" E659="<<contactE659
              <<" ; E-bow force A440="<<forceE440
              <<" E659="<<forceE659<<"\\n";
+    // This check is intentionally separate from a correct passive numerical
+    // solver: a model can conserve energy while audibly playing the WRONG
+    // string. It must FAIL, rather than be called fixed, until each segment
+    // is led by its requested open-string fundamental.
+    const bool pitchGate=bridgeAFirst440>2.0*bridgeAFirst659
+            &&bridgeE659>2.0*bridgeE440
+            &&bridgeAReturn440>2.0*bridgeAReturn659;
+    std::cout<<"A-E-A tonal gate (bridge fundamentals, not human acceptance): "
+             <<"first A440="<<bridgeAFirst440
+             <<", E659="<<bridgeE659
+             <<", returned A440="<<bridgeAReturn440
+             <<", returned E659="<<bridgeAReturn659
+             <<" => "<<(pitchGate?"PASS":"FAIL")<<"\\n";
     std::cout<<"physical A-E-A crossover: max energy residual "<<worstLedger
         <<" J; root residual "<<worstRoot
         <<" N; minimum hair dissipation "<<minHairDiss
@@ -121,7 +138,7 @@ bool runCrossing(const char* path){
     }
     std::cout<<(ok?"TWO-STRING CROSSING NUMERICS PASS\n":
                     "TWO-STRING CROSSING NUMERICS FAIL\n");
-    return ok;
+    return ok&&(!requireTonalPitch||pitchGate);
 }
 bool independentEOnlyProbe(const char* path){
     TwoStringFiddleBridge m;if(!m.prepare(48000))return false;
@@ -161,7 +178,8 @@ bool independentEOnlyProbe(const char* path){
     return std::isfinite(eForces);
 }
 int main(int argc,char** argv){
-    bool ok=runCrossing(argc>1?argv[1]:nullptr);
+    bool tonalGate=argc>2&&std::string(argv[2])=="--pitch-gate";
+    bool ok=runCrossing(argc>1?argv[1]:nullptr,tonalGate);
     if(argc>1){
         std::string path(argv[1]);
         const auto slash=path.find_last_of("/\\");
