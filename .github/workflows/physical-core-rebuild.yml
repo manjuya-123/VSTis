@@ -21,7 +21,7 @@ jobs:
         run: cmake --build --preset linux-core-release --target VSTisSharedBridgeNumerics VSTisTwoPortBridgeNumerics FiddleRebuildNumerics FiddleTwoStringCrossing
 
       - name: Verify work and energy accounting
-        run: ctest --test-dir build/linux-core -R '(VSTisSharedBridgeNumerics|VSTisTwoPortBridgeNumerics|FiddleRebuildNumerics|FiddleTwoStringCrossing|FiddleTwoStringCrossingToneGate)' --verbose --output-on-failure
+        run: ctest --test-dir build/linux-core -R '(VSTisSharedBridgeNumerics|VSTisTwoPortBridgeNumerics|FiddleRebuildNumerics|FiddleTwoStringCrossing|FiddleTwoStringCrossingToneGate|FiddleBridgeImpedanceSweep)' --verbose --output-on-failure
 
       - name: Upload UNVERIFIED bridge diagnostics (not violin tone)
         if: always()
