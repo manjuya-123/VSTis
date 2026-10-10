@@ -63,3 +63,68 @@ Keep the existing note and bow-action keys as **commands for physical gestures**
 - J. Woodhouse & P. Galluzzo (2025), *Enhanced Tribological Modelling of Violin Rosin*. https://doi.org/10.1007/s11249-025-02062-4
 
 This is an architecture decision and test specification, **not** a claim that the new physical solver already exists or that the recurring E-string defect is fixed.
+
+## Verified 2026-10-11 code-level junction inconsistency
+
+This is more specific than the design concerns above. In the legacy
+`FiddleEngine.cpp`, the bow's incoming velocity is:
+
+```
+v_in = incomingBridge + incomingNut;
+v_proxy = v_in + finiteWidthBlend * (finiteWidthAverage - v_in);
+v_solved = BowContact::solve(v_proxy, ...);
+injection = v_solved - v_proxy;
+outgoing waves = incoming waves + injection;
+```
+
+The waves therefore reconstruct the **actual** string velocity
+`v_actual = v_in + injection = v_solved - (v_proxy - v_in)`, not
+`v_solved`. The contact solver computes friction and slip from
+`v_solved`, but the waves exchange power at `v_actual`. For a
+nonzero virtual-width correction `delta = v_proxy - v_in`, the
+unaccounted local power term has magnitude `F_contact * delta`
+(with sign depending on the power convention). No second spatial
+injection or elastic storage is present to explain this difference.
+
+This does **not** prove that this single term is the audible E-string
+"pon"; it does prove the local numerical contact/propagation closure
+is not exactly the one solved by the friction model. Correcting the
+sign of a coefficient or altering frequency-dependent EQ cannot
+supply the missing contact consistency.
+
+A separate discontinuity risk is visible in `BowContact.h`: when
+the sliding equation does not bracket a root it substitutes the
+static limit. When the static and sliding regimes switch, that
+fallback can inject sharp transitions. The current legacy diagnostics
+expose the fallback bit but normal-playing tests have not established
+that it is always absent.
+
+## Experimental code now available
+
+`Source/Dsp/experimental/ContinuousStringCore.h` implements an
+**isolated one-string experiment**, not a replacement or tonal upgrade:
+
+- fixed spatial coordinates, with second-order finite-difference
+  displacement and wave propagation (adaptive internal substeps to
+  keep the Courant number below 0.9);
+- moving, implicit compliant finger/string contact, with the existing
+  displacement field carried between note commands;
+- force-coupled bow junction solved against that same displacement
+  field, with a bounded monotone sliding root and no synthetic
+  Note-On pluck;
+- independent bridge reaction-force output for numerical probing;
+- discrete free-string energy computation to test the underlying
+  unforced update.
+
+`Tests/FiddlePhysicalStringPrototype.cpp` covers passive-wave energy,
+frequency, the unchanged state at a finger command, and finite
+excited bow trajectories. Its CTest registration does **not** change
+the sound engine used by the VST3 or original reel.
+
+**Important limitations:** the prototype has one transverse
+polarisation only, a prescribed bow rather than a moving hair/contact
+mass, a rigid bridge boundary, an empirical static/dynamic friction
+switch, and no violin body radiation. Passive energy of the free wave
+is necessary, not sufficient: the next milestone is a coupled
+energy/work ledger for bow and finger, then body admittance and
+shared-string crossings. No subjective tonal improvement is claimed.
