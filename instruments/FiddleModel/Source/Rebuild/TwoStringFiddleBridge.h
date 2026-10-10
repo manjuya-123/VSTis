@@ -1,5 +1,5 @@
 #pragma once
-#include "physical/SharedBridgePair.h"
+#include "physical/TwoPortBridgePair.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -11,7 +11,7 @@
 namespace vstis::fiddle::rebuild {
 class TwoStringFiddleBridge {
 public:
-    using Core=physical::SharedBridgePair;
+    using Core=physical::TwoPortBridgePair;
     static constexpr double length=0.328;
     struct Gesture{
         double bowSpeed=0.22,normalForce=0.30,crossing=0.0;
@@ -27,7 +27,10 @@ public:
             specs[i].linearDensity=48.0/std::pow(2.0*length*open[i],2.0);
             specs[i].lossPerSecond=0.55;
         }
-        if(!core_.prepare(sampleRate,specs,0.002,150000.0,1.0))return false;
+        // Two distinct bowing-side bridge contact coordinates, with a passive
+        // elastic rocker between them. This is not a fitted violin body.
+        if(!core_.prepare(sampleRate,specs,
+                          0.001,200000.0,5.0,200000.0,5.0))return false;
         h_=1.0/sampleRate;reset();return true;
     }
     void reset()noexcept{
@@ -144,7 +147,7 @@ public:
         lastResidual_=(after-before)-(inputWork+core_.dampingWork()+fingerDamping);
         lastHairDissipation_=bristleDiss;
         lastForce_=forces;lastVString_=response.vA;
-        return response.bridgeMid; // mechanical bridge velocity, NOT microphone signal
+        return 0.5*(response.bridgeMid[0]+response.bridgeMid[1]); // center velocity, NOT sound radiation
     }
     const Core& mechanics()const noexcept{return core_;}
     double energyResidual()const noexcept{return lastResidual_;}
