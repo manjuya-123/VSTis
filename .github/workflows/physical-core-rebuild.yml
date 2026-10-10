@@ -18,10 +18,10 @@ jobs:
         run: cmake --preset linux-core
 
       - name: Build only new fiddle pilot against reusable physics
-        run: cmake --build --preset linux-core-release --target VSTisSharedBridgeNumerics VSTisTwoPortBridgeNumerics FiddleRebuildNumerics FiddleTwoStringCrossing
+        run: cmake --build --preset linux-core-release --target VSTisSharedBridgeNumerics VSTisTwoPortBridgeNumerics VSTisModalBodyEnergy FiddleRebuildNumerics FiddleTwoStringCrossing
 
       - name: Verify work and energy accounting
-        run: ctest --test-dir build/linux-core -R '(VSTisSharedBridgeNumerics|VSTisTwoPortBridgeNumerics|FiddleRebuildNumerics|FiddleTwoStringCrossing|FiddleTwoStringCrossingToneGate|FiddleBridgeImpedanceSweep)' --verbose --output-on-failure
+        run: ctest --test-dir build/linux-core -R '(VSTisSharedBridgeNumerics|VSTisTwoPortBridgeNumerics|VSTisModalBodyEnergy|FiddleRebuildNumerics|FiddleTwoStringCrossing|FiddleTwoStringCrossingToneGate|FiddleBridgeImpedanceSweep)' --verbose --output-on-failure
 
       - name: Upload UNVERIFIED bridge diagnostics (not violin tone)
         if: always()
