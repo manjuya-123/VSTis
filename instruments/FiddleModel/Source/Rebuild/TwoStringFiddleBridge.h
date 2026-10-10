@@ -28,7 +28,8 @@ public:
         double rockingDampingNspm=5.0;
         double stringBulkDampingPerSecond=0.55;
     };
-    bool prepare(double sampleRate,BridgeImpedance impedance={})noexcept{
+    bool prepare(double sampleRate)noexcept {return prepare(sampleRate,BridgeImpedance{});}
+    bool prepare(double sampleRate,const BridgeImpedance& impedance)noexcept{
         std::array<Core::StringSpec,2> specs{};
         const std::array<double,2> open{440.0,659.2551138257};
         for(int i=0;i<2;++i){
