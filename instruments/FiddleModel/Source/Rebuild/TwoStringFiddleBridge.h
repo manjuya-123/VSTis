@@ -69,14 +69,22 @@ public:
             std::max(0.0,g.normalForce)*ca*ca,
             std::max(0.0,g.normalForce)*ce*ce
         };
+        // Unloading a bow contact shrinks its admissible bristle deflection.
+        // Any released elastic energy is dissipated in hair/rosin rather than
+        // injected into the string as an unbounded last contact impulse.
+        constexpr double hairStiffness=12000.0;
+        std::array<double,2> bristleSeed{};
+        for(int i=0;i<2;++i){
+            const double bound=1.2*normal[i]/hairStiffness;
+            bristleSeed[i]=std::clamp(bristle_[i],-bound,bound);
+        }
         // Both strings are resolved against the SAME bridge DOF. The coupled
         // LuGre implicit roots are solved by deterministic block Gauss-Seidel,
         // with exact linear bridge + finger elimination at each trial.
         std::array<double,2> forces{};
         for(int i=0;i<2;++i)
             forces[i]=(normal[i]>1.e-10)?std::clamp(
-                12000.0*bristle_[i],-1.2*normal[i],1.2*normal[i]):0.0;
-        constexpr double hairStiffness=12000.0;
+                12000.0*bristleSeed[i],-1.2*normal[i],1.2*normal[i]):0.0;
         const auto contactForce=[&](int i,
                                    double trial,
                                    std::array<double,2> other)noexcept{
@@ -86,7 +94,7 @@ public:
             const double scaled=slip/0.045;
             const double grip=normal[i]*(0.34+0.86*std::exp(-scaled*scaled));
             const double yield=std::max(1.0e-12,grip/hairStiffness);
-            const double next=(bristle_[i]+h_*slip)/
+            const double next=(bristleSeed[i]+h_*slip)/
                 (1.0+h_*std::abs(slip)/yield);
             return hairStiffness*next;
         };
