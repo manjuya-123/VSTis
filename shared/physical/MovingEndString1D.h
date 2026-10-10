@@ -18,7 +18,7 @@ public:
     bool prepare(double rate,double length,double tension,
                  double density,double loss)noexcept {
         if(!(rate>=8000&&length>0.05&&tension>0&&density>0&&loss>=0))return false;
-        h_=1/rate; dx_=length/segments; m_=density*dx_;
+        h_=1/rate; length_=length; dx_=length/segments; m_=density*dx_;
         k_=tension/dx_;d_=m_*loss;
         off_=-h_*h_*k_/(4*m_);
         diag_=1+h_*d_/(2*m_)+h_*h_*k_/(2*m_);
@@ -31,8 +31,8 @@ public:
         reset();return true;
     }
     void reset()noexcept{q_.fill(0);v_.fill(0);lastMid_.fill(0);}
-    Contact at(double x,double length=0.328)const noexcept {
-        const double u=std::clamp(x/(length/segments),1.0,double(segments-1));
+    Contact at(double x)const noexcept {
+        const double u=std::clamp(x/dx_,1.0,double(segments-1));
         const int grid=std::clamp(int(u),1,segments-1);
         return {grid-1,1.0-(u-grid),u-grid};
     }
@@ -90,6 +90,6 @@ private:
         return x;
     }
     Vec q_{},v_{},lastMid_{},piv_{};
-    double h_=1/48000.0,dx_=0.0041,m_=1,k_=1,d_=0,off_=0,diag_=1;
+    double h_=1/48000.0,length_=0.328,dx_=0.0041,m_=1,k_=1,d_=0,off_=0,diag_=1;
 };
 } // namespace vstis::physical
