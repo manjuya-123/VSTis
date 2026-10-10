@@ -303,3 +303,14 @@ if (BUILD_TESTING)
             ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/two_string_A_E_A_bridge_velocity_NOT_violin.wav
     )
 endif()
+
+# Separate auditory-precondition check. Energy correctness is NOT pitch correctness.
+# This is deliberately a failing gate while the returning A string remains weak.
+if (BUILD_TESTING)
+    add_test(
+        NAME FiddleTwoStringCrossingToneGate
+        COMMAND FiddleTwoStringCrossing
+            ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/two_string_A_E_A_pitch_gate_diagnostic.wav
+            --pitch-gate
+    )
+endif()
