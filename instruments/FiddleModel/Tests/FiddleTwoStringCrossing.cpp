@@ -28,10 +28,11 @@ bool writeWave(const char* path,const std::vector<float>& s) {
     out.write(reinterpret_cast<const char*>(s.data()),bytes);
     return out.good();
 }
-bool runCrossing(const char* path,bool requireTonalPitch=false){
+bool runCrossing(const char* path,bool requireTonalPitch=false,
+                 TwoStringFiddleBridge::BridgeImpedance impedance={}){
     constexpr int rate=48000,total=rate*3;
     TwoStringFiddleBridge model;
-    if(!model.prepare(rate))return false;
+    if(!model.prepare(rate,impedance))return false;
     TwoStringFiddleBridge::Gesture gesture;
     gesture.bowSpeed=0.22;gesture.normalForce=0.30;
     std::vector<float> sound;sound.reserve(total);
@@ -140,6 +141,9 @@ bool runCrossing(const char* path,bool requireTonalPitch=false){
     const bool pitchGate=bridgeAFirst440>2.0*bridgeAFirst659
             &&bridgeE659>2.0*bridgeE440
             &&bridgeAReturn440>2.0*bridgeAReturn659;
+    std::cout<<"bridge parameter trial ground C="<<impedance.groundingDampingNspm
+             <<" link C="<<impedance.rockingDampingNspm
+             <<" string loss="<<impedance.stringBulkDampingPerSecond<<"\n";
     std::cout<<"A-E-A tonal gate (bridge fundamentals, not human acceptance): "
              <<"first A440="<<bridgeAFirst440
              <<", E659="<<bridgeE659
@@ -237,6 +241,17 @@ bool independentEOnlyProbe(const char* path){
     return std::isfinite(eForces);
 }
 int main(int argc,char** argv){
+    if(argc>1&&std::string(argv[1])=="--scan-bridge-impedance"){
+        bool allNumerics=true;
+        for(const double groundC : {5.0,15.0,30.0,60.0,120.0,240.0}){
+            auto parameters=TwoStringFiddleBridge::BridgeImpedance{};
+            parameters.groundingDampingNspm=groundC;
+            std::cout<<"=== PASSIVE BRIDGE ADMITTANCE TRIAL C="
+                     <<groundC<<" ===\n";
+            allNumerics=runCrossing(nullptr,false,parameters)&&allNumerics;
+        }
+        return allNumerics?EXIT_SUCCESS:EXIT_FAILURE;
+    }
     bool tonalGate=argc>2&&std::string(argv[2])=="--pitch-gate";
     bool ok=runCrossing(argc>1?argv[1]:nullptr,tonalGate);
     if(argc>1){
