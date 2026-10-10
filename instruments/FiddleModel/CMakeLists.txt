@@ -283,3 +283,56 @@ if (BUILD_TESTING)
                 ${CMAKE_CURRENT_BINARY_DIR}/regression-audio
     )
 endif()
+
+# Independent fiddle rebuild pilot. Not used by the existing VST3 signal path.
+if (BUILD_TESTING)
+    add_executable(FiddleRebuildNumerics
+        Tests/FiddleRebuildPilot.cpp
+        Source/Rebuild/BowedStringPilot.h
+    )
+    target_link_libraries(FiddleRebuildNumerics PRIVATE vstis_physical_core)
+    target_include_directories(FiddleRebuildNumerics PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+    target_compile_features(FiddleRebuildNumerics PRIVATE cxx_std_17)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio)
+    add_test(
+        NAME FiddleRebuildNumerics
+        COMMAND FiddleRebuildNumerics
+                ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/one_string_bridge_reaction_probe.wav
+    )
+endif()
+
+# Prototype only: continuous two-string A/E bow crossing, no legacy DSP.
+if (BUILD_TESTING)
+    add_executable(FiddleTwoStringCrossing
+        Tests/FiddleTwoStringCrossing.cpp
+        Source/Rebuild/TwoStringFiddleBridge.h
+    )
+    target_link_libraries(FiddleTwoStringCrossing PRIVATE vstis_physical_core)
+    target_include_directories(FiddleTwoStringCrossing PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+    )
+    target_compile_features(FiddleTwoStringCrossing PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleTwoStringCrossing
+        COMMAND FiddleTwoStringCrossing
+            ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/two_string_A_E_A_bridge_velocity_NOT_violin.wav
+    )
+endif()
+
+# Separate auditory-precondition check. Energy correctness is NOT pitch correctness.
+# This is deliberately a failing gate while the returning A string remains weak.
+if (BUILD_TESTING)
+    add_test(
+        NAME FiddleTwoStringCrossingToneGate
+        COMMAND FiddleTwoStringCrossing
+            ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/two_string_A_E_A_pitch_gate_diagnostic.wav
+            --pitch-gate
+    )
+endif()
+
+# Diagnostic scan of PASSIVE bridge-to-body impedances. Mechanics pass is
+# separate from the intentionally red A/E/A pitch-dominance acceptance gate.
+if (BUILD_TESTING)
+    add_test(NAME FiddleBridgeImpedanceSweep
+             COMMAND FiddleTwoStringCrossing --scan-bridge-impedance)
+endif()

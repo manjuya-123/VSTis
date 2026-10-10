@@ -14,4 +14,5 @@ if (NOT VSTIS_CORE_ONLY)
     include(cmake/JUCE.cmake)
 endif()
 
+add_subdirectory(shared/physical)
 add_subdirectory(instruments/FiddleModel)

@@ -1,0 +1,32 @@
+name: Rebuild physical core (multi-instrument)
+
+on:
+  push:
+    branches:
+      - work/fiddle-physical-rebuild
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  numeric-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure JUCE-independent mechanics
+        run: cmake --preset linux-core
+
+      - name: Build only new fiddle pilot against reusable physics
+        run: cmake --build --preset linux-core-release --target VSTisSharedBridgeNumerics VSTisTwoPortBridgeNumerics VSTisModalBodyEnergy FiddleRebuildNumerics FiddleTwoStringCrossing
+
+      - name: Verify work and energy accounting
+        run: ctest --test-dir build/linux-core -R '(VSTisSharedBridgeNumerics|VSTisTwoPortBridgeNumerics|VSTisModalBodyEnergy|FiddleRebuildNumerics|FiddleTwoStringCrossing|FiddleTwoStringCrossingToneGate|FiddleBridgeImpedanceSweep)' --verbose --output-on-failure
+
+      - name: Upload UNVERIFIED bridge diagnostics (not violin tone)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-UNVERIFIED-bridge-diagnostics-NOT-violin-audio
+          if-no-files-found: warn
+          path: build/linux-core/instruments/FiddleModel/rebuild-audio/*.wav
