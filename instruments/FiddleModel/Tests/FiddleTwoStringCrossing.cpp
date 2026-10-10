@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 using vstis::fiddle::rebuild::TwoStringFiddleBridge;
@@ -121,6 +122,54 @@ bool runCrossing(const char* path){
                     "TWO-STRING CROSSING NUMERICS FAIL\n");
     return ok;
 }
+bool independentEOnlyProbe(const char* path){
+    TwoStringFiddleBridge m;if(!m.prepare(48000))return false;
+    TwoStringFiddleBridge::Gesture g;g.crossing=1;g.bowSpeed=0.22;g.normalForce=0.30;
+    constexpr int rate=48000,total=2*rate;
+    std::vector<float> bridge;bridge.reserve(total);
+    double eReal=0,eImag=0,aReal=0,aImag=0;
+    double vEReal=0,vEImag=0;
+    double eForces=0,peak=0;
+    for(int i=0;i<total;++i){
+        const double y=m.step(g);
+        const auto v=m.stringBowVelocities();
+        const auto F=m.bowForces();
+        bridge.push_back(float(y));
+        peak=std::max(peak,std::abs(y));
+        if(i>=rate && i<2*rate){
+            const double t=double(i-rate)/rate;
+            const double phaseE=6.283185307179586*659.2551138257*t;
+            const double phaseA=6.283185307179586*440.0*t;
+            eReal+=y*std::cos(phaseE);
+            eImag+=y*std::sin(phaseE);
+            aReal+=y*std::cos(phaseA);
+            aImag+=y*std::sin(phaseA);
+            vEReal+=v[1]*std::cos(phaseE);
+            vEImag+=v[1]*std::sin(phaseE);
+            eForces+=std::abs(F[1]);
+        }
+    }
+    std::cout<<"E-only after 1s: bridge E659="<<2*std::hypot(eReal,eImag)/rate
+             <<" bridge A440="<<2*std::hypot(aReal,aImag)/rate
+             <<" E-string bow contact E659="<<2*std::hypot(vEReal,vEImag)/rate
+             <<" mean E bow force="<<eForces/rate<<"\n";
+    if(path!=nullptr&&peak>0){
+        for(auto& sample:bridge)sample=float(sample*0.6/peak);
+        return writeWave(path,bridge);
+    }
+    return std::isfinite(eForces);
+}
 int main(int argc,char** argv){
-    return runCrossing(argc>1?argv[1]:nullptr)?EXIT_SUCCESS:EXIT_FAILURE;
+    bool ok=runCrossing(argc>1?argv[1]:nullptr);
+    if(argc>1){
+        std::string path(argv[1]);
+        const auto slash=path.find_last_of("/\\");
+        if(slash!=std::string::npos)path=path.substr(0,slash+1);
+        else path.clear();
+        path+="two_string_E_only_bridge_velocity_NOT_violin.wav";
+        ok=independentEOnlyProbe(path.c_str())&&ok;
+    }else{
+        ok=independentEOnlyProbe(nullptr)&&ok;
+    }
+    return ok?EXIT_SUCCESS:EXIT_FAILURE;
 }
