@@ -66,7 +66,7 @@ bool movingFingerTest(double hz){
     return sum/48000>0.01 && sticks>0 && slips>0 && worst<1.0e-10;
 }
 
-void writeDiagnostic(const char* path){
+bool evaluateContactTone(const char* path){
     BowedStringPilot s;if(!s.prepare(48000,440))return;
     Gesture g;g.bowSpeed=0.23;g.normalForce=0.30;
     g.fingerX=s.fingerPositionForFrequency(493.8833);
@@ -76,7 +76,46 @@ void writeDiagnostic(const char* path){
         if(i>=96000)g.fingerLoad=std::max(0.0,1.0-(i-96000)/600.0);
         samples.push_back(float(std::clamp(s.step(g)*0.04,-0.95,0.95)));
     }
-    std::ofstream o(path,std::ios::binary);if(!o)return;
+    // Acceptance is limited to a 1-string MECHANICAL reaction signal,
+    // NOT evidence of real violin timbre. Reject the formerly green
+    // discontinuous-contact pilot, which had strong ultrasonic components
+    // and a barely resolved fundamental despite its excellent energy ledger.
+    const auto fundamentalFraction=[&](int start,int end,double pitch) {
+        double mean=0.0;
+        for(int i=start;i<end;++i)mean+=samples[std::size_t(i)];
+        mean/=double(end-start);
+        double var=0.0,real=0.0,imag=0.0;
+        for(int i=start;i<end;++i) {
+            const double x=samples[std::size_t(i)]-mean;
+            const double phase=2.0*3.14159265358979323846*pitch
+                               *double(i-start)/48000.0;
+            var+=x*x;real+=x*std::cos(phase);imag+=x*std::sin(phase);
+        }
+        const double amp=2.0*std::hypot(real,imag)/double(end-start);
+        return (var>1.0e-16) ?
+            amp/std::sqrt(2.0*var/double(end-start)):0.0;
+    };
+    const double noteA=fundamentalFraction(14400,43200,440.0);
+    const double noteB=fundamentalFraction(62400,91200,493.8833);
+    const double noteReturn=fundamentalFraction(110400,139200,440.0);
+    // High-frequency residual after a defined first-order 4 kHz pole.
+    double filtered=0.0,highPower=0.0,totalPower=0.0;
+    const double alpha=1.0-std::exp(
+        -2.0*3.14159265358979323846*4000.0/48000.0);
+    for(const float sample: samples){
+        filtered+=alpha*(double(sample)-filtered);
+        highPower+=std::pow(double(sample)-filtered,2.0);
+        totalPower+=std::pow(double(sample),2.0);
+    }
+    const double highFraction=std::sqrt(highPower/std::max(1.0e-20,totalPower));
+    std::cout<<"one-string mechanical tonal gate: f0 fractions "
+             <<noteA<<", "<<noteB<<", "<<noteReturn
+             <<"; highpass fraction "<<highFraction<<"\\n";
+    const bool acceptable=noteA>0.28&&noteB>0.28&&noteReturn>0.14
+                          &&highFraction<0.30;
+    if(path==nullptr)return acceptable;
+    std::ofstream o(path,std::ios::binary);
+    if(!o)return false;
     const std::uint32_t bytes=std::uint32_t(samples.size()*4);
     auto u16=[&](std::uint16_t n){o.write(reinterpret_cast<const char*>(&n),2);};
     auto u32=[&](std::uint32_t n){o.write(reinterpret_cast<const char*>(&n),4);};
@@ -84,16 +123,17 @@ void writeDiagnostic(const char* path){
     u32(16);u16(3);u16(1);u32(48000);u32(48000*4);u16(4);u16(32);
     o.write("data",4);u32(bytes);
     o.write(reinterpret_cast<const char*>(samples.data()),bytes);
+    return acceptable && o.good();
 }
 
 int main(int argc,char** argv){
-    const bool ok=freeEnergyTest(44100,196)
+    bool ok=freeEnergyTest(44100,196)
         &&freeEnergyTest(48000,659.2551)
         &&workIdentityTest()
         &&movingFingerTest(196)
         &&movingFingerTest(440)
         &&movingFingerTest(659.2551);
-    if(ok&&argc>1)writeDiagnostic(argv[1]);
+    if(ok)ok=evaluateContactTone(argc>1?argv[1]:nullptr);
     std::cout<<(ok?"Fiddle rebuild numeric PASS\n":"Fiddle rebuild numeric FAIL\n");
     return ok?EXIT_SUCCESS:EXIT_FAILURE;
 }
