@@ -27,6 +27,9 @@ public:
         double rockingStiffnessNpm=200000.0;
         double rockingDampingNspm=5.0;
         double stringBulkDampingPerSecond=0.55;
+        bool enableExploratoryCorpusModes=false;
+        double corpusCouplingScale=1.0;
+        double corpusDampingScale=1.0;
     };
     bool prepare(double sampleRate)noexcept {return prepare(sampleRate,BridgeImpedance{});}
     bool prepare(double sampleRate,const BridgeImpedance& impedance)noexcept{
@@ -49,6 +52,29 @@ public:
                           impedance.groundingDampingNspm,
                           impedance.rockingStiffnessNpm,
                           impedance.rockingDampingNspm))return false;
+        if(impedance.enableExploratoryCorpusModes){
+            // Exploratory, explicitly NOT fitted to any violin's measured
+            // bridge admittance. Two passive spring-mass-damper shapes
+            // represent low corpus bounce and differential bridge rocking.
+            std::array<Core::BodyMode,2> modes{};
+            modes[0].mass=0.008;
+            modes[0].stiffness=39000.0;
+            modes[0].damping=8.0*impedance.corpusDampingScale;
+            modes[0].couplingStiffness={14000.0*impedance.corpusCouplingScale,
+                                        14000.0*impedance.corpusCouplingScale};
+            modes[0].couplingDamping={2.0*impedance.corpusDampingScale,
+                                      2.0*impedance.corpusDampingScale};
+            modes[0].shape={1.0,1.0};
+            modes[1].mass=0.006;
+            modes[1].stiffness=45000.0;
+            modes[1].damping=10.0*impedance.corpusDampingScale;
+            modes[1].couplingStiffness={15000.0*impedance.corpusCouplingScale,
+                                        15000.0*impedance.corpusCouplingScale};
+            modes[1].couplingDamping={2.0*impedance.corpusDampingScale,
+                                      2.0*impedance.corpusDampingScale};
+            modes[1].shape={1.0,-1.0};
+            if(!core_.setBodyModes(modes))return false;
+        }
         h_=1.0/sampleRate;reset();return true;
     }
     void reset()noexcept{
