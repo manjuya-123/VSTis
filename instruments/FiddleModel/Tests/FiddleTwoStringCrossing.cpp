@@ -35,8 +35,8 @@ bool runCrossing(const char* path,bool requireTonalPitch=false){
     TwoStringFiddleBridge::Gesture gesture;
     gesture.bowSpeed=0.22;gesture.normalForce=0.30;
     std::vector<float> sound;sound.reserve(total);
-    std::array<std::vector<float>,2> stringVelocities,bowForceTraces;
-    for(int j=0;j<2;++j){stringVelocities[j].reserve(total);bowForceTraces[j].reserve(total);}
+    std::array<std::vector<float>,2> stringVelocities,bowForceTraces,portVelocities;
+    for(int j=0;j<2;++j){stringVelocities[j].reserve(total);bowForceTraces[j].reserve(total);portVelocities[j].reserve(total);}
     double worstLedger=0,worstRoot=0,minHairDiss=0;
     double peak=0,peakBridge=0,peakEnergy=0;
     double aNormalSum=0,eNormalSum=0;
@@ -73,6 +73,7 @@ bool runCrossing(const char* path,bool requireTonalPitch=false){
         for(int j=0;j<2;++j){
             stringVelocities[j].push_back(float(vs[j]));
             bowForceTraces[j].push_back(float(fb[j]));
+            portVelocities[j].push_back(float(model.mechanics().bridgeVelocity(j)));
         }
     }
     if(sound.size()!=total)ok=false;
@@ -100,6 +101,32 @@ bool runCrossing(const char* path,bool requireTonalPitch=false){
     const double contactE659=lockIn(stringVelocities[1],1.2,1.7,659.2551138257);
     const double forceE440=lockIn(bowForceTraces[1],1.2,1.7,440.0);
     const double forceE659=lockIn(bowForceTraces[1],1.2,1.7,659.2551138257);
+    // Is the previous E note still stored in the E string, or is its
+    // bridge-coupled signature stronger than the freshly bowed A string?
+    const double portAReturnA=lockIn(portVelocities[0],2.25,2.75,440.0);
+    const double portAReturnE=lockIn(portVelocities[0],2.25,2.75,659.2551138257);
+    const double portEReturnA=lockIn(portVelocities[1],2.25,2.75,440.0);
+    const double portEReturnE=lockIn(portVelocities[1],2.25,2.75,659.2551138257);
+    const double contactAReturnA=lockIn(stringVelocities[0],2.25,2.75,440.0);
+    const double contactAReturnE=lockIn(stringVelocities[0],2.25,2.75,659.2551138257);
+    const double contactEReturnE=lockIn(stringVelocities[1],2.25,2.75,659.2551138257);
+    const double forceAReturnA=lockIn(bowForceTraces[0],2.25,2.75,440.0);
+    double forceEReturnRms=0.0,forceAReturnRms=0.0;
+    for(int i=int(2.25*rate);i<int(2.75*rate);++i){
+        forceAReturnRms+=bowForceTraces[0][std::size_t(i)]*bowForceTraces[0][std::size_t(i)];
+        forceEReturnRms+=bowForceTraces[1][std::size_t(i)]*bowForceTraces[1][std::size_t(i)];
+    }
+    forceEReturnRms=std::sqrt(forceEReturnRms/(0.5*rate));
+    forceAReturnRms=std::sqrt(forceAReturnRms/(0.5*rate));
+    std::cout<<"return A diagnostic: A-port [440,659]=["<<portAReturnA
+             <<","<<portAReturnE<<"] E-port=["<<portEReturnA
+             <<","<<portEReturnE<<"] bow-contact A string [440,659]=["
+             <<contactAReturnA<<","<<contactAReturnE
+             <<"] E-string 659="<<contactEReturnE
+             <<" A-bow force 440="<<forceAReturnA
+             <<" bow force RMS A/E="<<forceAReturnRms<<"/"
+             <<forceEReturnRms<<"\n";
+
     std::cout<<"E-bow stage spectral bridge A440="<<bridgeE440
              <<" E659="<<bridgeE659
              <<" ; E-string velocity A440="<<contactE440
@@ -139,6 +166,38 @@ bool runCrossing(const char* path,bool requireTonalPitch=false){
     std::cout<<(ok?"TWO-STRING CROSSING NUMERICS PASS\n":
                     "TWO-STRING CROSSING NUMERICS FAIL\n");
     return ok&&(!requireTonalPitch||pitchGate);
+}
+bool independentAOnlyProbe(const char* path){
+    TwoStringFiddleBridge m;if(!m.prepare(48000))return false;
+    TwoStringFiddleBridge::Gesture g;g.crossing=0;g.bowSpeed=0.22;g.normalForce=0.30;
+    constexpr int rate=48000,total=2*rate;
+    std::vector<float> bridge;bridge.reserve(total);
+    double aReal=0,aImag=0,eReal=0,eImag=0;
+    double vAReal=0,vAImag=0,forceASum=0.0,peak=0.0;
+    for(int i=0;i<total;++i){
+        const double y=m.step(g);
+        const auto v=m.stringBowVelocities();
+        const auto F=m.bowForces();
+        bridge.push_back(float(y));peak=std::max(peak,std::abs(y));
+        if(i>=rate){
+            const double t=double(i-rate)/rate;
+            const double phaseA=6.283185307179586*440.0*t;
+            const double phaseE=6.283185307179586*659.2551138257*t;
+            aReal+=y*std::cos(phaseA);aImag+=y*std::sin(phaseA);
+            eReal+=y*std::cos(phaseE);eImag+=y*std::sin(phaseE);
+            vAReal+=v[0]*std::cos(phaseA);vAImag+=v[0]*std::sin(phaseA);
+            forceASum+=std::abs(F[0]);
+        }
+    }
+    std::cout<<"A-only after 1s: bridge A440="<<2*std::hypot(aReal,aImag)/rate
+             <<" bridge E659="<<2*std::hypot(eReal,eImag)/rate
+             <<" A-string bow contact A440="<<2*std::hypot(vAReal,vAImag)/rate
+             <<" mean A bow force="<<forceASum/rate<<"\n";
+    if(path&&peak>0){
+        for(auto& y:bridge)y=float(y*0.6/peak);
+        return writeWave(path,bridge);
+    }
+    return std::isfinite(forceASum);
 }
 bool independentEOnlyProbe(const char* path){
     TwoStringFiddleBridge m;if(!m.prepare(48000))return false;
@@ -187,8 +246,12 @@ int main(int argc,char** argv){
         else path.clear();
         path+="two_string_E_only_bridge_velocity_NOT_violin.wav";
         ok=independentEOnlyProbe(path.c_str())&&ok;
+        path=path.substr(0,path.find_last_of("/\\")+1);
+        path+="two_string_A_only_bridge_velocity_NOT_violin.wav";
+        ok=independentAOnlyProbe(path.c_str())&&ok;
     }else{
         ok=independentEOnlyProbe(nullptr)&&ok;
+        ok=independentAOnlyProbe(nullptr)&&ok;
     }
     return ok?EXIT_SUCCESS:EXIT_FAILURE;
 }
