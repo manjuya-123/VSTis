@@ -18,7 +18,17 @@ public:
         double fingerAHz=440.0,fingerEHz=659.2551138257;
         double fingerLoadA=0.0,fingerLoadE=0.0;
     };
-    bool prepare(double sampleRate)noexcept{
+    // Explicit exploratory bridge impedance parameters. They are not
+    // instrument-fit values; defaults reproduce the current failed tonal gate.
+    struct BridgeImpedance {
+        double portMassKg=0.001;
+        double groundingStiffnessNpm=200000.0;
+        double groundingDampingNspm=5.0;
+        double rockingStiffnessNpm=200000.0;
+        double rockingDampingNspm=5.0;
+        double stringBulkDampingPerSecond=0.55;
+    };
+    bool prepare(double sampleRate,BridgeImpedance impedance={})noexcept{
         std::array<Core::StringSpec,2> specs{};
         const std::array<double,2> open{440.0,659.2551138257};
         for(int i=0;i<2;++i){
@@ -28,12 +38,16 @@ public:
             // Small intrinsic string loss only. Overall observed decay must
             // emerge from a fitted bridge/body radiation model, rather than
             // being imposed as uniform bulk-string damping.
-            specs[i].lossPerSecond=0.55;
+            specs[i].lossPerSecond=impedance.stringBulkDampingPerSecond;
         }
         // Two distinct bowing-side bridge contact coordinates, with a passive
         // elastic rocker between them. This is not a fitted violin body.
         if(!core_.prepare(sampleRate,specs,
-                          0.001,200000.0,5.0,200000.0,5.0))return false;
+                          impedance.portMassKg,
+                          impedance.groundingStiffnessNpm,
+                          impedance.groundingDampingNspm,
+                          impedance.rockingStiffnessNpm,
+                          impedance.rockingDampingNspm))return false;
         h_=1.0/sampleRate;reset();return true;
     }
     void reset()noexcept{
