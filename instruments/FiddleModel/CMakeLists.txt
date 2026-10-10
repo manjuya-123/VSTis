@@ -285,3 +285,21 @@ if (BUILD_TESTING)
                 ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/one_string_bridge_reaction_probe.wav
     )
 endif()
+
+# Prototype only: continuous two-string A/E bow crossing, no legacy DSP.
+if (BUILD_TESTING)
+    add_executable(FiddleTwoStringCrossing
+        Tests/FiddleTwoStringCrossing.cpp
+        Source/Rebuild/TwoStringFiddleBridge.h
+    )
+    target_link_libraries(FiddleTwoStringCrossing PRIVATE vstis_physical_core)
+    target_include_directories(FiddleTwoStringCrossing PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+    )
+    target_compile_features(FiddleTwoStringCrossing PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleTwoStringCrossing
+        COMMAND FiddleTwoStringCrossing
+            ${CMAKE_CURRENT_BINARY_DIR}/rebuild-audio/two_string_A_E_A_bridge_velocity_NOT_violin.wav
+    )
+endif()
