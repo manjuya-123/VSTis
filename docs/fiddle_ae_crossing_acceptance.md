@@ -123,3 +123,45 @@ transfer as three different physical subsystems. See Sterling & Bocko,
 "Empirical Physical Modeling for Bowed String Instruments" (2010),
 DOI:10.1109/ICASSP.2010.5495754, and Smith,
 "Physical Audio Signal Processing", section 9.5.2.
+
+## Corrected diagnosis: stored energy versus the spectral bridge output
+
+The two-string decay experiment measured mechanical energy at every
+step, instead of only the frequency balance at the **sum of bridge-foot
+velocities**. In the baseline A->E->A scenario:
+
+- E-string energy at 1.8 s (start of reverse crossing): **5.19088e-5 J**.
+- E-string energy at 2.05 s (bow now entirely on A): **3.32666e-5 J**.
+- E-string energy at 2.75 s: **1.43227e-5 J** (27.6% of 1.8-s value).
+- A-string energy at 2.75 s: **2.48048e-5 J**, higher than E.
+- Total bridge-plus-body passive damping over 1.8–2.75 s:
+  **7.63538e-5 J**. This is loss from the *whole coupled system*,
+  not attributed to either single string.
+
+This **corrects the preliminary diagnosis** that the problem is simply
+insufficient E-string decay. The E string has already lost most of its
+energy and has less energy than A at 2.75 s, yet the bridge's **summed
+mechanical velocity** has a dominant 659-Hz component instead of
+the re-bowed 440-Hz component. The radiation/bridge observation
+operator is therefore crucial, as well as string decay and bow
+excitation. The instrument does not currently implement *measured*
+violin radiativity.
+
+An independent two-mode passive corpus parameter trial (symmetric
+and rocking motion, three modal loss scales) also failed A/E/A pitch
+dominance. More viscous damping can suppress the ringing E string
+but often suppresses E while it is deliberately bowed. None was
+accepted as a fix.
+
+The diagnostics now separately examine symmetric bridge velocity,
+rocking bridge velocity and both internal body-mode velocities; they
+are not automatically summed and called a physically radiated violin
+sound. Tonal gating also requires a provisional nonzero mechanical
+fundamental floor to prevent silent configurations being declared
+successful by spectral ratios alone.
+
+**Next physics priority**: identify or measure bridge driving-point
+admittance and body radiation separately; introduce two transverse
+string polarizations and a more complete hair-string contact before
+VST3 replacement. Continue failing the A/E/A tone gate until both
+directions are stable.
