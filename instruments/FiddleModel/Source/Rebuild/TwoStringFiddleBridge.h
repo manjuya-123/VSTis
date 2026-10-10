@@ -25,7 +25,10 @@ public:
             specs[i].length=length;
             specs[i].tension=48.0;
             specs[i].linearDensity=48.0/std::pow(2.0*length*open[i],2.0);
-            specs[i].lossPerSecond=0.55;
+            // Preliminary loss estimate from a measured violin open D decay
+            // time constant (~0.448 s), i.e. envelope exp(-loss*t/2).
+            // A and E require their own measurements before tone acceptance.
+            specs[i].lossPerSecond=4.5;
         }
         // Two distinct bowing-side bridge contact coordinates, with a passive
         // elastic rocker between them. This is not a fitted violin body.
