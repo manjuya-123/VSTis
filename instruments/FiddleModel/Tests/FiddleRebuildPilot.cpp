@@ -67,7 +67,7 @@ bool movingFingerTest(double hz){
 }
 
 bool evaluateContactTone(const char* path){
-    BowedStringPilot s;if(!s.prepare(48000,440))return;
+    BowedStringPilot s;if(!s.prepare(48000,440))return false;
     Gesture g;g.bowSpeed=0.23;g.normalForce=0.30;
     g.fingerX=s.fingerPositionForFrequency(493.8833);
     std::vector<float> samples;samples.reserve(144000);
