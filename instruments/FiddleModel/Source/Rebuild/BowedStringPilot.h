@@ -16,7 +16,8 @@ public:
     using String=physical::ImplicitString1D;
     bool prepare(double rate,double openHz,double length=0.328,double tension=48.0)noexcept {
         if(!(openHz>0))return false;
-        open_=openHz;length_=length;sticking_=false;\n        bristleDeflection_=0.0;
+        open_=openHz;length_=length;sticking_=false;
+        bristleDeflection_=0.0;
         const double density=tension/std::pow(2*length*openHz,2);
         return string_.prepare(rate,length,tension,density,0.55);
     }
@@ -82,6 +83,7 @@ public:
 private:
     String string_{};
     double open_=440.0,length_=0.328;
-    bool sticking_=false;\n    double bristleDeflection_=0.0;
+    bool sticking_=false;
+    double bristleDeflection_=0.0;
 };
 }
