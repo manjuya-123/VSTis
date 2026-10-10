@@ -143,7 +143,9 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
             &&bridgeAReturn440>2.0*bridgeAReturn659;
     std::cout<<"bridge parameter trial ground C="<<impedance.groundingDampingNspm
              <<" link C="<<impedance.rockingDampingNspm
-             <<" string loss="<<impedance.stringBulkDampingPerSecond<<"\n";
+             <<" string loss="<<impedance.stringBulkDampingPerSecond
+             <<" corpus="<<impedance.enableExploratoryCorpusModes
+             <<" corpus loss scale="<<impedance.corpusDampingScale<<"\n";
     std::cout<<"A-E-A tonal gate (bridge fundamentals, not human acceptance): "
              <<"first A440="<<bridgeAFirst440
              <<", E659="<<bridgeE659
@@ -248,6 +250,16 @@ int main(int argc,char** argv){
             parameters.groundingDampingNspm=groundC;
             std::cout<<"=== PASSIVE BRIDGE ADMITTANCE TRIAL C="
                      <<groundC<<" ===\n";
+            allNumerics=runCrossing(nullptr,false,parameters)&&allNumerics;
+        }
+        // Next compare a time-domain passive modal bridge/body network
+        // instead of further inflating a constant damper coefficient.
+        for(const double dampingScale : {0.25,1.0,4.0}){
+            auto parameters=TwoStringFiddleBridge::BridgeImpedance{};
+            parameters.enableExploratoryCorpusModes=true;
+            parameters.corpusDampingScale=dampingScale;
+            std::cout<<"=== TWO CORPUS MODES, LOSS SCALE="
+                     <<dampingScale<<" ===\n";
             allNumerics=runCrossing(nullptr,false,parameters)&&allNumerics;
         }
         return allNumerics?EXIT_SUCCESS:EXIT_FAILURE;
