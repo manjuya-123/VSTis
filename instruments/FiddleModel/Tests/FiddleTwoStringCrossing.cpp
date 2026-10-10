@@ -36,8 +36,8 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
     TwoStringFiddleBridge::Gesture gesture;
     gesture.bowSpeed=0.22;gesture.normalForce=0.30;
     std::vector<float> sound;sound.reserve(total);
-    std::array<std::vector<float>,2> stringVelocities,bowForceTraces,portVelocities;
-    for(int j=0;j<2;++j){stringVelocities[j].reserve(total);bowForceTraces[j].reserve(total);portVelocities[j].reserve(total);}
+    std::array<std::vector<float>,2> stringVelocities,bowForceTraces,portVelocities,bodyVelocities;
+    for(int j=0;j<2;++j){stringVelocities[j].reserve(total);bowForceTraces[j].reserve(total);portVelocities[j].reserve(total);bodyVelocities[j].reserve(total);}
     double worstLedger=0,worstRoot=0,minHairDiss=0;
     double peak=0,peakBridge=0,peakEnergy=0;
     // Physical decay diagnostics are distinct from pitch spectrum and must
@@ -96,6 +96,7 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
             stringVelocities[j].push_back(float(vs[j]));
             bowForceTraces[j].push_back(float(fb[j]));
             portVelocities[j].push_back(float(model.mechanics().bridgeVelocity(j)));
+            bodyVelocities[j].push_back(float(model.mechanics().bodyModeVelocity(j)));
         }
     }
     if(sound.size()!=total)ok=false;
@@ -125,6 +126,27 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
     const double forceE659=lockIn(bowForceTraces[1],1.2,1.7,659.2551138257);
     // Is the previous E note still stored in the E string, or is its
     // bridge-coupled signature stronger than the freshly bowed A string?
+    std::vector<float> bounce(total),rocking(total);
+    for(int i=0;i<total;++i){
+        bounce[i]=0.5f*(portVelocities[0][std::size_t(i)]+
+                        portVelocities[1][std::size_t(i)]);
+        rocking[i]=0.5f*(portVelocities[0][std::size_t(i)]-
+                         portVelocities[1][std::size_t(i)]);
+    }
+    const double bounceA=lockIn(bounce,2.25,2.75,440.0);
+    const double bounceE=lockIn(bounce,2.25,2.75,659.2551138257);
+    const double rockingA=lockIn(rocking,2.25,2.75,440.0);
+    const double rockingE=lockIn(rocking,2.25,2.75,659.2551138257);
+    const double modeBounceA=lockIn(bodyVelocities[0],2.25,2.75,440.0);
+    const double modeBounceE=lockIn(bodyVelocities[0],2.25,2.75,659.2551138257);
+    const double modeRockingA=lockIn(bodyVelocities[1],2.25,2.75,440.0);
+    const double modeRockingE=lockIn(bodyVelocities[1],2.25,2.75,659.2551138257);
+    std::cout<<"returned A bridge radiation candidates [A440,E659]:"
+             <<" symmetric ["<<bounceA<<","<<bounceE<<"]"
+             <<" antisymmetric ["<<rockingA<<","<<rockingE<<"]"
+             <<" corpus mode0 ["<<modeBounceA<<","<<modeBounceE<<"]"
+             <<" corpus mode1 ["<<modeRockingA<<","<<modeRockingE
+             <<"] (mechanical velocities, not calibrated acoustics)\n";
     const double portAReturnA=lockIn(portVelocities[0],2.25,2.75,440.0);
     const double portAReturnE=lockIn(portVelocities[0],2.25,2.75,659.2551138257);
     const double portEReturnA=lockIn(portVelocities[1],2.25,2.75,440.0);
@@ -159,9 +181,15 @@ bool runCrossing(const char* path,bool requireTonalPitch=false,
     // solver: a model can conserve energy while audibly playing the WRONG
     // string. It must FAIL, rather than be called fixed, until each segment
     // is led by its requested open-string fundamental.
+    // Absolute mechanical floor prevents "passing" by suppressing ALL
+    // sound. The threshold is provisional, not a calibrated SPL limit.
+    constexpr double minimumBridgeFundamental=1.e-5;
     const bool pitchGate=bridgeAFirst440>2.0*bridgeAFirst659
             &&bridgeE659>2.0*bridgeE440
-            &&bridgeAReturn440>2.0*bridgeAReturn659;
+            &&bridgeAReturn440>2.0*bridgeAReturn659
+            &&bridgeAFirst440>minimumBridgeFundamental
+            &&bridgeE659>minimumBridgeFundamental
+            &&bridgeAReturn440>minimumBridgeFundamental;
     std::cout<<"bridge parameter trial ground C="<<impedance.groundingDampingNspm
              <<" link C="<<impedance.rockingDampingNspm
              <<" string loss="<<impedance.stringBulkDampingPerSecond
