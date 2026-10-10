@@ -59,7 +59,8 @@ bool runCrossing(const char* path){
         worstRoot=std::max(worstRoot,model.rootResidual());
         minHairDiss=std::min(minHairDiss,model.hairDissipation());
         peak=std::max(peak,std::abs(velocity));
-        peakBridge=std::max(peakBridge,std::abs(model.mechanics().bridgePosition()));
+        peakBridge=std::max(peakBridge,std::max(std::abs(model.mechanics().bridgePosition(0)),
+                                   std::abs(model.mechanics().bridgePosition(1))));
         peakEnergy=std::max(peakEnergy,model.mechanics().energy());
         if(!std::isfinite(velocity)||!std::isfinite(peakEnergy)||
            peakEnergy>0.1||std::abs(velocity)>20.0||worstLedger>1e-8||
