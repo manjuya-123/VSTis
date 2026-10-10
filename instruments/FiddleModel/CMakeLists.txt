@@ -314,3 +314,10 @@ if (BUILD_TESTING)
             --pitch-gate
     )
 endif()
+
+# Diagnostic scan of PASSIVE bridge-to-body impedances. Mechanics pass is
+# separate from the intentionally red A/E/A pitch-dominance acceptance gate.
+if (BUILD_TESTING)
+    add_test(NAME FiddleBridgeImpedanceSweep
+             COMMAND FiddleTwoStringCrossing --scan-bridge-impedance)
+endif()
