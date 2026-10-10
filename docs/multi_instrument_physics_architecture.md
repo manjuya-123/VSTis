@@ -71,3 +71,32 @@ Two-Polarisation Physical Model of Bowed Strings with Nonlinear Contact
 and Friction Forces; https://doi.org/10.3390/app6050135 .
 The article motivates an energy-balanced approach; its complete
 two-polarisation model has NOT been implemented or claimed here.
+
+## One-string contact revision after listening feedback
+
+The first one-string rigid-bridge WAV sounded **more** pluck/bell-like.
+The original pilot's static/sliding law jumped between an up-to-1.08*N
+constraint force and a 0.42*N sliding limit without contact compliance.
+Its mechanical diagnostic contained persistent strong 5-20 kHz energy.
+It must not be characterized as realistic bowed fiddle tone.
+
+The new fiddle-specific `BowedStringPilot` instead stores continuous
+bristle deflection, and implements a coupled implicit LuGre/Stribeck-type
+rate law with a speed-dependent grip function. The string's velocity and
+bow traction are solved at the same junction; the shared string mechanics
+remain instrument-neutral.
+
+The tonal diagnostic now rejects otherwise numerically stable behaviour
+which has almost no fundamental, or excessive high-frequency output.
+For the three-stage A4 -> B4 -> A4 one-string pilot, CI #9 measured
+fundamental fractions 0.659, 0.819, 0.314 and high-pass residual 0.124
+(4-kHz, one-pole diagnostic). This is a *mechanical reaction* acceptance
+threshold, not listener or violin-tone acceptance. In the local
+same-probe comparison, the previous pilot's residual was about 0.40 and
+its extracted fundamental fractions only about 0.025, 0.014, 0.038.
+
+**Important unresolved blockers:** the present model is a 1D pilot with
+neither multi-string crossing nor instrument-body radiation. No claim is
+made that the E-string "pon" is gone. Explicitly verify bow/hair stored
+energy and dissipation in the next physics phase; string-only energy
+closure does not prove the contact submodel passive.
