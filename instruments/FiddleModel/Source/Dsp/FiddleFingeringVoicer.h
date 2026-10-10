@@ -1,0 +1,171 @@
+#pragma once
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <functional>
+
+namespace fiddle
+{
+struct FingeringLayout
+{
+    std::array<int, 4> midiNoteByString { -1, -1, -1, -1 };
+    int primaryString = 1;
+    int bowPairLowerString = 1;
+};
+
+inline constexpr std::array<int, 4> openStringMidi { 55, 62, 69, 76 }; // G3 D4 A4 E5
+
+inline float singleStringFocusForLayout(const FingeringLayout& layout,
+                                        std::size_t noteCount) noexcept
+{
+    // In Fiddle Play, one held fingering note means "bow this string", not an
+    // implicit adjacent-string double stop. Keep a little hair compliance by
+    // stopping short of the absolute +/-1 endpoints. Multi-note fingerings
+    // deliberately return centre focus so the physical double-stop geometry
+    // remains available, and Drone Bow can explicitly request centre as well.
+    if (noteCount != 1)
+        return 0.0f;
+
+    if (layout.primaryString == layout.bowPairLowerString)
+        return -0.95f;
+    if (layout.primaryString == layout.bowPairLowerString + 1)
+        return +0.95f;
+    return 0.0f;
+}
+
+inline std::size_t collapseMelodicBowOverlap(
+    std::array<int, 4>& notes,
+    std::size_t noteCount,
+    int newestNote,
+    bool bowActive,
+    bool monophonicPhrase,
+    bool fingeringHold) noexcept
+{
+    noteCount = std::min<std::size_t>(noteCount, notes.size());
+
+    if (bowActive
+        && monophonicPhrase
+        && !fingeringHold
+        && noteCount > 1)
+    {
+        notes.fill(-1);
+        notes[0] = newestNote;
+        return 1;
+    }
+
+    return noteCount;
+}
+
+inline FingeringLayout voiceFingering(const std::array<int, 4>& inputNotes,
+                                      std::size_t noteCount,
+                                      int newestNote,
+                                      int preferredPrimaryString = -1,
+                                      int preferredBowPairLowerString = -1) noexcept
+{
+    FingeringLayout result;
+
+    noteCount = std::min<std::size_t>(noteCount, inputNotes.size());
+    std::array<int, 4> notes = inputNotes;
+    std::sort(notes.begin(), notes.begin() + static_cast<std::ptrdiff_t>(noteCount),
+              std::greater<int>());
+
+    std::array<bool, 4> used { false, false, false, false };
+
+    // For a monophonic phrase, prefer to stay on the current physical string
+    // while the note remains within a practical low-position span. This keeps
+    // e.g. A4 as a fourth-finger note on D instead of forcing an open-A switch.
+    if (noteCount == 1
+        && preferredPrimaryString >= 0
+        && preferredPrimaryString < 4
+        && newestNote >= openStringMidi[static_cast<std::size_t>(preferredPrimaryString)]
+        && newestNote - openStringMidi[static_cast<std::size_t>(preferredPrimaryString)] <= 7)
+    {
+        const auto index = static_cast<std::size_t>(preferredPrimaryString);
+        result.midiNoteByString[index] = newestNote;
+        used[index] = true;
+    }
+
+    for (std::size_t noteIndex = 0; noteIndex < noteCount; ++noteIndex)
+    {
+        const auto note = notes[noteIndex];
+
+        bool alreadyAssigned = false;
+        for (int stringIndex = 0; stringIndex < 4; ++stringIndex)
+            if (result.midiNoteByString[static_cast<std::size_t>(stringIndex)] == note)
+                alreadyAssigned = true;
+
+        if (alreadyAssigned)
+            continue;
+
+        for (int stringIndex = 3; stringIndex >= 0; --stringIndex)
+        {
+            if (!used[static_cast<std::size_t>(stringIndex)]
+                && note >= openStringMidi[static_cast<std::size_t>(stringIndex)])
+            {
+                result.midiNoteByString[static_cast<std::size_t>(stringIndex)] = note;
+                used[static_cast<std::size_t>(stringIndex)] = true;
+                break;
+            }
+        }
+    }
+
+    int newestString = -1;
+    for (int stringIndex = 0; stringIndex < 4; ++stringIndex)
+    {
+        if (result.midiNoteByString[static_cast<std::size_t>(stringIndex)] == newestNote)
+        {
+            newestString = stringIndex;
+            break;
+        }
+    }
+
+    if (newestString < 0)
+    {
+        for (int stringIndex = 3; stringIndex >= 0; --stringIndex)
+        {
+            if (newestNote >= openStringMidi[static_cast<std::size_t>(stringIndex)])
+            {
+                newestString = stringIndex;
+                break;
+            }
+        }
+    }
+
+    result.primaryString = std::clamp(newestString < 0 ? 1 : newestString, 0, 3);
+
+    // Prefer an adjacent pair that actually contains two held/fingered notes.
+    int selectedPair = std::clamp(result.primaryString, 0, 2);
+    // A real bow can cross D -> A without jumping its entire contact
+    // geometry from the D/A pair to the A/E pair. During a monophonic
+    // legato phrase, preserve the current pair whenever the new string is
+    // still one of its two physical strings. Let the existing String Focus
+    // smoother shift the bow across that pair instead of instantaneously
+    // remapping its angle and normal force. Explicit double stops still
+    // choose the pair containing both notes below.
+    if (noteCount == 1
+        && preferredBowPairLowerString >= 0
+        && preferredBowPairLowerString < 3
+        && result.primaryString >= preferredBowPairLowerString
+        && result.primaryString <= preferredBowPairLowerString + 1)
+        selectedPair = preferredBowPairLowerString;
+
+    for (int pair = 0; pair < 3; ++pair)
+    {
+        const bool lowerAssigned =
+            result.midiNoteByString[static_cast<std::size_t>(pair)] >= 0;
+        const bool upperAssigned =
+            result.midiNoteByString[static_cast<std::size_t>(pair + 1)] >= 0;
+
+        if (lowerAssigned && upperAssigned)
+        {
+            selectedPair = pair;
+            if (pair == result.primaryString || pair + 1 == result.primaryString)
+                break;
+        }
+    }
+
+    result.bowPairLowerString = selectedPair;
+    return result;
+}
+} // namespace fiddle

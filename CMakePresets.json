@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "vs2022-x64",
+      "displayName": "Visual Studio 2022 x64",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/vs2022-x64"
+    },
+    {
+      "name": "vs2022-core",
+      "displayName": "Visual Studio 2022 x64 - Core only",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/vs2022-core",
+      "cacheVariables": {
+        "VSTIS_CORE_ONLY": "ON",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "linux-core",
+      "displayName": "Portable core regression build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-core",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VSTIS_CORE_ONLY": "ON",
+        "BUILD_TESTING": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "vs2022-x64", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release" },
+    { "name": "core-release", "configurePreset": "vs2022-core", "configuration": "Release" },
+    { "name": "linux-core-release", "configurePreset": "linux-core" }
+  ]
+}
