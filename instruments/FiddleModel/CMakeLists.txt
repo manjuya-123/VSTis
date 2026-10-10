@@ -114,6 +114,21 @@ if (NOT VSTIS_CORE_ONLY)
 endif()
 
 if (BUILD_TESTING)
+    # Independent, non-JUCE experimental physical core. This MUST NOT
+    # be mistaken for a tonal acceptance test or a change to FiddleEngine.
+    add_executable(FiddleModelPhysicalStringPrototype
+        Tests/FiddlePhysicalStringPrototype.cpp
+        Source/Dsp/experimental/ContinuousStringCore.h
+    )
+    target_include_directories(FiddleModelPhysicalStringPrototype PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+    )
+    target_compile_features(FiddleModelPhysicalStringPrototype PRIVATE cxx_std_17)
+    add_test(
+        NAME FiddleModelPhysicalStringPrototype
+        COMMAND FiddleModelPhysicalStringPrototype
+    )
+
     add_executable(FiddleModelCoreSmoke
         Tests/FiddleEngineSmoke.cpp
         Source/Dsp/FiddleEngine.cpp
